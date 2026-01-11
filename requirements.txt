@@ -1,6 +1,6 @@
 fastapi
 uvicorn
 python-multipart
-langchain-google-genai
+langchain-google-genai>=2.0.0
 langchain-groq
 python-dotenv
