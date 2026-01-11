@@ -15,18 +15,17 @@ load_dotenv()
 # 2. Initialize App
 app = FastAPI()
 
-# 3. Security (CORS) 
+# 3. Updated Security (CORS) 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:3000",
-        "https://billa-rho.vercel.app/"
+        "http://localhost:3000",       # Keep for local testing
+        "https://billa-rho.vercel.app"  # YOUR NEW VERCEL URL
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 # 4. Setup AI Models
 vision_model = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash", 
