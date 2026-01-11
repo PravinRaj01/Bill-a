@@ -28,7 +28,7 @@ app.add_middleware(
 # Vision: Gemini 2.5 Flash (Best free vision model)
 # Note: If "gemini-2.5-flash" errors, switch to "gemini-1.5-flash"
 vision_model = ChatGoogleGenerativeAI(
-    model="gemini-2.0-flash-exp", 
+    model="gemini-1.5-flash", 
     temperature=0,
     google_api_key=os.getenv("GOOGLE_API_KEY")
 )
