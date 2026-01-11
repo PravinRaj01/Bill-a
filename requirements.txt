@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+python-multipart
+langchain-google-genai
+langchain-groq
+python-dotenv
