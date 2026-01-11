@@ -97,9 +97,9 @@ async def scan_receipt(file: UploadFile = File(...)):
 @app.post("/split")
 async def split_bill(request: SplitRequest):
     try:
-        # PROMPT UPDATED: For professional proportional tax calculation
+        # STRICT PROMPT: Forces equal distribution and exact math matching
         prompt = f"""
-        ACT AS A PROFESSIONAL ACCOUNTANT
+        ACT AS A PRECISION BILL CALCULATOR.
         
         INPUTS:
         - PEOPLE: {request.people_list}
@@ -107,19 +107,17 @@ async def split_bill(request: SplitRequest):
         - USER INSTRUCTION: {request.user_instruction}
         - APPLY TAX: {request.apply_tax}
         
-        LOGIC:
-        1. Assign items to people based on the instruction. If an item has quantity > 1 (e.g., 2 Craving Sets), split the quantity according to instructions or equally.
-        2. Calculate the "Subtotal" for each person.
-        3. If APPLY TAX is true, calculate the Tax and Service Charge proportionally. 
-           (Formula: Person's Subtotal / Total Food Subtotal * Total Tax).
-        4. Ensure the sum of all individual totals equals the Receipt Total.
+        STRICT CALCULATION RULES:
+        1. TARGET TOTAL: Identify the 'Net Total' from the receipt (e.g., RM49.40). This is the absolute final sum. All individual shares MUST add up to this exact value.
+        2. NEUTRAL SPLIT: If instructions are empty or say "split equally", you MUST divide every single item quantity by the number of people. (e.g., 1 Butter Chicken for 2 people = 0.5 each). Do NOT assign whole items to different people unless explicitly instructed.
+        3. PROPORTIONAL TAX: If APPLY TAX is true, calculate tax based on the individual's food subtotal percentage.
+        4. ROUNDING: If the sum of individual totals is off by 0.01 or 0.02 due to rounding, adjust the first person's total so the final sum matches the Receipt Total exactly.
         
         OUTPUT FORMAT:
-        Write a brief "Math Log" explaining how you assigned the Craving Sets and calculated the tax.
-        
-        Then, at the very end, provide a JSON array strictly like this:
+        1. "Math Log": A very brief step-by-step of the calculation.
+        2. A JSON array at the VERY END for the table UI:
         [
-          {{"name": "PersonName", "amount": 0.0, "items": "Item A x1, Item B x0.5"}}
+          {{"name": "PersonName", "amount": 0.00, "items": "Item A x0.5, Item B x1"}}
         ]
         """
         response = chat_model.invoke(prompt)
