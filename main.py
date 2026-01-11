@@ -82,4 +82,4 @@ async def scan_receipt(file: UploadFile = File(...)):
         
     except Exception as e:
         print(f"Detailed Error: {e}") # This will show up in Koyeb logs
-        raise HTTPException(status_code=500, detail=str(e))z
+        raise HTTPException(status_code=500, detail=str(e))
