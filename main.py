@@ -1,5 +1,6 @@
 import os
 import json
+import base64  
 from dotenv import load_dotenv
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -52,72 +53,33 @@ def home():
 
 @app.post("/scan")
 async def scan_receipt(file: UploadFile = File(...)):
-    """
-    Takes a photo, sends it to Gemini, returns a clean JSON list of items.
-    """
     try:
         content = await file.read()
         
-        # Strict prompt to force JSON output
+        # Convert image bytes to base64 string
+        base64_image = base64.b64encode(content).decode("utf-8")
+        
         prompt = """
-        Analyze this receipt image. Extract all items, prices, tax, and service charges.
-        Return ONLY a raw JSON object with this exact structure:
-        {
-            "items": [{"name": "item_name", "price": 10.0, "quantity": 1}],
-            "subtotal": 100.0,
-            "tax": 10.0,
-            "service_charge": 5.0,
-            "total": 115.0,
-            "currency": "$"
-        }
-        Do not include markdown formatting like ```json. Just return the raw JSON string.
+        Extract all items, prices, tax, and service charges from this receipt image.
+        Return strictly valid JSON with this format:
+        {"items": [{"name": "item", "price": 0.0, "quantity": 1}], "tax": 0.0, "total": 0.0}
         """
+
+        # Gemini requires a specific data URI format for base64
+        image_data_uri = f"data:{file.content_type};base64,{base64_image}"
 
         msg = HumanMessage(content=[
             {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": file.filename},
-            {"type": "media", "mime_type": file.content_type, "data": content}
+            {
+                "type": "image_url", 
+                "image_url": {"url": image_data_uri}  # This is the fix!
+            }
         ])
         
         response = vision_model.invoke([msg])
+        clean_json = response.content.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean_json)
         
-        # Clean the response just in case the model adds markdown
-        clean_text = response.content.replace("```json", "").replace("```", "").strip()
-        
-        return json.loads(clean_text)
-
     except Exception as e:
-        print(f"Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/split")
-async def calculate_split(req: SplitRequest):
-    """
-    Takes the receipt JSON + "Lim pays for drinks" and calculates the math.
-    """
-    try:
-        system_prompt = """
-        You are a bill splitting assistant. 
-        I will provide the receipt data (JSON) and a User Instruction.
-        
-        RULES:
-        1. Identify who pays for what based on the instruction.
-        2. "Shared" items are split equally among all participants mentioned.
-        3. Tax and Service Charge must be calculated proportionally based on each person's subtotal.
-        4. Return a clean, formatted text summary suitable for copying to WhatsApp.
-        """
-
-        user_message = f"""
-        Receipt Data: {req.receipt_data}
-        User Instruction: {req.user_instruction}
-        """
-
-        response = chat_model.invoke([
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=user_message)
-        ])
-
-        return {"result": response.content}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"Detailed Error: {e}") # This will show up in Koyeb logs
+        raise HTTPException(status_code=500, detail=str(e))z
