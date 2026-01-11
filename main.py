@@ -90,24 +90,28 @@ async def scan_receipt(file: UploadFile = File(...)):
     
 
 
+# In main.py
 @app.post("/split")
 async def split_bill(request: SplitRequest):
     try:
         prompt = f"""
-        ACT AS A PROFESSIONAL BILL SPLITTER.
+        ACT AS A PROFESSIONAL ACCOUNTANT.
+        PEOPLE: {request.people_list}
+        RECEIPT: {request.receipt_data}
+        INSTRUCTION: {request.user_instruction}
         
-        PEOPLE INVOLVED: {request.people_list}
-        RECEIPT DATA (JSON): {request.receipt_data}
-        USER INSTRUCTIONS: {request.user_instruction}
+        GOAL:
+        1. Calculate the final RM amount for each person.
+        2. Assign items based on instructions (default to equal split).
+        3. Proportional tax/service charge application is MANDATORY.
         
-        RULES:
-        1. If no instruction is given, split the Subtotal equally among everyone.
-        2. Assign specific items to specific people as per instructions.
-        3. MANDATORY: Tax and Service Charges MUST be applied PROPORTIONALLY. 
-           (e.g., if Person A's food is 50% of the food total, they pay 50% of the total tax).
-        4. Round totals to 2 decimal places.
-        
-        RETURN: A clean, numbered list for each person and a final "WhatsApp Summary" at the bottom.
+        OUTPUT FORMAT:
+        First, explain your math clearly for the "Math Log".
+        Second, at the VERY END, provide a JSON array strictly like this:
+        [
+          {{"name": "Pravin", "amount": 45.50, "items": "Burger, Beer"}},
+          {{"name": "Lim", "amount": 12.00, "items": "Salad"}}
+        ]
         """
         response = chat_model.invoke(prompt)
         return {"result": response.content}
