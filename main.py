@@ -69,6 +69,7 @@ async def scan_receipt(file: UploadFile = File(...)):
         4. Total Line Price (Quantity * Unit Price)
 
         Also extract:
+        - The Currency Symbol used (e.g., RM, $, SGD, etc.)
         - Total Service Tax (SST) / Service Charge
         - Total Amount of the entire bill
 
@@ -77,6 +78,7 @@ async def scan_receipt(file: UploadFile = File(...)):
           "items": [
             {"name": "ITEM NAME", "quantity": 1, "unit_price": 0.0, "total_price": 0.0}
           ],
+          "currency": "SYMBOL",
           "tax": 0.0,
           "total": 0.0
         }
@@ -99,15 +101,20 @@ async def scan_receipt(file: UploadFile = File(...)):
 @app.post("/split")
 async def split_bill(request: SplitRequest):
     try:
+        # EXTRACT CURRENCY FROM RECEIPT DATA
+        receipt_obj = json.loads(request.receipt_data)
+        curr = receipt_obj.get("currency", "RM")
+
         # STRICT PROMPT: Forces equal distribution and exact math matching
-        prompt = f"""
+        prompt = """
         ACT AS A PRECISION BILL CALCULATOR.
         
         INPUTS:
-        - PEOPLE: {request.people_list}
-        - RECEIPT JSON: {request.receipt_data}
-        - USER INSTRUCTION: {request.user_instruction}
-        - APPLY TAX: {request.apply_tax}
+        - PEOPLE: {people}
+        - RECEIPT JSON: {receipt}
+        - USER INSTRUCTION: {instruction}
+        - APPLY TAX: {tax}
+        - CURRENCY: {currency}
         
         STRICT CALCULATION RULES:
         1. TARGET TOTAL: Identify the 'Net Total' from the receipt (e.g., RM49.40). This is the absolute final sum. All individual shares MUST add up to this exact value.
@@ -121,7 +128,14 @@ async def split_bill(request: SplitRequest):
         [
           {{"name": "PersonName", "amount": 0.00, "items": "Item A x0.5, Item B x1"}}
         ]
-        """
+        """.format(
+            people=request.people_list,
+            receipt=request.receipt_data,
+            instruction=request.user_instruction,
+            tax=request.apply_tax,
+            currency=curr
+        )
+
         response = chat_model.invoke(prompt)
         return {"result": response.content}
     except Exception as e:
