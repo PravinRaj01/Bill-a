@@ -29,7 +29,6 @@ app.add_middleware(
 # 4. Setup AI Models
 vision_model = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash", 
-    api_version="v1",
     temperature=0,
     google_api_key=os.getenv("GOOGLE_API_KEY")
 )
