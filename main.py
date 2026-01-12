@@ -100,38 +100,47 @@ async def scan_receipt(file: UploadFile = File(...)):
 @app.post("/split")
 async def split_bill(request: SplitRequest):
     try:
-        # EXTRACT CURRENCY FROM RECEIPT DATA
         receipt_obj = json.loads(request.receipt_data)
         curr = receipt_obj.get("currency", "RM")
 
-        # STRICT PROMPT: Forces equal distribution and exact math matching
         prompt = """
-        ACT AS A PRECISION BILL CALCULATOR.
+        ACT AS A SENIOR AUDITOR AND PRECISION BILL CALCULATOR.
+        
+        GOAL: Calculate exactly how much each person owes based on the receipt and instructions.
         
         INPUTS:
         - PEOPLE: {people}
-        - RECEIPT JSON: {receipt}
-        - USER INSTRUCTION: {instruction}
-        - APPLY TAX: {tax}
-        - CURRENCY: {currency}
+        - RECEIPT: {receipt}
+        - SPECIAL INSTRUCTIONS: {instruction}
+        - TAX/SERVICE CHARGE INCLUDED: {tax_enabled}
         
-        STRICT CALCULATION RULES:
-        1. TARGET TOTAL: Identify the 'Net Total' from the receipt (e.g., RM49.40). This is the absolute final sum. All individual shares MUST add up to this exact value.
-        2. NEUTRAL SPLIT: If instructions are empty or say "split equally", you MUST divide every single item quantity by the number of people. (e.g., 1 Butter Chicken for 2 people = 0.5 each). Do NOT assign whole items to different people unless explicitly instructed.
-        3. PROPORTIONAL TAX: If APPLY TAX is true, calculate tax based on the individual's food subtotal percentage.
-        4. ROUNDING: If the sum of individual totals is off by 0.01 or 0.02 due to rounding, adjust the first person's total so the final sum matches the Receipt Total exactly.
+        CORE ALGORITHM:
+        1. ASSIGNMENT: Read the 'SPECIAL INSTRUCTIONS'. If an item is assigned to a person, they get 100% of that quantity. For all items NOT mentioned in instructions, divide their quantity equally among ALL people (e.g., 1 item / 4 people = 0.25 each).
+        
+        2. FOOD SUBTOTAL: For each person, sum (Assigned Quantity * Unit Price). This is their 'Raw Food Cost'.
+        
+        3. TAX RATIO: 
+           - Calculate the 'Total Raw Food Cost' of all items.
+           - Calculate the 'Tax/Service Amount' from the receipt (Receipt Total - Total Raw Food Cost).
+           - Tax Percentage = (Tax/Service Amount / Total Raw Food Cost).
+        
+        4. INDIVIDUAL TOTAL: 
+           - If TAX/SERVICE is enabled: Person's Total = Raw Food Cost * (1 + Tax Percentage).
+           - If TAX/SERVICE is disabled: Person's Total = Raw Food Cost.
+        
+        5. FINAL RECONCILIATION: Sum all individual totals. If the sum != Receipt Total, adjust the first person's amount by the difference (usually 0.01 or 0.02) to ensure a 100% match.
         
         OUTPUT FORMAT:
-        1. "Math Log": A very brief step-by-step of the calculation.
-        2. A JSON array at the VERY END for the table UI:
+        - "Math Log": A brief explanation of the Tax % used and who was assigned what.
+        - JSON ARRAY:
         [
-          {{"name": "PersonName", "amount": 0.00, "items": "Item A x0.5, Item B x1"}}
+          {{"name": "Name", "amount": 0.00, "items": "Item A x1, Item B x0.25"}}
         ]
         """.format(
             people=request.people_list,
             receipt=request.receipt_data,
-            instruction=request.user_instruction,
-            tax=request.apply_tax,
+            instruction=request.user_instruction or "No instructions - split everything equally.",
+            tax_enabled=request.apply_tax,
             currency=curr
         )
 
