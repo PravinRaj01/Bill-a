@@ -16,15 +16,18 @@ load_dotenv()
 app = FastAPI()
 
 # 3. Updated Security (CORS) 
+origins = [
+    "http://localhost:3000",                  # For local testing
+    "https://billa-rho.vercel.app",           # Your actual Vercel Production URL
+    "https://billa-rho.vercel.app/",          # Just in case (trailing slash)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",       # Keep for local testing
-        "https://billa-rho.vercel.app"  # YOUR NEW VERCEL URL
-    ],
+    allow_origins=origins,                    # Allow these specific websites
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],                      # Allow all methods (POST, GET, OPTIONS)
+    allow_headers=["*"],                      # Allow all headers
 )
 # 4. Setup AI Models
 vision_model = ChatGoogleGenerativeAI(
