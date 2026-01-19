@@ -15,20 +15,26 @@ load_dotenv()
 # 2. Initialize App
 app = FastAPI()
 
-# 3. Updated Security (CORS) 
+# 3. CORS CONFIGURATION
 origins = [
-    "http://localhost:3000",                  # For local testing
-    "https://billa-rho.vercel.app",           # Your actual Vercel Production URL
-    "https://billa-rho.vercel.app/",          # Just in case (trailing slash)
+    "http://localhost:3000",
+    "https://billa-rho.vercel.app",      # Your exact Vercel URL
+    "https://billa-rho.vercel.app/"      # Trailing slash version
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,                    # Allow these specific websites
+    allow_origins=origins,             # usage of the list above
     allow_credentials=True,
-    allow_methods=["*"],                      # Allow all methods (POST, GET, OPTIONS)
-    allow_headers=["*"],                      # Allow all headers
+    allow_methods=["*"],               # Allow ALL methods (POST, GET, OPTIONS)
+    allow_headers=["*"],               # Allow ALL headers
 )
+# --------------------------
+
+@app.get("/")
+def home():
+    return {"message": "Bill.a Backend is Live"}
+
 # 4. Setup AI Models
 vision_model = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash", 
