@@ -31,10 +31,6 @@ app.add_middleware(
 )
 # --------------------------
 
-@app.get("/")
-def home():
-    return {"message": "Bill.a Backend is Live"}
-
 # 4. Setup AI Models
 vision_model = ChatGoogleGenerativeAI(
     model="gemini-2.5-flash", 
@@ -112,43 +108,34 @@ async def split_bill(request: SplitRequest):
         receipt_obj = json.loads(request.receipt_data)
         curr = receipt_obj.get("currency", "RM")
 
+        # UPDATED PROMPT: Enforces single JSON object output to prevent parsing errors
         prompt = """
-        ACT AS A SENIOR AUDITOR AND PRECISION BILL CALCULATOR.
-        
-        GOAL: Calculate exactly how much each person owes based on the receipt and instructions.
-        
+        ACT AS A SENIOR AUDITOR. Calculate exactly how much each person owes.
+
         INPUTS:
         - PEOPLE: {people}
         - RECEIPT: {receipt}
-        - SPECIAL INSTRUCTIONS: {instruction}
-        - TAX/SERVICE CHARGE INCLUDED: {tax_enabled}
+        - INSTRUCTIONS: {instruction}
+        - TAX/SVC INCLUDED: {tax_enabled}
         
-        CORE ALGORITHM:
-        1. ASSIGNMENT: Read the 'SPECIAL INSTRUCTIONS'. If an item is assigned to a person, they get 100% of that quantity. For all items NOT mentioned in instructions, divide their quantity equally among ALL people (e.g., 1 item / 4 people = 0.25 each).
-        
-        2. FOOD SUBTOTAL: For each person, sum (Assigned Quantity * Unit Price). This is their 'Raw Food Cost'.
-        
-        3. TAX RATIO: 
-           - Calculate the 'Total Raw Food Cost' of all items.
-           - Calculate the 'Tax/Service Amount' from the receipt (Receipt Total - Total Raw Food Cost).
-           - Tax Percentage = (Tax/Service Amount / Total Raw Food Cost).
-        
-        4. INDIVIDUAL TOTAL: 
-           - If TAX/SERVICE is enabled: Person's Total = Raw Food Cost * (1 + Tax Percentage).
-           - If TAX/SERVICE is disabled: Person's Total = Raw Food Cost.
-        
-        5. FINAL RECONCILIATION: Sum all individual totals. If the sum != Receipt Total, adjust the first person's amount by the difference (usually 0.01 or 0.02) to ensure a 100% match.
-        
+        ALGORITHM:
+        1. Parse Instructions: If an item is assigned to a person, they pay 100%. If not mentioned, split equally among ALL.
+        2. Calculate Ratios: Determine the tax/service charge ratio based on the receipt totals.
+        3. Distribute: Apply the tax ratio to each person's raw food cost.
+        4. Reconcile: Ensure the sum of individual totals matches the Receipt Total exactly (adjust pennies on the first person if needed).
+
         OUTPUT FORMAT:
-        - "Math Log": A brief explanation of the Tax % used and who was assigned what.
-        - JSON ARRAY:
-        [
-          {{"name": "Name", "amount": 0.00, "items": "Item A x1, Item B x0.25"}}
-        ]
+        Return ONLY valid JSON. Do not use Markdown blocks.
+        {{
+            "reasoning": "Brief log of the calculation steps and tax ratio used...",
+            "splits": [
+                {{"name": "Person Name", "amount": 0.00, "items": "Item A (x1), Item B (x0.5)"}}
+            ]
+        }}
         """.format(
             people=request.people_list,
             receipt=request.receipt_data,
-            instruction=request.user_instruction or "No instructions - split everything equally.",
+            instruction=request.user_instruction or "Split everything equally.",
             tax_enabled=request.apply_tax,
             currency=curr
         )
