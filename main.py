@@ -51,6 +51,11 @@ class SplitRequest(BaseModel):
     people_list: list
     apply_tax: bool = True  # Toggle for tax inclusion
 
+class ChatRequest(BaseModel):
+    receipt_data: str
+    history: list 
+    user_message: str
+
 # 6. Endpoints
 
 @app.get("/")
@@ -144,4 +149,43 @@ async def split_bill(request: SplitRequest):
         return {"result": response.content}
     except Exception as e:
         print(f"Split Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/chat_modify")
+async def chat_modify_bill(request: ChatRequest):
+    try:
+        # Construct a context-aware prompt
+        prompt = """
+        You are a helpful AI Bill Assistant. You are modifying an existing bill split based on the user's request.
+        
+        CONTEXT:
+        - RECEIPT DATA: {receipt}
+        - CHAT HISTORY: {history}
+        - USER REQUEST: "{message}"
+
+        INSTRUCTIONS:
+        1. Read the User Request and update the split calculations accordingly.
+        2. Keep the math precise.
+        3. Be friendly in your text response.
+
+        OUTPUT FORMAT:
+        Return ONLY valid JSON. Do not use Markdown blocks.
+        {{
+            "reply": "Text response to the user (e.g., 'Sure, I've removed the tax for Tom.')",
+            "splits": [
+                {{"name": "Person Name", "amount": 0.00, "items": "Item A (x1)..."}}
+            ]
+        }}
+        """.format(
+            receipt=request.receipt_data,
+            history=request.history,
+            message=request.user_message
+        )
+
+        response = chat_model.invoke(prompt)
+        clean_json = response.content.replace("```json", "").replace("```", "").strip()
+        return json.loads(clean_json)
+        
+    except Exception as e:
+        print(f"Chat Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
