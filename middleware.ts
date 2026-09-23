@@ -56,6 +56,10 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|auth/callback|auth/login-google|api/scan|api/split).*)',
+    // /dev/* is local diagnostic tooling (e.g. the WebLLM spike page) —
+    // it has no business being auth-gated, and excluding it here means
+    // testing it never depends on Supabase/Neon credentials being
+    // configured at all.
+    '/((?!_next/static|_next/image|favicon.ico|auth/callback|auth/login-google|api/scan|api/split|dev).*)',
   ],
 }

@@ -13,9 +13,10 @@
 // (646 MiB) is the one figure already verified against the HF manifest;
 // the other bake-off candidates (Phase 1) haven't been measured yet.
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { createEngine, isModelCached } from "@/lib/ai/engine-client";
 import { buildAssignmentPlanSchema, type AssignmentPlan } from "@/lib/ai/schemas";
+import { buildSystemPrompt, buildUserPrompt, buildItemMenu } from "@/lib/ai/prompts";
 import type { InitProgressReport, MLCEngineInterface } from "@mlc-ai/web-llm";
 
 const MODEL_ID = "Llama-3.2-1B-Instruct-q4f16_1-MLC";
@@ -70,16 +71,33 @@ export default function WebLLMSpikePage() {
     setPhase("idle");
   }, []);
 
+  // See lib/ai/engine-client.ts's EngineHandle doc comment: the Phase 1
+  // bake-off's re-run proved (not just theorized) that skipping this
+  // disposal step causes 20-30x latency blowups from accumulated,
+  // never-released GPU resources across repeated loads.
+  const disposeRef = useRef<(() => Promise<void>) | null>(null);
+  useEffect(() => {
+    return () => {
+      disposeRef.current?.();
+    };
+  }, []);
+
   const loadModel = useCallback(async () => {
     setPhase("loading");
     setError("");
     try {
+      if (disposeRef.current) {
+        setProgress("Releasing previous model's GPU resources...");
+        await disposeRef.current();
+        disposeRef.current = null;
+      }
       const cached = await isModelCached(MODEL_ID);
       setWasCached(cached);
 
-      const eng = await createEngine(MODEL_ID, (report: InitProgressReport) => {
+      const { engine: eng, dispose } = await createEngine(MODEL_ID, (report: InitProgressReport) => {
         setProgress(report.text);
       });
+      disposeRef.current = dispose;
       setEngine(eng);
       setPhase("ready");
     } catch (e) {
@@ -105,36 +123,19 @@ export default function WebLLMSpikePage() {
     setSentSchema(schemaStr);
     console.log("[spike] schema sent to engine:", schemaStr);
 
-    const menu = SAMPLE_ITEMS.map(
-      (i) => `  [${i.index}] ${i.name} (qty ${i.quantity})`,
-    ).join("\n");
+    const menu = buildItemMenu(SAMPLE_ITEMS);
 
     const messages = [
-      {
-        // WebLLM's JSON mode enforces the grammar during decoding, but the
-        // docs are explicit: you must ALSO describe the schema in the
-        // prompt yourself, or a model can spin generating whitespace until
-        // it hits max_tokens. Restating the exact shape here is not
-        // decorative — it's required. The grammar itself (schema, above)
-        // is what actually bounds itemIndex/people to valid values; this
-        // text is a second, redundant line of defense.
-        role: "system" as const,
-        content:
-          "You assign receipt items to people. You never calculate money. " +
-          "Respond with a single JSON object matching exactly:\n" +
-          '{"assignments":[{"itemIndex":<int>,"people":["<name>",...],"weights":[<number>,...]}],' +
-          '"defaultRule":"equal"|"exclude","notes":"<string>"}\n' +
-          `itemIndex must be one of ${JSON.stringify(candidateIndices)}. ` +
-          `people must be drawn only from ${JSON.stringify(SAMPLE_PEOPLE)}, no duplicates. ` +
-          "Every person named in the instruction must appear in the people list; " +
-          "ignore unknown names. Items not mentioned follow defaultRule. " +
-          '"weights" is optional and parallel to "people"; omit it for an even share. ' +
-          "Emit each item index at most once.",
-      },
-      {
-        role: "user" as const,
-        content: `PEOPLE: ${JSON.stringify(SAMPLE_PEOPLE)}\n\nCANDIDATE ITEMS (index, name, quantity):\n${menu}\n\nINSTRUCTION: ${JSON.stringify(SAMPLE_INSTRUCTION)}`,
-      },
+      // WebLLM's JSON mode enforces the grammar during decoding, but the
+      // docs are explicit: you must ALSO describe the schema in the
+      // prompt yourself, or a model can spin generating whitespace until
+      // it hits max_tokens. The grammar itself (schema, above) is what
+      // actually bounds itemIndex/people/weights to valid shapes; the
+      // shared prompt in lib/ai/prompts.ts is a second, necessary line of
+      // defense — and, per the Phase 1 bake-off, also where the
+      // weights-vs-quantity confusion fix lives.
+      { role: "system" as const, content: buildSystemPrompt(candidateIndices, SAMPLE_PEOPLE) },
+      { role: "user" as const, content: buildUserPrompt(SAMPLE_PEOPLE, menu, SAMPLE_INSTRUCTION) },
     ];
 
     try {

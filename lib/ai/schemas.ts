@@ -1,6 +1,7 @@
-// The only shape the LLM is ever allowed to produce. It assigns receipt
-// items to people; it never computes a price. See lib/split/engine.ts
-// (Phase 1) for where the actual arithmetic happens.
+// The schema below encodes the shape of types/domain.ts's AssignmentPlan
+// — the only thing the LLM is ever allowed to produce. It assigns
+// receipt items to people; it never computes a price. See
+// lib/split/engine.ts for where the actual arithmetic happens.
 //
 // The schema is built PER REQUEST, bounded to the actual candidate items
 // and people list. This isn't cosmetic: WebLLM enforces the JSON schema
@@ -23,6 +24,22 @@
 // either validate-and-reject in split-orchestrator.ts before handing the
 // plan to computeSplit(), or determine XGrammar's actual draft support
 // and tighten this further.
+//
+// Deliberately NOT in this schema: a `weights` field. The Phase 1 model
+// bake-off tested it across two rounds — the second with an explicit
+// worked counter-example in the system prompt targeting exactly this
+// failure — and every model that produced valid JSON (Llama-3.2-1B,
+// Qwen2.5-1.5B, from two different model families) independently
+// hallucinated weights that mirror the item's receipt `quantity` field
+// rather than a genuine split ratio, even on the simplest possible case
+// ("split equally", one item). Two families, byte-identical failure
+// pattern, unmoved by a direct counter-example: that's a schema/model-
+// size mismatch, not a prompting problem. computeSplit() (lib/split/
+// engine.ts) and the Assignment type (types/domain.ts) both still
+// support weighted shares structurally — that capability isn't gone,
+// it's just not exposed to the LLM's output space in v1. Custom ratios
+// become an explicit, deterministic UI control later instead of an
+// inference target for a 1-2B model.
 export function buildAssignmentPlanSchema(candidateIndices: number[], peopleNames: string[]) {
   return {
     type: "object",
@@ -41,11 +58,6 @@ export function buildAssignmentPlanSchema(candidateIndices: number[], peopleName
               maxItems: peopleNames.length,
               uniqueItems: true,
             },
-            weights: {
-              type: "array",
-              items: { type: "number", minimum: 0 },
-              maxItems: peopleNames.length,
-            },
           },
           required: ["itemIndex", "people"],
         },
@@ -57,8 +69,9 @@ export function buildAssignmentPlanSchema(candidateIndices: number[], peopleName
   } as const;
 }
 
-export interface AssignmentPlan {
-  assignments: Array<{ itemIndex: number; people: string[]; weights?: number[] }>;
-  defaultRule: "equal" | "exclude";
-  notes: string;
-}
+// Re-exported so call sites can `import { buildAssignmentPlanSchema, type
+// AssignmentPlan } from "@/lib/ai/schemas"` without also reaching into
+// types/domain — but the canonical definition lives there, alongside
+// Receipt/SplitResult/SplitReconciliationError, so there's one source of
+// truth instead of two interfaces that can silently drift apart.
+export type { AssignmentPlan } from "@/types/domain";
