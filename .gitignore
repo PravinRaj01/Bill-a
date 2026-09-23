@@ -39,3 +39,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# legacy python backend (archived, not deployed — see legacy/python-backend/)
+legacy/python-backend/.env
+legacy/python-backend/venv/
+legacy/python-backend/__pycache__/
