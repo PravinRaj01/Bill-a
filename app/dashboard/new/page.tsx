@@ -15,6 +15,7 @@ import { getCurrentUser } from "@/lib/actions/user";
 import { getGroup, listGroups, saveGroup, updateGroupNames } from "@/lib/actions/groups";
 import { nextSessionTitle } from "@/lib/actions/history";
 import { enqueueBill } from "@/lib/sync/outbox";
+import { inferMerchantCategory } from "@/lib/ai/merchantCategory";
 import { receiptToDomain, splitsToDomain, toCents } from "@/lib/money";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -373,14 +374,17 @@ function BillSplitterContent() {
      // This page still works in RM floats (Phase 6 makes it cents-native), while
      // the database stores integer cents in one standard shape — convert here.
      try {
+         const receipt = receiptToDomain(items!);
          await enqueueBill(user?.id ?? null, {
              clientId: sessionClientId,
              billTitle: finalTitle,
+             // No merchant name is scanned yet, so this is inferred from the items.
+             merchantCategory: inferMerchantCategory(null, receipt.items),
              totalAmount: toCents(displayedTotal),
              currency: symbol,
              data: {
                  split: splitsToDomain(splitData),
-                 items: receiptToDomain(items!),
+                 items: receipt,
                  people,
                  reasoning: log,
              },
