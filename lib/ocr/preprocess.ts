@@ -18,6 +18,24 @@ export function fitWithin(w: number, h: number, max = MAX_EDGE): { width: number
   return { width: Math.max(1, Math.round(w * k)), height: Math.max(1, Math.round(h * k)) };
 }
 
+/** Photos whose long edge is below this are "low resolution": the text is only a few pixels tall. */
+export const LOW_RES_EDGE = 700;
+/** ...and are enlarged to this for the OCR engine (tesseract wants text lines ~20+ px tall). */
+export const ENLARGE_TO = 1400;
+
+/**
+ * Size to feed the OCR engine. Normal photos are used as-is (see fitWithin); a tiny one
+ * is enlarged, because measured on a 338x450 receipt, tesseract read almost nothing at
+ * native size and most of it at 3x. Enlarging EVERYTHING was tried on the benchmark and was
+ * a wash (raw text improved, exact totals dipped 12 -> 11 of 18), so only tiny photos are touched.
+ */
+export function ocrSizeFor(w: number, h: number): { width: number; height: number; enlarged: boolean } {
+  const longest = Math.max(w, h);
+  if (longest >= LOW_RES_EDGE) return { ...fitWithin(w, h), enlarged: false };
+  const k = ENLARGE_TO / longest;
+  return { width: Math.round(w * k), height: Math.round(h * k), enlarged: true };
+}
+
 /**
  * In-place greyscale + percentile contrast stretch on RGBA pixels: luminance is
  * remapped so the darkest 1% maps to 0 and the brightest 1% to 255. Faded thermal
@@ -55,6 +73,14 @@ export interface PreparedImage {
   forOcr: Blob;
   width: number;
   height: number;
+  /** Pixel size of `forOcr` (differs from width/height only when a tiny photo was enlarged). */
+  ocrWidth: number;
+  ocrHeight: number;
+  /** The photo was too small to read reliably, however well we enlarge it. */
+  lowRes: boolean;
+  /** The original photo's size in pixels, for the "this photo is small" message. */
+  sourceWidth: number;
+  sourceHeight: number;
   /** Size of the file the user picked, for the "we shrank this" UI. */
   originalBytes: number;
 }
@@ -101,12 +127,34 @@ export async function prepareImage(file: Blob): Promise<PreparedImage> {
 
     const display = await toJpeg(canvas);
 
-    const pixels = ctx.getImageData(0, 0, width, height);
+    // The OCR copy: greyscale + contrast stretch, and enlarged first if the photo is tiny.
+    const ocr = ocrSizeFor(bitmap.width, bitmap.height);
+    let ocrCanvas = canvas;
+    let ocrCtx = ctx;
+    if (ocr.enlarged) {
+      ocrCanvas = makeCanvas(ocr.width, ocr.height);
+      ocrCtx = ocrCanvas.getContext("2d", { willReadFrequently: true }) as typeof ctx;
+      if (!ocrCtx) throw new Error("This browser can't process images.");
+      ocrCtx.imageSmoothingQuality = "high";
+      ocrCtx.drawImage(bitmap, 0, 0, ocr.width, ocr.height);
+    }
+    const pixels = ocrCtx.getImageData(0, 0, ocr.width, ocr.height);
     greyscaleStretch(pixels.data);
-    ctx.putImageData(pixels, 0, 0);
-    const forOcr = await toJpeg(canvas);
+    ocrCtx.putImageData(pixels, 0, 0);
+    const forOcr = await toJpeg(ocrCanvas);
 
-    return { display, forOcr, width, height, originalBytes: file.size };
+    return {
+      display,
+      forOcr,
+      width,
+      height,
+      ocrWidth: ocr.width,
+      ocrHeight: ocr.height,
+      lowRes: ocr.enlarged,
+      sourceWidth: bitmap.width,
+      sourceHeight: bitmap.height,
+      originalBytes: file.size,
+    };
   } finally {
     bitmap.close();
   }

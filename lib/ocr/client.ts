@@ -84,10 +84,18 @@ export async function scanReceipt(file: Blob, onStage?: (s: ScanStage) => void):
 
     onStage?.("reading");
     const ocr = await reader.recognize(await prepared.forOcr.arrayBuffer(), {
-      width: prepared.width,
-      height: prepared.height,
+      width: prepared.ocrWidth,
+      height: prepared.ocrHeight,
     });
-    return { prepared, ocr, parsed: parseReceiptLines(ocr) };
+    const parsed = parseReceiptLines(ocr);
+    if (prepared.lowRes) {
+      // Enlarging helps, but it can't invent detail. Say so, so the user knows why the read is shaky.
+      parsed.warnings.unshift(
+        `This photo is very small (${prepared.sourceWidth}×${prepared.sourceHeight}), so the text is hard to read. A full-size photo from your camera works much better.`,
+      );
+      parsed.confidence = Math.min(parsed.confidence, 0.55);
+    }
+    return { prepared, ocr, parsed };
   } finally {
     unpin();
   }
