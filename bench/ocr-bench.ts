@@ -15,7 +15,6 @@
 import fs from "node:fs";
 import path from "node:path";
 import sharp from "sharp";
-import { PaddleOcrService, V5_EN_MOBILE_MODEL, V6_SMALL_MODEL, V6_TINY_MODEL } from "ppu-paddle-ocr";
 import { createPaddleEngine } from "../lib/ocr/engines/paddle";
 import { createTesseractEngine } from "../lib/ocr/engines/tesseract";
 import { extractAmounts, parseReceiptLines, type ParsedReceipt } from "../lib/ocr/parse-lines";
@@ -85,17 +84,35 @@ interface Config {
   make: () => OcrEngine;
 }
 
-const paddle = (label: string, model: unknown) =>
-  () => createPaddleEngine(() => new PaddleOcrService({ model } as never) as never, label);
+// PaddleOCR (and the ~250 MB onnxruntime-node it needs) is NOT a project dependency: it
+// lost the benchmark (see bench/results/ocr-bench.md) and would bloat every Vercel build.
+// To re-run its rows:  npm i --no-save ppu-paddle-ocr onnxruntime-node
+const paddle = (label: string, preset: "V6_TINY_MODEL" | "V6_SMALL_MODEL" | "V5_EN_MOBILE_MODEL") =>
+  (): OcrEngine => {
+    let inner: OcrEngine | null = null;
+    return {
+      name: label,
+      async init() {
+        const spec = "ppu-paddle-ocr"; // via a variable so the type-checker doesn't require the package
+        const mod = await import(spec).catch(() => {
+          throw new Error("PaddleOCR benchmarks need:  npm i --no-save ppu-paddle-ocr onnxruntime-node");
+        });
+        inner = createPaddleEngine(() => new mod.PaddleOcrService({ model: mod[preset] }), label);
+        await inner.init();
+      },
+      recognize: (image, size) => inner!.recognize(image, size),
+      dispose: async () => void (await inner?.dispose()),
+    };
+  };
 
 const ENGINES: { id: string; make: () => OcrEngine }[] = [
   { id: "tesseract", make: () => createTesseractEngine() },
-  { id: "paddle-tiny", make: paddle("paddle-tiny", V6_TINY_MODEL) },
-  { id: "paddle-small", make: paddle("paddle-small", V6_SMALL_MODEL) },
-  { id: "paddle-v5-en", make: paddle("paddle-v5-en", V5_EN_MOBILE_MODEL) },
+  { id: "paddle-tiny", make: paddle("paddle-tiny", "V6_TINY_MODEL") },
+  { id: "paddle-small", make: paddle("paddle-small", "V6_SMALL_MODEL") },
+  { id: "paddle-v5-en", make: paddle("paddle-v5-en", "V5_EN_MOBILE_MODEL") },
 ];
 
-const CONFIGS: Config[] = ENGINES.filter((e) => !ONLY || ONLY.includes(e.id)).flatMap((e) =>
+const CONFIGS: Config[] = ENGINES.filter((e) => (ONLY ? ONLY.includes(e.id) : !e.id.startsWith("paddle"))).flatMap((e) =>
   (["plain", "gray"] as Variant[]).map((variant) => ({ id: `${e.id}/${variant}`, variant, make: e.make })),
 );
 

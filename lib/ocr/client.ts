@@ -21,6 +21,29 @@ export interface ScanResult {
 
 let engine: OcrEngine | null = null;
 let ready: Promise<OcrEngine> | null = null;
+// How many things currently need the reader alive (the scan screen is open, a scan is
+// running). The offline-priming step warms the reader and then wants to free its memory,
+// but it must NEVER dispose a reader someone else is using — that raced with a first-time
+// user's scan in the browser test ("tesseract engine not initialised").
+let pins = 0;
+
+/** Keep the reader alive (and start warming it) until the returned function is called. */
+export function pinReceiptReader(): () => void {
+  pins++;
+  warmReceiptReader().catch(() => {});
+  let released = false;
+  return () => {
+    if (!released) {
+      released = true;
+      pins--;
+    }
+  };
+}
+
+/** Frees the reader's memory, but only if nothing is using it. */
+export async function releaseReceiptReaderIfIdle(): Promise<void> {
+  if (pins === 0) await releaseReceiptReader();
+}
 
 /** Start loading the reader in the background (call when the scan screen opens). */
 export function warmReceiptReader(): Promise<OcrEngine> {
@@ -51,16 +74,21 @@ export async function releaseReceiptReader(): Promise<void> {
 }
 
 export async function scanReceipt(file: Blob, onStage?: (s: ScanStage) => void): Promise<ScanResult> {
-  onStage?.("preparing");
-  const prepared = await prepareImage(file);
+  const unpin = pinReceiptReader(); // nothing may dispose the reader while this scan runs
+  try {
+    onStage?.("preparing");
+    const prepared = await prepareImage(file);
 
-  onStage?.("loading-reader");
-  const reader = await warmReceiptReader();
+    onStage?.("loading-reader");
+    const reader = await warmReceiptReader();
 
-  onStage?.("reading");
-  const ocr = await reader.recognize(await prepared.forOcr.arrayBuffer(), {
-    width: prepared.width,
-    height: prepared.height,
-  });
-  return { prepared, ocr, parsed: parseReceiptLines(ocr) };
+    onStage?.("reading");
+    const ocr = await reader.recognize(await prepared.forOcr.arrayBuffer(), {
+      width: prepared.width,
+      height: prepared.height,
+    });
+    return { prepared, ocr, parsed: parseReceiptLines(ocr) };
+  } finally {
+    unpin();
+  }
 }

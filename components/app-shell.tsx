@@ -22,7 +22,12 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
       : []),
   ]
 
-  const handleLogout = () => signOutAction()
+  const handleLogout = () => {
+    // Wipe the offline copies of the app pages before signing out, so nothing tied to this
+    // session is left behind on a shared device.
+    navigator.serviceWorker?.controller?.postMessage({ type: "clear-pages" })
+    return signOutAction()
+  }
 
   return (
     <div className="flex min-h-screen bg-black text-white flex-col">

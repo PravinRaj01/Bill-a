@@ -23,10 +23,13 @@ import { enhanceReceipt } from "@/lib/ai/providers/enhance";
 import { ProviderError } from "@/lib/ai/providers/types";
 import { getKeys, onKeysChanged, type Keys } from "@/lib/ai/keyStore";
 import type { Chip } from "@/lib/split/fallback-parser";
+import { track, trackError } from "@/lib/telemetry/client";
+import { primeOfflinePack } from "@/lib/ocr/prime";
+import { bucketConfidence, bucketItems } from "@/lib/telemetry/events";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { ClarifyChips, type ClarifyAction } from "@/components/ai/ClarifyChips";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { releaseReceiptReader, scanReceipt, warmReceiptReader, type ScanStage } from "@/lib/ocr/client";
+import { pinReceiptReader, releaseReceiptReader, scanReceipt, type ScanStage } from "@/lib/ocr/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
@@ -101,9 +104,16 @@ function BillSplitterContent() {
 
   // Load the (self-hosted) reader while the user is still lining up the photo.
   useEffect(() => {
-    if (step === "SCAN") warmReceiptReader().catch(() => {});
+    // While the scan screen is open the reader stays warm and can't be freed under us.
+    if (step === "SCAN") return pinReceiptReader();
   }, [step]);
   useEffect(() => () => void releaseReceiptReader(), []);
+  // Once per browser, load the reader while online so the service worker can cache it.
+  useEffect(() => {
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback;
+    if (idle) idle(() => void primeOfflinePack());
+    else setTimeout(() => void primeOfflinePack(), 2000);
+  }, []);
 
   useEffect(() => {
     setKeys(getKeys());
@@ -236,8 +246,18 @@ function BillSplitterContent() {
     }
 
     setLoading(true);
+    const scanStarted = performance.now();
     try {
       const { parsed, prepared } = await scanReceipt(file, setScanStage);
+      track({
+        type: "scan",
+        engine: "tesseract",
+        confidence: bucketConfidence(parsed.confidence),
+        items: bucketItems(parsed.items.length),
+        totalSource: parsed.totalSource,
+        warnings: Math.min(parsed.warnings.length, 20),
+        ms: Math.round(performance.now() - scanStarted),
+      });
       setPhoto(prepared.display);
       setEnhanced(false);
       setInstructions([]);
@@ -257,6 +277,7 @@ function BillSplitterContent() {
       setStep("REVIEW");
     } catch (err: any) {
       console.error("Scan Error:", err);
+      trackError("scan", err);
       alert(String(err?.message).startsWith("Couldn't read") ? err.message : "Could not scan that photo. Try again, or add the items by hand.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";
@@ -330,6 +351,7 @@ function BillSplitterContent() {
     if (!items) return;
     setLoading(true);
     setClarify(null);
+    const splitStarted = performance.now();
     try {
       const outcome = await planSplit({
         receipt: receiptToDomain(items),
@@ -354,10 +376,19 @@ function BillSplitterContent() {
       } else if (outcome.kind === "needs-clarification") {
         setClarify({ chips: outcome.chips, preview: outcome.preview, pending: next });
       } else {
+        track({
+          type: "split",
+          tier: outcome.tier,
+          attempts: outcome.attempts.filter((a) => !a.ok).slice(0, 6).map((a) => ({ tier: a.tier, kind: a.kind ?? "network" })),
+          repairs: Math.min(outcome.repairs.length, 50),
+          ms: Math.round(performance.now() - splitStarted),
+          rounds: Math.min(Math.max(next.length, 1), 50),
+        });
         await applySplit(outcome.result, describeTier(outcome), next);
       }
     } catch (err) {
       console.error("Split error:", err);
+      trackError("split", err);
       alert("Something went wrong splitting this. Try rewording, or check the items.");
     } finally {
       setLoading(false);
@@ -400,6 +431,7 @@ function BillSplitterContent() {
     const key = keys.gemini;
     if (!key || !photo) return;
     setEnhancing(true);
+    const enhanceStarted = performance.now();
     try {
       const parsed = await enhanceReceipt(photo, key, { signal: AbortSignal.timeout(45_000) }) // vision on the free tier measured ~15 s;
       setItems(receiptToLegacy(parsed.receipt));
@@ -411,8 +443,10 @@ function BillSplitterContent() {
         printedTotal: parsed.totalSource === "keyword" ? parsed.receipt.total / 100 : null,
       });
       setEnhanced(true);
+      track({ type: "enhance", ok: true, ms: Math.round(performance.now() - enhanceStarted) });
     } catch (err) {
       const kind = err instanceof ProviderError ? err.kind : "network";
+      track({ type: "enhance", ok: false, kind, ms: Math.round(performance.now() - enhanceStarted) });
       alert(
         kind === "auth" ? "Gemini rejected your key. Check it in AI settings."
         : kind === "rate-limit" ? "Gemini is rate-limited right now. Try again in a minute."

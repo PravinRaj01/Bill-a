@@ -41,8 +41,13 @@ const csp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // Native module (prebuilt per platform): keep it out of the server bundle so the Linux
+  // binary that `npm ci` installs on Vercel is the one that gets loaded.
+  serverExternalPackages: ["@node-rs/argon2"],
   async headers() {
     return [
+      // The service worker must always be revalidated, or a bad version could stick.
+      { source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] },
       {
         source: "/:path*",
         headers: [
