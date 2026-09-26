@@ -13,7 +13,8 @@ import {
 } from "@/components/ui/table";
 import { getCurrentUser } from "@/lib/actions/user";
 import { getGroup, listGroups, saveGroup, updateGroupNames } from "@/lib/actions/groups";
-import { nextSessionTitle, saveBill } from "@/lib/actions/history";
+import { nextSessionTitle } from "@/lib/actions/history";
+import { enqueueBill } from "@/lib/sync/outbox";
 import { receiptToDomain, splitsToDomain, toCents } from "@/lib/money";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -59,6 +60,7 @@ function BillSplitterContent() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState(false);
+  const [sessionClientId] = useState(() => crypto.randomUUID());
 
   // GROUP SAVING STATE
   const [saveThisGroup, setSaveThisGroup] = useState(false);
@@ -358,20 +360,21 @@ function BillSplitterContent() {
     }
   };
 
+  // Local-first: a save goes into the IndexedDB outbox and returns at once; the
+  // SyncManager pushes it in the background (and holds it while offline / as a
+  // guest). One clientId per session, so re-calculating updates the same row.
   const attemptSave = async (splitData: any, log: string) => {
-    if (user) {
-        await saveToHistory(splitData, log);
-    }
-  };
-
-  const saveToHistory = async (splitData: any, log: string) => {
-     const finalTitle = sessionName.trim() || (await nextSessionTitle());
+     let finalTitle = sessionName.trim();
+     if (!finalTitle) {
+         // "Session N" needs the server's count; offline we fall back to a date.
+         finalTitle = await nextSessionTitle().catch(() => `Session ${new Date().toLocaleDateString()}`);
+     }
 
      // This page still works in RM floats (Phase 6 makes it cents-native), while
      // the database stores integer cents in one standard shape — convert here.
      try {
-         await saveBill({
-             clientId: crypto.randomUUID(),
+         await enqueueBill(user?.id ?? null, {
+             clientId: sessionClientId,
              billTitle: finalTitle,
              totalAmount: toCents(displayedTotal),
              currency: symbol,
@@ -384,7 +387,7 @@ function BillSplitterContent() {
          });
      } catch (e) {
          console.error("Save error:", e);
-         alert("Failed to save history. Please try again.");
+         alert("Failed to save this session on your device. Please try again.");
      }
   };
 

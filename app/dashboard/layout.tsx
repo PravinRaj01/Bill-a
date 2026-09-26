@@ -1,4 +1,5 @@
 import { AppShell } from "@/components/app-shell"
+import { SyncManager } from "@/components/sync-manager"
 import { auth } from "@/lib/auth"
 
 export default async function DashboardLayout({
@@ -8,6 +9,11 @@ export default async function DashboardLayout({
 }) {
   // Resolved on the server from the signed session cookie (no DB query — JWT
   // sessions), so guests never see History / Account / Logout links.
-  const signedIn = !!(await auth())?.user?.id
-  return <AppShell signedIn={signedIn}>{children}</AppShell>
+  const userId = (await auth())?.user?.id ?? null
+  return (
+    <AppShell signedIn={!!userId}>
+      <SyncManager userId={userId} />
+      {children}
+    </AppShell>
+  )
 }
