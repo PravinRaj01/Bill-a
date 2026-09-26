@@ -1,9 +1,13 @@
 import { AppShell } from "@/components/app-shell"
+import { auth } from "@/lib/auth"
 
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <AppShell>{children}</AppShell>
+  // Resolved on the server from the signed session cookie (no DB query — JWT
+  // sessions), so guests never see History / Account / Logout links.
+  const signedIn = !!(await auth())?.user?.id
+  return <AppShell signedIn={signedIn}>{children}</AppShell>
 }

@@ -2,28 +2,27 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, History, User, LogOut } from "lucide-react"
+import { Home, History, User, LogOut, LogIn } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
-import { createClient } from "@/utils/supabase/client"
-import { useRouter } from "next/navigation"
+import { signOutAction } from "@/app/auth/actions"
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({ children, signedIn }: { children: React.ReactNode; signedIn: boolean }) {
   const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createClient()
 
+  // History and Account require a login (see lib/auth.config.ts), so guests
+  // don't get links that would just bounce them to the login page.
   const navItems = [
     { name: 'Home', href: '/dashboard', icon: Home },
-    { name: 'History', href: '/dashboard/history', icon: History },
-    { name: 'Account', href: '/dashboard/account', icon: User },
+    ...(signedIn
+      ? [
+          { name: 'History', href: '/dashboard/history', icon: History },
+          { name: 'Account', href: '/dashboard/account', icon: User },
+        ]
+      : []),
   ]
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/')
-    router.refresh()
-  }
+  const handleLogout = () => signOutAction()
 
   return (
     <div className="flex min-h-screen bg-black text-white flex-col">
@@ -59,9 +58,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </Link>
             ))}
           </nav>
-          <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 mt-auto text-zinc-500 hover:text-red-400">
-            <LogOut className="w-5 h-5" /> Logout
-          </button>
+          {signedIn ? (
+            <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 mt-auto text-zinc-500 hover:text-red-400">
+              <LogOut className="w-5 h-5" /> Logout
+            </button>
+          ) : (
+            <Link href="/" className="flex items-center gap-3 px-3 py-2 mt-auto text-zinc-500 hover:text-white">
+              <LogIn className="w-5 h-5" /> Log in
+            </Link>
+          )}
         </aside>
 
         {/* Main Content */}
@@ -86,9 +91,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <span className="text-[10px] font-bold uppercase tracking-tighter">{item.name}</span>
           </Link>
         ))}
-        <button onClick={handleLogout} className="text-zinc-500 opacity-50">
-          <LogOut className="w-6 h-6" />
-        </button>
+        {signedIn ? (
+          <button onClick={handleLogout} className="text-zinc-500 opacity-50">
+            <LogOut className="w-6 h-6" />
+          </button>
+        ) : (
+          <Link href="/" className="flex flex-col items-center gap-1 text-zinc-500 opacity-50">
+            <LogIn className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase tracking-tighter">Log in</span>
+          </Link>
+        )}
       </nav>
     </div>
   )

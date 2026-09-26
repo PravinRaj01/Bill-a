@@ -5,14 +5,15 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Receipt, Calendar, ArrowRight, Check } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/utils/supabase/client";
 import { useRouter } from "next/navigation";
+import { clearHistory, deleteBills } from "@/lib/actions/history";
+import type { BillListItem } from "@/lib/db/queries";
+import { formatMoney } from "@/lib/money";
 
-export default function HistoryList({ initialHistory }: { initialHistory: any[] }) {
+export default function HistoryList({ initialHistory }: { initialHistory: BillListItem[] }) {
   const [history, setHistory] = useState(initialHistory);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isEditMode, setIsEditMode] = useState(false);
-  const supabase = createClient();
   const router = useRouter();
 
   // Sync state if parent passes new data (Fixes "History not updating")
@@ -28,25 +29,30 @@ export default function HistoryList({ initialHistory }: { initialHistory: any[] 
     if (selectedIds.length === 0) return;
     if (!confirm(`Delete ${selectedIds.length} items?`)) return;
 
-    const { error } = await supabase.from('bill_history').delete().in('id', selectedIds);
-    if (!error) {
+    // The server only deletes ids that belong to the signed-in user; any other
+    // id in this list is silently ignored, so this can't touch anyone else's data.
+    try {
+      await deleteBills(selectedIds);
       setHistory(prev => prev.filter(item => !selectedIds.includes(item.id)));
       setSelectedIds([]);
       setIsEditMode(false);
       router.refresh();
+    } catch (e) {
+      console.error("Failed to delete", e);
+      alert("Couldn't delete those items. Please try again.");
     }
   };
 
   const deleteAll = async () => {
     if (!confirm("Delete EVERYTHING? This cannot be undone.")) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { error } = await supabase.from('bill_history').delete().eq('user_id', user.id);
-    if (!error) {
+    try {
+      await clearHistory();
       setHistory([]);
       setIsEditMode(false);
       router.refresh();
+    } catch (e) {
+      console.error("Failed to clear history", e);
+      alert("Couldn't clear history. Please try again.");
     }
   };
 
@@ -96,16 +102,16 @@ export default function HistoryList({ initialHistory }: { initialHistory: any[] 
                       <Receipt className="w-4 h-4 text-zinc-500" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="font-bold text-zinc-100 uppercase tracking-tight truncate text-sm">{bill.bill_title}</h3>
+                      <h3 className="font-bold text-zinc-100 uppercase tracking-tight truncate text-sm">{bill.billTitle}</h3>
                       <div className="flex items-center gap-2 text-[9px] text-zinc-600 font-mono mt-1 uppercase">
                         {/* FIX: Use toISOString() to prevent Hydration Mismatch Error */}
-                        <Calendar className="w-3 h-3" /> {new Date(bill.created_at).toISOString().split('T')[0]}
+                        <Calendar className="w-3 h-3" /> {new Date(bill.createdAt).toISOString().split('T')[0]}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <div className="font-mono font-bold text-white text-sm">
                         {/* FIX: Safety check for null amounts */}
-                        {bill.currency || 'RM'}{(bill.total_amount || 0).toFixed(2)}
+                        {formatMoney(bill.totalAmount || 0, bill.currency || 'RM')}
                       </div>
                       {!isEditMode && <div className="text-[9px] text-zinc-700 uppercase font-black flex items-center justify-end gap-1 group-hover:text-white transition-colors">Details <ArrowRight className="w-3 h-3" /></div>}
                     </div>

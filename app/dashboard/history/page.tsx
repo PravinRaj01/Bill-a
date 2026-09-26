@@ -1,15 +1,13 @@
-import { createClient } from "@/utils/supabase/server";
 import HistoryList from "@/components/history-list";
+import { listBills } from "@/lib/actions/history";
 
 export const dynamic = 'force-dynamic';
 
 export default async function HistoryPage() {
-  const supabase = await createClient();
-  
-  const { data: history } = await supabase
-    .from('bill_history')
-    .select('*')
-    .order('created_at', { ascending: false });
+  // listBills() resolves the user from the verified session and scopes the SQL
+  // to it. This page used to be a bare `select('*')` that relied entirely on
+  // Supabase RLS — on plain Postgres that would have shown every user's history.
+  const history = await listBills();
 
   return (
     <div className="p-6 md:p-10 max-w-4xl mx-auto space-y-8 mb-20">
@@ -18,7 +16,7 @@ export default async function HistoryPage() {
         <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest">Past Settlements</p>
       </header>
 
-      <HistoryList initialHistory={history || []} />
+      <HistoryList initialHistory={history} />
     </div>
   );
 }

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
+import { deleteBills, getBill } from "@/lib/actions/history";
+import type { BillHistoryRow } from "@/lib/db/schema";
+import { formatMoney, receiptToLegacy, splitsToLegacy } from "@/lib/money";
 import { useRouter, useParams } from "next/navigation"; // Import useParams
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,9 +14,8 @@ export default function BillDetailPage() {
   const params = useParams(); // <--- FIX: Get ID from the hook
   const id = params?.id as string; // Safely extract string ID
 
-  const [bill, setBill] = useState<any>(null);
+  const [bill, setBill] = useState<BillHistoryRow | null>(null);
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
   const router = useRouter();
 
   // 1. Fetch Data Client-Side
@@ -22,14 +23,10 @@ export default function BillDetailPage() {
     if (!id) return; // Wait until ID is available
 
     const fetchBill = async () => {
-      const { data, error } = await supabase
-        .from('bill_history')
-        .select('*')
-        .eq('id', id)
-        .single();
-      
-      if (error || !data) {
-          console.error("Error fetching bill:", error);
+      // Scoped to the signed-in user on the server: an id that belongs to
+      // someone else is indistinguishable from one that doesn't exist.
+      const data = await getBill(id).catch(() => null);
+      if (!data) {
           router.push('/dashboard/history');
       } else {
           setBill(data);
@@ -37,14 +34,14 @@ export default function BillDetailPage() {
       setLoading(false);
     };
     fetchBill();
-  }, [id, supabase, router]);
+  }, [id, router]);
 
   // 2. Handle Delete
   const handleDelete = async () => {
       const confirm = window.confirm("Are you sure you want to delete this history?");
       if (!confirm) return;
 
-      await supabase.from('bill_history').delete().eq('id', id);
+      await deleteBills([id]);
       router.push('/dashboard/history');
       router.refresh();
   };
@@ -54,8 +51,15 @@ export default function BillDetailPage() {
       if (!bill) return;
       
       // Save data to session storage to pass it to the main app
+      // The DB stores integer cents; the current split UI still works in RM
+      // floats, so convert at this boundary (lib/money.ts). Phase 6 removes this.
       sessionStorage.setItem("billa_restore_data", JSON.stringify({
-          data: bill.data, // This contains { split, items, people } if it's a new save
+          data: {
+              split: splitsToLegacy(bill.data.split),
+              items: receiptToLegacy(bill.data.items),
+              people: bill.data.people,
+              reasoning: bill.data.reasoning,
+          },
           currency: bill.currency
       }));
       
@@ -66,10 +70,8 @@ export default function BillDetailPage() {
   if (loading) return <div className="flex h-screen items-center justify-center bg-black text-white"><Loader2 className="animate-spin" /></div>;
   if (!bill) return null;
 
-  // Handle both Old (Array) and New (Object) data formats
-  const splitData = Array.isArray(bill.data) 
-      ? bill.data 
-      : (bill.data.split || bill.data.splits || []);
+  // One data shape now: { split, items, people, reasoning } (no legacy branches).
+  const splitData = bill.data.split;
 
   const symbol = bill.currency || "RM";
 
@@ -86,9 +88,9 @@ export default function BillDetailPage() {
 
       <header className="flex justify-between items-start gap-4">
         <div className="space-y-1">
-          <h1 className="text-4xl font-black tracking-tighter uppercase italic text-white leading-none">{bill.bill_title}</h1>
+          <h1 className="text-4xl font-black tracking-tighter uppercase italic text-white leading-none">{bill.billTitle}</h1>
           <div className="flex items-center gap-2 text-[10px] text-zinc-600 font-mono tracking-widest uppercase mt-2">
-            <Calendar className="w-3 h-3" /> {new Date(bill.created_at).toLocaleDateString()}
+            <Calendar className="w-3 h-3" /> {new Date(bill.createdAt).toLocaleDateString()}
           </div>
         </div>
         
@@ -109,10 +111,10 @@ export default function BillDetailPage() {
         <CardContent className="p-0">
           <Table>
             <TableBody>
-              {splitData.map((row: any, i: number) => (
+              {splitData.map((row, i) => (
                 <TableRow key={i} className="border-white/5 hover:bg-white/[0.01]">
                   <TableCell className="py-6 font-bold text-white px-8">{row.name}</TableCell>
-                  <TableCell className="text-right font-mono text-white text-xl px-8">{symbol}{row.amount.toFixed(2)}</TableCell>
+                  <TableCell className="text-right font-mono text-white text-xl px-8">{formatMoney(row.amount, symbol)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -120,8 +122,8 @@ export default function BillDetailPage() {
           
           <div className="p-6">
              <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 hover:text-white font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={() => {
-                let text = `*Bill: ${bill.bill_title} (${symbol})*\n\n`;
-                splitData.forEach((r: any) => (text += `👤 *${r.name}*: ${symbol}${r.amount.toFixed(2)}\n`));
+                let text = `*Bill: ${bill.billTitle} (${symbol})*\n\n`;
+                splitData.forEach((r) => (text += `👤 *${r.name}*: ${formatMoney(r.amount, symbol)}\n`));
                 window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
             }}>
                 <Share2 className="w-4 h-4 mr-2" /> Share WhatsApp
@@ -133,7 +135,7 @@ export default function BillDetailPage() {
       <div className="p-6 border border-white/5 rounded-3xl bg-zinc-950/50">
          <p className="text-[10px] uppercase font-black text-zinc-700 mb-3 tracking-widest">System Reasoning Log</p>
          <div className="text-[10px] font-mono text-zinc-600 whitespace-pre-wrap leading-relaxed italic max-h-60 overflow-y-auto">
-            {bill.reasoning_log || "No log recorded."}
+            {bill.data.reasoning || "No log recorded."}
          </div>
       </div>
     </div>

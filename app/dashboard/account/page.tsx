@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@/utils/supabase/client";
-import { useRouter } from "next/navigation";
+import { signOutAction } from "@/app/auth/actions";
+import { getAccountStats } from "@/lib/actions/history";
+import { getCurrentUser } from "@/lib/actions/user";
+import { fromCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
@@ -16,42 +18,22 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 export default function AccountPage() {
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<Awaited<ReturnType<typeof getCurrentUser>>>(null);
   const [stats, setStats] = useState({ totalBills: 0, totalAmount: 0 });
   const [loading, setLoading] = useState(true);
-  const supabase = createClient();
-  const router = useRouter();
 
   useEffect(() => {
     const getData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        setUser(user);
-        
-        // Fetch stats from bill_history
-        const { data: history } = await supabase
-          .from('bill_history')
-          .select('total_amount')
-          .eq('user_id', user.id);
-          
-        if (history) {
-          const total = history.reduce((sum, item) => sum + (item.total_amount || 0), 0);
-          setStats({
-            totalBills: history.length,
-            totalAmount: total
-          });
-        }
-      }
+      const [u, s] = await Promise.all([getCurrentUser(), getAccountStats()]);
+      setUser(u);
+      // The DB stores integer cents; the tile shows whole currency units.
+      setStats({ totalBills: s.count, totalAmount: fromCents(s.totalCents) });
       setLoading(false);
     };
     getData();
   }, []);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    router.replace("/");
-  };
+  const handleSignOut = () => signOutAction();
 
   return (
     <div className="min-h-screen bg-black text-white p-6 md:p-10 max-w-xl mx-auto animate-in fade-in duration-500">
@@ -68,7 +50,7 @@ export default function AccountPage() {
           <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
             <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-zinc-800 to-zinc-900 p-1 ring-1 ring-white/10">
               <Avatar className="w-full h-full rounded-full">
-                <AvatarImage src={user?.user_metadata?.avatar_url} />
+                <AvatarImage src={user?.image ?? undefined} />
                 <AvatarFallback className="bg-black text-zinc-500 font-bold text-2xl">
                   {user?.email?.charAt(0).toUpperCase()}
                 </AvatarFallback>
@@ -77,7 +59,7 @@ export default function AccountPage() {
             
             <div className="space-y-1">
               <h2 className="text-lg font-bold text-white tracking-tight">
-                {user?.user_metadata?.full_name || "Bill.a User"}
+                {user?.name || "Bill.a User"}
               </h2>
               <div className="flex items-center justify-center gap-2 text-xs text-zinc-500 font-mono bg-white/5 py-1 px-3 rounded-full w-fit mx-auto">
                 <Mail size={12} />

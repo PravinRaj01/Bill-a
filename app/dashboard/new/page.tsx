@@ -11,7 +11,10 @@ import {
   TableCell,
   TableRow,
 } from "@/components/ui/table";
-import { createClient } from "@/utils/supabase/client";
+import { getCurrentUser } from "@/lib/actions/user";
+import { getGroup, listGroups, saveGroup, updateGroupNames } from "@/lib/actions/groups";
+import { nextSessionTitle, saveBill } from "@/lib/actions/history";
+import { receiptToDomain, splitsToDomain, toCents } from "@/lib/money";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
@@ -42,7 +45,6 @@ const API_URL = "https://favourable-eunice-pravinraj-code-24722b81.koyeb.app";
 function BillSplitterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const supabase = createClient();
 
   const [step, setStep] = useState<Step>("NAMES");
   const [people, setPeople] = useState<string[]>([]);
@@ -79,22 +81,18 @@ function BillSplitterContent() {
   // 1. Check User & Fetch All Saved Groups
   useEffect(() => {
     const init = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) { 
-        setUser(session.user); 
+      // Identity comes from the verified session; groups are scoped to it on the server.
+      const u = await getCurrentUser();
+      if (u) { 
+        setUser(u); 
         setIsGuest(false);
-        const { data: groups } = await supabase
-            .from('saved_groups')
-            .select('*')
-            .eq('user_id', session.user.id)
-            .order('created_at', { ascending: false });
-        if (groups) setSavedGroups(groups);
+        setSavedGroups(await listGroups().catch(() => []));
       } else { 
         setIsGuest(true); 
       }
     };
     init();
-  }, [supabase]);
+  }, []);
 
   // 2. MAIN RESTORE LOGIC
   useEffect(() => {
@@ -163,10 +161,10 @@ function BillSplitterContent() {
             setPeople(loadedNames);
         } else if (groupId) {
             const loadGroup = async () => {
-                const { data } = await supabase.from("saved_groups").select("names, group_name, id").eq("id", groupId).single();
+                const data = await getGroup(groupId).catch(() => null);
                 if (data) {
                 setPeople(data.names);
-                setGroupName(data.group_name);
+                setGroupName(data.groupName);
                 setActiveGroupId(data.id);
                 setOriginalPeople(data.names);
                 }
@@ -195,7 +193,7 @@ function BillSplitterContent() {
         }
     }
 
-  }, [searchParams, supabase]);
+  }, [searchParams]);
 
   const hasGroupChanged = () => {
       if (!activeGroupId) return false;
@@ -207,7 +205,7 @@ function BillSplitterContent() {
 
   const loadSavedGroup = (group: any) => {
       setPeople(group.names);
-      setGroupName(group.group_name);
+      setGroupName(group.groupName);
       setActiveGroupId(group.id);
       setOriginalPeople(group.names);
       setShowGroupList(false); 
@@ -229,16 +227,15 @@ function BillSplitterContent() {
 
   const handleStartScanning = async () => {
     if (user && people.length > 0) {
-        if (activeGroupId && hasGroupChanged() && updateGroup) {
-             await supabase.from("saved_groups")
-                .update({ names: people })
-                .eq("id", activeGroupId);
-        } else if (!activeGroupId && saveThisGroup && groupName) {
-            await supabase.from("saved_groups").insert({
-                user_id: user.id,
-                group_name: groupName,
-                names: people,
-            });
+        // Saving a group is a nicety, never a reason to block scanning.
+        try {
+            if (activeGroupId && hasGroupChanged() && updateGroup) {
+                await updateGroupNames(activeGroupId, people);
+            } else if (!activeGroupId && saveThisGroup && groupName) {
+                await saveGroup({ groupName, names: people });
+            }
+        } catch (e) {
+            console.error("Could not save group", e);
         }
     }
     setStep("SCAN");
@@ -368,32 +365,26 @@ function BillSplitterContent() {
   };
 
   const saveToHistory = async (splitData: any, log: string) => {
-     let finalTitle = sessionName.trim();
-     if (!finalTitle) {
-         const { data: userBills } = await supabase.from("bill_history").select("id").eq("user_id", user.id);
-         const sessionNum = (userBills?.length || 0) + 1;
-         finalTitle = `Session ${sessionNum}`;
-     }
+     const finalTitle = sessionName.trim() || (await nextSessionTitle());
 
-     const richData = {
-         split: splitData,
-         items: items,    
-         people: people,  
-         reasoning: log
-     };
-
-     const { error } = await supabase.from("bill_history").insert({
-         user_id: user.id,
-         bill_title: finalTitle,
-         total_amount: displayedTotal,
-         currency: symbol, 
-         data: richData, 
-         reasoning_log: log,
-     });
-
-     if (error) {
-         console.error("Supabase Save Error:", error);
-         alert(`Failed to save history: ${error.message}`);
+     // This page still works in RM floats (Phase 6 makes it cents-native), while
+     // the database stores integer cents in one standard shape — convert here.
+     try {
+         await saveBill({
+             clientId: crypto.randomUUID(),
+             billTitle: finalTitle,
+             totalAmount: toCents(displayedTotal),
+             currency: symbol,
+             data: {
+                 split: splitsToDomain(splitData),
+                 items: receiptToDomain(items!),
+                 people,
+                 reasoning: log,
+             },
+         });
+     } catch (e) {
+         console.error("Save error:", e);
+         alert("Failed to save history. Please try again.");
      }
   };
 
@@ -482,7 +473,7 @@ function BillSplitterContent() {
                                     onClick={() => loadSavedGroup(group)}
                                     className="w-full text-left p-3 px-4 text-sm text-zinc-300 hover:bg-white/10 hover:text-white border-b border-white/5 last:border-0 flex justify-between items-center group"
                                 >
-                                    <span className="font-medium">{group.group_name}</span>
+                                    <span className="font-medium">{group.groupName}</span>
                                     <span className="text-[10px] text-zinc-600 font-mono group-hover:text-zinc-400">{group.names.length} people</span>
                                 </button>
                             ))}

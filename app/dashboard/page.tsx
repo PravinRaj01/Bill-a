@@ -2,28 +2,18 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { createClient } from "@/utils/supabase/client"
+import { listGroups } from "@/lib/actions/groups"
+import type { SavedGroup } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { Plus, Users, ChevronRight, Zap, Camera, Share2 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 
 export default function DashboardPage() {
-  const [groups, setGroups] = useState<any[]>([])
-  const supabase = createClient()
+  const [groups, setGroups] = useState<SavedGroup[]>([])
 
   useEffect(() => {
-    const fetchGroups = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data } = await supabase
-          .from('saved_groups')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-        if (data) setGroups(data)
-      }
-    }
-    fetchGroups()
+    // Resolved on the server from the session: guests simply get an empty list.
+    listGroups().then(setGroups).catch(() => setGroups([]))
   }, [])
 
   return (
@@ -98,7 +88,7 @@ export default function DashboardPage() {
                     {/* FIXED: Added flex-1 and min-w-0 to fix disappearance */}
                     <div className="flex flex-col justify-center gap-1.5 flex-1 min-w-0 mr-4">
                       <h3 className="font-bold text-white uppercase tracking-tight truncate text-base leading-none">
-                        {group.group_name}
+                        {group.groupName}
                       </h3>
                       <p className="text-[11px] text-zinc-500 font-mono uppercase truncate leading-none">
                         {group.names.join(", ")}
