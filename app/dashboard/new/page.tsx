@@ -17,7 +17,7 @@ import { getBill, nextSessionTitle } from "@/lib/actions/history";
 import { enqueueBill } from "@/lib/sync/outbox";
 import { inferMerchantCategory } from "@/lib/ai/merchantCategory";
 import { receiptToDomain, receiptToLegacy, splitsToDomain, splitsToLegacy, toCents } from "@/lib/money";
-import { planSplit, type PlanOutcome, type SplitPreview } from "@/lib/ai/planSplit";
+import { planSplit, type PlanOutcome, type SplitChoice, type SplitPreview } from "@/lib/ai/planSplit";
 import { explainAttempts } from "@/lib/ai/providers/cascade";
 import { enhanceReceipt } from "@/lib/ai/providers/enhance";
 import { ProviderError } from "@/lib/ai/providers/types";
@@ -28,6 +28,8 @@ import { primeOfflinePack } from "@/lib/ocr/prime";
 import { bucketConfidence, bucketItems } from "@/lib/telemetry/events";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { ClarifyChips, type ClarifyAction } from "@/components/ai/ClarifyChips";
+import { ReceiptPhoto, useObjectUrl } from "@/components/receipt-photo";
+import { CrossCheck, type Reading } from "@/components/ai/CrossCheck";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { pinReceiptReader, releaseReceiptReader, scanReceipt, type ScanStage } from "@/lib/ocr/client";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -83,11 +85,16 @@ function BillSplitterContent() {
   const [modifyText, setModifyText] = useState("");
   const [clarify, setClarify] = useState<{ chips: Chip[]; preview?: SplitPreview; pending: string[] } | null>(null);
   const [splitNote, setSplitNote] = useState<string | null>(null);
+  // The AI and the on-device rules disagreed: both readings wait here for the user's pick.
+  const [disagree, setDisagree] = useState<{ tier: "groq" | "gemini"; ai: SplitChoice; rules: SplitChoice; pending: string[] } | null>(null);
   const [keys, setKeys] = useState<Keys>({});
   const [keySheetOpen, setKeySheetOpen] = useState(false);
   // The shrunk photo, kept in memory only so "Re-read with Gemini" can use it.
   const [photo, setPhoto] = useState<Blob | null>(null);
   const [enhancing, setEnhancing] = useState(false);
+  // Optional side-by-side view of the scanned photo next to the extracted items.
+  const photoUrl = useObjectUrl(photo);
+  const [showPhoto, setShowPhoto] = useState(false);
   const [enhanced, setEnhanced] = useState(false);
   const [scanInfo, setScanInfo] = useState<{ confidence: number; warnings: string[]; itemConf: number[]; empty: boolean; printedTotal: number | null } | null>(null);
 
@@ -100,6 +107,8 @@ function BillSplitterContent() {
   
   // GROUP LOADING UI STATE
   const [savedGroups, setSavedGroups] = useState<any[]>([]);
+  // True while Start Scanning is saving the group: a second tap must not save it again.
+  const [starting, setStarting] = useState(false);
   const [showGroupList, setShowGroupList] = useState(false);
 
   // Load the (self-hosted) reader while the user is still lining up the photo.
@@ -119,6 +128,18 @@ function BillSplitterContent() {
     setKeys(getKeys());
     return onKeysChanged(() => setKeys(getKeys()));
   }, []);
+
+  // Remember whether the user likes seeing the photo (read after mount: no hydration mismatch).
+  useEffect(() => {
+    try {
+      setShowPhoto(localStorage.getItem("billa.review.showPhoto") === "1");
+    } catch { /* storage blocked: default off */ }
+  }, []);
+  const togglePhoto = () =>
+    setShowPhoto((v) => {
+      try { localStorage.setItem("billa.review.showPhoto", v ? "0" : "1"); } catch { /* ignore */ }
+      return !v;
+    });
 
   const isCreator = true;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -219,19 +240,33 @@ function BillSplitterContent() {
   };
 
   const handleStartScanning = async () => {
-    if (user && people.length > 0) {
+    if (starting) return; // a second tap while the first is still saving
+    setStarting(true);
+    try {
+      if (user && people.length > 0) {
         // Saving a group is a nicety, never a reason to block scanning.
         try {
-            if (activeGroupId && hasGroupChanged() && updateGroup) {
-                await updateGroupNames(activeGroupId, people);
-            } else if (!activeGroupId && saveThisGroup && groupName) {
-                await saveGroup({ groupName, names: people });
-            }
+          if (activeGroupId && hasGroupChanged() && updateGroup) {
+            await updateGroupNames(activeGroupId, people);
+            setOriginalPeople(people); // it matches the saved group now
+          } else if (!activeGroupId && saveThisGroup && groupName.trim()) {
+            const saved = await saveGroup({ groupName, names: people });
+            // Remember it. Otherwise Back -> Start Scanning would save the same group AGAIN
+            // (this was the "Best Couple" x2 bug). The server also refuses a lookalike name,
+            // updating the existing group instead, so we adopt whatever it returns.
+            setActiveGroupId(saved.id);
+            setGroupName(saved.groupName);
+            setOriginalPeople(saved.names);
+            setSavedGroups(await listGroups().catch(() => savedGroups));
+          }
         } catch (e) {
-            console.error("Could not save group", e);
+          console.error("Could not save group", e);
         }
+      }
+      setStep("SCAN");
+    } finally {
+      setStarting(false);
     }
-    setStep("SCAN");
   };
 
   // Scanning happens entirely on this device: shrink the photo, read it with the
@@ -340,6 +375,7 @@ function BillSplitterContent() {
     setInstructions(next);
     setSplitNote(note);
     setClarify(null);
+    setDisagree(null);
     await attemptSave(legacy, result.reasoning);
     setStep("SUMMARY");
   };
@@ -351,6 +387,7 @@ function BillSplitterContent() {
     if (!items) return;
     setLoading(true);
     setClarify(null);
+    setDisagree(null);
     const splitStarted = performance.now();
     try {
       const outcome = await planSplit({
@@ -375,6 +412,9 @@ function BillSplitterContent() {
         }
       } else if (outcome.kind === "needs-clarification") {
         setClarify({ chips: outcome.chips, preview: outcome.preview, pending: next });
+      } else if (outcome.kind === "disagreement") {
+        track({ type: "crosscheck", tier: outcome.ai.tier, outcome: "shown" });
+        setDisagree({ tier: outcome.ai.tier, ai: outcome.ai, rules: outcome.rules, pending: next });
       } else {
         track({
           type: "split",
@@ -396,6 +436,18 @@ function BillSplitterContent() {
   };
 
   const handleSplit = () => runPlan([instruction]);
+
+  const pickReading = async (which: Reading) => {
+    if (!disagree) return;
+    const { tier, ai, rules, pending } = disagree;
+    track({ type: "crosscheck", tier, outcome: which });
+    const name = tier === "groq" ? "Groq" : "Gemini";
+    await applySplit(
+      (which === "ai" ? ai : rules).result,
+      which === "ai" ? `Split by ${name} — you chose the AI's reading.` : "Split with the built-in rules — you chose their reading.",
+      pending,
+    );
+  };
 
   const handleModify = () => {
     const text = modifyText.trim();
@@ -497,7 +549,7 @@ function BillSplitterContent() {
   };
 
   return (
-    <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20 animate-in fade-in duration-300">
+    <main className={`flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20 animate-in fade-in duration-300 ${step === "REVIEW" && showPhoto && photoUrl ? "lg:max-w-5xl" : ""}`}>
       
       {step !== "NAMES" && (
         <div className="flex items-center justify-between">
@@ -622,6 +674,11 @@ function BillSplitterContent() {
                             className="bg-[#141416] border-white/5 h-10 text-xs text-white"
                             />
                         )}
+                        {saveThisGroup && savedGroups.some((g) => g.groupName.trim().toLowerCase() === groupName.trim().toLowerCase()) && groupName.trim() && (
+                            <p data-testid="group-exists" className="px-1 text-[10px] text-amber-400">
+                                You already have a group called “{groupName.trim()}” — saving will update its members, not add another.
+                            </p>
+                        )}
                       </>
                   ) : (
                        <div className="flex items-center justify-center gap-2 p-2 opacity-50">
@@ -632,8 +689,8 @@ function BillSplitterContent() {
                 </div>
               )}
 
-              <Button className="w-full h-12 bg-white text-black font-black uppercase tracking-tighter rounded-xl" disabled={people.length < 1} onClick={handleStartScanning}>
-                Start Scanning
+              <Button className="w-full h-12 bg-white text-black font-black uppercase tracking-tighter rounded-xl" disabled={people.length < 1 || starting} onClick={handleStartScanning}>
+                {starting ? <Loader2 className="animate-spin" /> : "Start Scanning"}
               </Button>
             </CardContent>
           </Card>
@@ -681,6 +738,12 @@ function BillSplitterContent() {
       )}
 
       {step === "REVIEW" && (
+        <div className={showPhoto && photoUrl ? "lg:grid lg:grid-cols-2 lg:items-start lg:gap-6" : ""}>
+        {showPhoto && photoUrl && (
+          <div className="mb-6 lg:sticky lg:top-6 lg:mb-0">
+            <ReceiptPhoto url={photoUrl} onHide={togglePhoto} />
+          </div>
+        )}
         <div className="space-y-6">
           {scanInfo && (scanInfo.empty || scanInfo.confidence < 0.6 || scanInfo.warnings.some((w) => !w.startsWith("Items add up"))) && (
             <div data-testid="scan-warning" className="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-amber-200">
@@ -698,10 +761,25 @@ function BillSplitterContent() {
               </div>
             </div>
           )}
-          {(() => {
+          {photo && (() => {
             const diff = scanInfo?.printedTotal != null && items ? Math.round((scanInfo.printedTotal - (subtotal + items.tax)) * 100) / 100 : 0;
             const unsure = !!scanInfo && (scanInfo.empty || scanInfo.confidence < 0.6 || Math.abs(diff) >= 0.01);
-            if (!unsure || !photo || enhanced) return null;
+            if (enhanced) {
+              return <p data-testid="enhanced-note" className="px-1 text-[11px] font-bold text-emerald-400">✓ Re-read by Gemini — check the numbers against your receipt.</p>;
+            }
+            if (!unsure) {
+              // A scan that looks fine still gets a quiet way to get a second opinion.
+              return keys.gemini ? (
+                <button type="button" data-testid="reread-quiet" onClick={handleEnhance} disabled={enhancing} className="px-1 text-left text-[11px] text-zinc-500 hover:text-zinc-300 disabled:opacity-50">
+                  {enhancing ? "Reading…" : <>Doesn&apos;t look right? <span className="font-bold text-indigo-400">Re-read with Gemini</span> (sends the photo to Google with your key)</>}
+                </button>
+              ) : (
+                <p data-testid="reread-nokey" className="px-1 text-[11px] text-zinc-500">
+                  Want a second opinion on this scan?{" "}
+                  <button type="button" onClick={() => setKeySheetOpen(true)} className="font-bold text-indigo-400 hover:text-indigo-300">Add a free Gemini key</button>
+                </p>
+              );
+            }
             return keys.gemini ? (
               <div data-testid="enhance-card" className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                 <p className="text-xs font-bold text-white">Not sure about this scan?</p>
@@ -718,6 +796,13 @@ function BillSplitterContent() {
               </p>
             );
           })()}
+          {photoUrl && (
+            <div className="flex justify-end">
+              <Button type="button" variant="ghost" data-testid="toggle-photo" onClick={togglePhoto} className="h-8 rounded-full px-3 text-[10px] font-bold uppercase tracking-widest text-zinc-500 hover:text-white">
+                <ImageIcon size={12} className="mr-1.5" /> {showPhoto ? "Hide photo" : "Show photo"}
+              </Button>
+            </div>
+          )}
           <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl rounded-3xl">
             <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase text-slate-500 tracking-widest">Extracted Items · tap to edit</div>
             <CardContent className="p-0">
@@ -820,6 +905,7 @@ function BillSplitterContent() {
 
                 <Input disabled={!isCreator} placeholder="Instructions (e.g. Split equally)" value={instruction} onChange={(e) => setInstruction(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !loading && handleSplit()} className="bg-black border-white/5 h-12 text-white" />
                 {clarify && <ClarifyChips chips={clarify.chips} hasPreview={!!clarify.preview} onAction={handleClarify} />}
+                {disagree && <CrossCheck aiName={disagree.tier === "groq" ? "Groq" : "Gemini"} ai={disagree.ai.result} rules={disagree.rules.result} symbol={symbol} onPick={pickReading} />}
                 {splitNote && !clarify && <p data-testid="split-note" className="px-1 text-[11px] text-zinc-500">{splitNote}</p>}
                 <Button className="w-full h-12 bg-white text-black font-black uppercase tracking-tight rounded-xl" onClick={handleSplit} disabled={loading || !isCreator || !items || items.items.length === 0 || displayedTotal <= 0}>
                   {loading ? <Loader2 className="animate-spin" /> : "Split Bill"}
@@ -827,6 +913,7 @@ function BillSplitterContent() {
               </div>
             </CardContent>
           </Card>
+        </div>
         </div>
       )}
 
@@ -877,6 +964,7 @@ function BillSplitterContent() {
                   </Button>
                 </div>
                 {clarify && <ClarifyChips chips={clarify.chips} hasPreview={!!clarify.preview} onAction={handleClarify} />}
+                {disagree && <CrossCheck aiName={disagree.tier === "groq" ? "Groq" : "Gemini"} ai={disagree.ai.result} rules={disagree.rules.result} symbol={symbol} onPick={pickReading} />}
                 {splitNote && !clarify && <p data-testid="split-note" className="text-[11px] text-zinc-500">{splitNote}</p>}
               </div>
               <div className="p-6 pt-0 space-y-3">

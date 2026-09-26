@@ -34,6 +34,13 @@ export async function getGroup(db: Db, userId: string, id: string) {
   return row ?? null;
 }
 
+/**
+ * Saves a group. Saving a name the user already has (ignoring case and surrounding
+ * spaces) UPDATES that group's members instead of creating a lookalike — the
+ * (user_id, group_key) unique constraint makes that race-proof, so pressing "Start
+ * Scanning" twice, or going Back and forward, can't produce "Best Couple" x2. The
+ * existing group keeps its original display name and id.
+ */
 export async function createGroup(
   db: Db,
   userId: string,
@@ -42,6 +49,7 @@ export async function createGroup(
   const [row] = await db
     .insert(savedGroups)
     .values({ userId, groupName: input.groupName, names: input.names })
+    .onConflictDoUpdate({ target: [savedGroups.userId, savedGroups.groupKey], set: { names: input.names } })
     .returning();
   return row;
 }

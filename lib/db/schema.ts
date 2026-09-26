@@ -9,6 +9,7 @@ import {
   unique,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
 import type { BillData } from "@/types/domain";
 
@@ -71,10 +72,18 @@ export const savedGroups = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: "cascade" }),
     groupName: text("group_name").notNull(),
+    // Case- and space-insensitive identity of the name ("Best Couple" == " best couple "),
+    // computed by Postgres so it can never drift from group_name. A user can't have two
+    // groups with the same key: saving an existing name updates that group instead of
+    // creating a lookalike (which is what happened when Start Scanning was pressed twice).
+    groupKey: text("group_key").generatedAlwaysAs(sql`lower(btrim(group_name))`),
     names: jsonb("names").$type<string[]>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("saved_groups_user_created_idx").on(t.userId, t.createdAt.desc())],
+  (t) => [
+    index("saved_groups_user_created_idx").on(t.userId, t.createdAt.desc()),
+    unique("saved_groups_user_key_uniq").on(t.userId, t.groupKey),
+  ],
 );
 
 export const billHistory = pgTable(

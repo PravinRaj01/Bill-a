@@ -1,5 +1,5 @@
 import type { AssignmentPlan, ReceiptItem } from "@/types/domain";
-import { resolveInstruction, type ResolvedReference } from "@/lib/retrieval/resolve";
+import { isInformativeDefaultRule, resolveInstruction, type ResolvedReference } from "@/lib/retrieval/resolve";
 import { normalise } from "@/lib/retrieval/lexicon";
 import { findPersonMentions } from "@/lib/retrieval/people";
 import { findAmbiguities, type Ambiguity } from "@/lib/ai/intentRouter";
@@ -22,6 +22,13 @@ export interface FallbackResult {
   plan: AssignmentPlan;
   /** Questions for the user. Non-empty means the plan is incomplete or uncertain. */
   chips: Chip[];
+  /**
+   * True when at least one rule actually fired: an item was assigned, a tax payer named, or the
+   * instruction carried an explicit "split equally" / "just … forget the rest" marker. False
+   * means the parser just fell back to its blind default, so its plan says nothing about
+   * whether another reading of the instruction is right — it must not be used to second-guess one.
+   */
+  understood: boolean;
 }
 
 // --- clause splitting ------------------------------------------------------
@@ -250,5 +257,9 @@ export function parseInstruction(
       notes: "deterministic fallback parser",
     },
     chips,
+    understood:
+      assign.size > 0 ||
+      taxPayers.size > 0 ||
+      isInformativeDefaultRule(resolution.defaultRule, resolution.defaultRuleReason),
   };
 }
