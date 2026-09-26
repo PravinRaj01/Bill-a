@@ -47,6 +47,21 @@ const c = (
 const eq = "equal" as const;
 const ex = "exclude" as const;
 
+// A receipt with tax/service (RM37.00 = 34.91 + 2.09 GST): the tax-payer cases need one.
+const realfood: Receipt = {
+  currency: "RM",
+  tax: RM(2.09),
+  total: RM(37),
+  items: [
+    { name: "MUSH NOODLES DRY", quantity: 1, unitPrice: RM(18.87), totalPrice: RM(18.87) }, // 0
+    { name: "STEAM DUMPLINGS", quantity: 1, unitPrice: RM(16.04), totalPrice: RM(16.04) }, // 1
+  ],
+};
+const couple = ["Pravin", "Wifey"];
+const ct = (id: string, instruction: string, expectedPlan: BakeoffCase["expectedPlan"]): HeldOutCase => ({
+  id, instruction, people: couple, receipt: realfood, applyTax: true, expectedPlan,
+});
+
 export const HELDOUT_CASES: HeldOutCase[] = [
   c("single-person-single-item", "Aisha had the nasi goreng", {
     assignments: [{ itemIndex: 0, people: ["Aisha"] }], defaultRule: eq, notes: "",
@@ -117,4 +132,13 @@ export const HELDOUT_CASES: HeldOutCase[] = [
   c("misspelled-item", "Wei had the chendol", {
     assignments: [{ itemIndex: 5, people: ["Wei"] }], defaultRule: eq, notes: "",
   }, true),
+  // --- who pays the tax / service charge (added after a user's real receipt exposed the gap)
+  ct("tax-payer-food-and-tax", "Pravin pays for the food and Wifey pays the tax", {
+    assignments: [{ itemIndex: 0, people: ["Pravin"] }, { itemIndex: 1, people: ["Pravin"] }],
+    defaultRule: eq, taxPayers: ["Wifey"], notes: "",
+  }),
+  ct("tax-payer-service-charge", "Wifey covers the service charge, split the rest equally", {
+    assignments: [], defaultRule: eq, taxPayers: ["Wifey"], notes: "",
+  }),
+  ct("tax-default-equal-cents", "Split equally", { assignments: [], defaultRule: eq, notes: "" }),
 ];

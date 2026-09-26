@@ -8,10 +8,12 @@ import { parseInstruction, splitClauses } from "./fallback-parser";
 //
 //   Development set (the 15 bake-off cases; the parser was built against these,
 //   so this number is optimistic):   14 correct · 1 asks a question · 0 wrong
-//   Held-out set (20 new phrasings, written before the parser existed):
-//                                    16 correct · 4 ask a question · 0 wrong
+//   Held-out set (23 phrasings: 20 written before the parser existed, plus 3 tax-payer
+//   cases added after a real receipt exposed the gap):
+//                                    19 correct · 4 ask a question · 0 wrong
 //   (First held-out run, before one general fix to "Everyone except <person> …":
-//    15 correct · 4 ask · 1 wrong.)
+//    15 correct · 4 ask · 1 wrong. The tax cases initially failed too: "the food" was
+//    read as the mains only, leaving out the dumplings — now "everything but drinks".)
 //
 // "Asks a question" = the parser returned a chip instead of a plan it wasn't
 // sure of; the one dev-set case is "Sarah had the tea" against an item named
@@ -28,10 +30,10 @@ describe("fallback parser — measured accuracy", () => {
     expect(s.correct).toBeGreaterThanOrEqual(14);
   });
 
-  it("held-out set: never confidently wrong, at least 16/20 fully correct", () => {
+  it("held-out set: never confidently wrong, at least 19/23 fully correct", () => {
     const s = summarise(held);
     expect(s.wrong, JSON.stringify(held.filter((o) => o.verdict === "wrong"))).toBe(0);
-    expect(s.correct).toBeGreaterThanOrEqual(16);
+    expect(s.correct).toBeGreaterThanOrEqual(19);
   });
 });
 

@@ -29,7 +29,8 @@ describe("schemas per provider", () => {
   it("groq strict: closed objects, every property required, integer enum", () => {
     const s = buildAssignmentPlanSchema(idx, people, "groq") as any;
     expect(s.additionalProperties).toBe(false);
-    expect(s.required).toEqual(["assignments", "defaultRule", "notes"]);
+    expect(s.required).toEqual(["assignments", "defaultRule", "taxPayers", "notes"]);
+    expect(s.properties.taxPayers).toMatchObject({ type: "array", minItems: 0, maxItems: 2, items: { enum: people } });
     const item = s.properties.assignments.items;
     expect(item.additionalProperties).toBe(false);
     expect(item.required).toEqual(["itemIndex", "people"]);

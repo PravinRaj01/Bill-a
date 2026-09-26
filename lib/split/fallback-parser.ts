@@ -80,6 +80,8 @@ const EVERYONE_EXCEPT = /\b(?:everyone|everybody|all of us|we all|all)\s+(?:exce
 const EXCEPT_MARKER = /\b(?:except(?:\s+for)?|apart from|other than|excluding|but not)\b/;
 const TREAT_ALL =
   /\b(?:treat|treats|treating|treated|foot|foots|footing)\b|\bput\s+(?:it\s+)?all\s+on\b|\b(?:on|all on)\s+(?:him|her)\b|\b(?:pay|pays|paying|paid|cover|covers|covering)\s+(?:for\s+)?(?:everything|it all|all of it|the whole (?:bill|thing|lot)|the entire bill|the lot)\b/;
+// "Wifey pays the tax", "Aisha covers the service charge", "put the GST on him"
+const TAX_MENTION = /\b(?:tax|taxes|gst|sst|vat|svc|service\s?charge|service\s?fee|service\s?tax)\b/;
 const SPLITISH = /\b(?:split|splits|splitting|share|shares|sharing|divide|divides|equally|evenly|between|together|among|all|everyone|everybody|we|each)\b/;
 const PRONOUN = /\b(?:he|she|him|her|his)\b/;
 const SUBSET_OF_US = /\b(two|three|four|five|six|seven|eight|2|3|4|5|6|7|8)\s+of\s+(?:us|them)\b/;
@@ -101,6 +103,7 @@ export function parseInstruction(
   const allIdx = items.map((_, i) => i);
   const optionsFor = (indices: number[]) => indices.map((index) => ({ index, name: items[index].name }));
 
+  const taxPayers = new Set<string>();
   let prevPerson: string | null = null;
   // Items named in the previous clause that nobody has been given yet: "…the
   // milkshake, which is just for Sarah" / "…the pizza, split between A and B".
@@ -140,6 +143,18 @@ export function parseInstruction(
         pendingExceptions.push({ phrase: clause, indices: exception });
       }
     };
+
+    // 0. Who pays the tax/service charge. Tax isn't an item, so this never touches the item
+    //    rules below — unless the same clause also names items ("Wifey pays the drinks and the tax").
+    //    "…everything except the tax" is the opposite: the named person does NOT pay it.
+    const taxAt = TAX_MENTION.exec(norm)?.index ?? -1;
+    if (taxAt >= 0 && persons.length > 0 && !(excMarkerAt >= 0 && excMarkerAt < taxAt)) {
+      for (const p of persons) taxPayers.add(p);
+      if (positive.length === 0 && !TREAT_ALL.test(norm.replace(TAX_MENTION, ""))) {
+        dangling = [];
+        continue;
+      }
+    }
 
     // 1. "Everyone except Wei splits the cendol"
     const ee = EVERYONE_EXCEPT.exec(norm);
@@ -231,6 +246,7 @@ export function parseInstruction(
         .sort((a, b) => a[0] - b[0])
         .map(([itemIndex, who]) => ({ itemIndex, people: [...who] })),
       defaultRule: resolution.defaultRule,
+      ...(taxPayers.size > 0 ? { taxPayers: [...taxPayers] } : {}),
       notes: "deterministic fallback parser",
     },
     chips,

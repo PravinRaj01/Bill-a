@@ -24,6 +24,7 @@ const planSchema = z.object({
     }),
   ),
   defaultRule: z.enum(["equal", "exclude"]),
+  taxPayers: z.array(z.string()).optional().default([]),
   notes: z.string().optional().default(""),
 });
 
@@ -94,11 +95,25 @@ export function validatePlan(
     byIndex.set(a.itemIndex, { itemIndex: a.itemIndex, people, ...(weights ? { weights } : {}) });
   }
 
+  // Tax payers: same rule as assignments — a name we don't know is dropped, but if that
+  // leaves nobody the answer was about someone else, and falling back to "everyone pays in
+  // proportion" would silently change who pays the tax, so reject.
+  const taxPayers: string[] = [];
+  for (const name of parsed.data.taxPayers) {
+    const known = canonical.get(norm(name));
+    if (known && !taxPayers.includes(known)) taxPayers.push(known);
+  }
+  if (parsed.data.taxPayers.length > 0 && taxPayers.length === 0) {
+    return { ok: false, reason: "the tax payer is nobody in this bill" };
+  }
+
   return {
     ok: true,
     plan: {
       assignments: [...byIndex.values()],
       defaultRule: parsed.data.defaultRule,
+      // Omitted when empty so plans without a tax instruction look exactly as before.
+      ...(taxPayers.length > 0 ? { taxPayers } : {}),
       notes: parsed.data.notes,
     },
     repairs,

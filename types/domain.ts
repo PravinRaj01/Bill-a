@@ -39,6 +39,12 @@ export interface AssignmentPlan {
   defaultRule: "equal" | "exclude";
   /** Free-text explanation from the model, surfaced for debugging, never trusted for math. */
   notes: string;
+  /**
+   * Who pays the tax / service charge, shared equally among them. Omitted or empty means the
+   * default: everyone pays it in proportion to what they ordered. Only the ENGINE turns this
+   * into money; the model just names the people.
+   */
+  taxPayers?: string[];
 }
 
 export interface Assignment {

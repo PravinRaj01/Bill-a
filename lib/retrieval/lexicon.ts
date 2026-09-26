@@ -76,7 +76,7 @@ export const CATEGORIES: Category[] = [
     ],
     queryPhrases: [
       "mains", "main course", "main courses", "the mains", "food",
-      "the food", "meals", "entrees", "main dishes",
+      "the food", "meal", "the meal", "meals", "entrees", "main dishes",
     ],
   },
   {
@@ -114,7 +114,8 @@ export function classifyItem(itemName: string): { categoryId: string; score: num
       if (kw.includes(" ")) {
         // Phrase keyword — weight higher; it's more specific evidence.
         if (haystack.includes(kw)) score += 2;
-      } else if (tokens.has(kw)) {
+      } else if (tokens.has(kw) || tokens.has(`${kw}s`)) {
+        // ("dumpling" also matches "DUMPLINGS", "noodle" matches "NOODLES": receipts print plurals)
         score += 1;
       }
     }

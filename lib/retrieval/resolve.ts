@@ -159,10 +159,14 @@ export function resolveItemReference(
   // 2. Category phrase — "the drinks" -> every item classified as a drink.
   const catId = matchCategoryPhrase(needle);
   if (catId) {
+    // "the food" (and "the meal") in everyday speech means everything that isn't a drink —
+    // NOT just the mains: "Pravin pays for the food, Wifey pays the tax" must include the
+    // dumplings and the dessert. Unclassified items count as food.
+    const meansAllFood = catId === "mains" && /(?:^|[^a-z])(?:food|meals?)(?:[^a-z]|$)/.test(needle);
     const hits: number[] = [];
     items.forEach((item, i) => {
-      const scores = classifyItem(item.name);
-      if (scores.length > 0 && scores[0].categoryId === catId) hits.push(i);
+      const top = classifyItem(item.name)[0]?.categoryId;
+      if (meansAllFood ? top !== "drinks" && top !== "alcohol" : top === catId) hits.push(i);
     });
     if (hits.length > 0) {
       return { phrase, itemIndices: hits, confidence: 0.9, via: "category" };
