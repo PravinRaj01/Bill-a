@@ -14,7 +14,8 @@
     "prebuild": "npm run ocr:assets && npm run sw:build",
     "bench:ocr": "tsx bench/ocr-bench.ts",
     "live:check": "node --env-file=.env.local --import tsx bench/live-check.mts",
-    "sw:build": "node scripts/build-sw.mjs"
+    "sw:build": "node scripts/build-sw.mjs",
+    "crosscheck:eval": "node --env-file=.env.local --import tsx bench/crosscheck-eval.mts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "1.11.3",

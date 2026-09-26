@@ -44,6 +44,15 @@ export const telemetryEventSchema = z.discriminatedUnion("type", [
     .strict(),
   z
     .object({
+      type: z.literal("crosscheck"),
+      /** The cloud tier that was second-guessed. */
+      tier: z.enum(["groq", "gemini"]),
+      /** shown = the two readings disagreed; ai / rules = which one the user picked. */
+      outcome: z.enum(["shown", "ai", "rules"]),
+    })
+    .strict(),
+  z
+    .object({
       type: z.literal("enhance"),
       ok: z.boolean(),
       kind: kind.optional(),

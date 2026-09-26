@@ -157,6 +157,10 @@ export function ApiKeySettings() {
           Remove all keys from this device
         </Button>
       )}
+      <p data-testid="keys-per-app-note" className="px-1 text-[11px] leading-relaxed text-zinc-600">
+        Keys are saved per app, not per account. If you installed Bill.a to your home screen (on iPhone especially, where the installed
+        app keeps its own storage), add your key inside that app too — a key saved in the browser won&apos;t be there.
+      </p>
     </div>
   );
 }
