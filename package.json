@@ -12,11 +12,11 @@
     "ocr:assets": "node scripts/copy-ocr-assets.mjs",
     "predev": "npm run ocr:assets",
     "prebuild": "npm run ocr:assets",
-    "bench:ocr": "tsx bench/ocr-bench.ts"
+    "bench:ocr": "tsx bench/ocr-bench.ts",
+    "live:check": "node --env-file=.env.local --import tsx bench/live-check.mts"
   },
   "dependencies": {
     "@auth/drizzle-adapter": "1.11.3",
-    "@mlc-ai/web-llm": "^0.2.85",
     "@neondatabase/serverless": "^1.1.0",
     "@node-rs/argon2": "^2.2.1",
     "@radix-ui/react-avatar": "^1.1.11",

@@ -13,10 +13,19 @@ import {
 } from "@/components/ui/table";
 import { getCurrentUser } from "@/lib/actions/user";
 import { getGroup, listGroups, saveGroup, updateGroupNames } from "@/lib/actions/groups";
-import { nextSessionTitle } from "@/lib/actions/history";
+import { getBill, nextSessionTitle } from "@/lib/actions/history";
 import { enqueueBill } from "@/lib/sync/outbox";
 import { inferMerchantCategory } from "@/lib/ai/merchantCategory";
-import { receiptToDomain, receiptToLegacy, splitsToDomain, toCents } from "@/lib/money";
+import { receiptToDomain, receiptToLegacy, splitsToDomain, splitsToLegacy, toCents } from "@/lib/money";
+import { planSplit, type PlanOutcome, type SplitPreview } from "@/lib/ai/planSplit";
+import { explainAttempts } from "@/lib/ai/providers/cascade";
+import { enhanceReceipt } from "@/lib/ai/providers/enhance";
+import { ProviderError } from "@/lib/ai/providers/types";
+import { getKeys, onKeysChanged, type Keys } from "@/lib/ai/keyStore";
+import type { Chip } from "@/lib/split/fallback-parser";
+import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
+import { ClarifyChips, type ClarifyAction } from "@/components/ai/ClarifyChips";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { releaseReceiptReader, scanReceipt, warmReceiptReader, type ScanStage } from "@/lib/ocr/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -45,8 +54,6 @@ interface ReceiptData { items: ReceiptItem[]; tax: number; total: number; curren
 interface SplitRecord { name: string; amount: number; items: string; }
 type Step = "NAMES" | "SCAN" | "REVIEW" | "SUMMARY";
 
-const API_URL = "https://favourable-eunice-pravinraj-code-24722b81.koyeb.app";
-
 function BillSplitterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -64,9 +71,21 @@ function BillSplitterContent() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState(false);
-  const [sessionClientId] = useState(() => crypto.randomUUID());
+  const [sessionClientId, setSessionClientId] = useState(() => crypto.randomUUID());
   // What the local scan was unsure about; drives the amber highlights on REVIEW.
   const [scanStage, setScanStage] = useState<ScanStage | null>(null);
+  // The conversation so far ("split equally", then "Aisha didn't have the rice"…): each
+  // follow-up is applied on top of the earlier ones, later winning.
+  const [instructions, setInstructions] = useState<string[]>([]);
+  const [modifyText, setModifyText] = useState("");
+  const [clarify, setClarify] = useState<{ chips: Chip[]; preview?: SplitPreview; pending: string[] } | null>(null);
+  const [splitNote, setSplitNote] = useState<string | null>(null);
+  const [keys, setKeys] = useState<Keys>({});
+  const [keySheetOpen, setKeySheetOpen] = useState(false);
+  // The shrunk photo, kept in memory only so "Re-read with Gemini" can use it.
+  const [photo, setPhoto] = useState<Blob | null>(null);
+  const [enhancing, setEnhancing] = useState(false);
+  const [enhanced, setEnhanced] = useState(false);
   const [scanInfo, setScanInfo] = useState<{ confidence: number; warnings: string[]; itemConf: number[]; empty: boolean; printedTotal: number | null } | null>(null);
 
   // GROUP SAVING STATE
@@ -85,6 +104,11 @@ function BillSplitterContent() {
     if (step === "SCAN") warmReceiptReader().catch(() => {});
   }, [step]);
   useEffect(() => () => void releaseReceiptReader(), []);
+
+  useEffect(() => {
+    setKeys(getKeys());
+    return onKeysChanged(() => setKeys(getKeys()));
+  }, []);
 
   const isCreator = true;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -109,106 +133,50 @@ function BillSplitterContent() {
     init();
   }, []);
 
-  // 2. MAIN RESTORE LOGIC
+  // 2. RESTORE / START PARAMS
   useEffect(() => {
-    const restoreFromChat = searchParams.get("restore_from_chat");
-    const restoreFromHistory = searchParams.get("restore_from_history");
+    const restoreId = searchParams.get("restore");
     const namesParam = searchParams.get("names");
     const groupId = searchParams.get("group_id");
 
-    // A. RESTORE FROM CHAT (User clicked "Save" in chat)
-    if (restoreFromChat) {
-        const chatResult = sessionStorage.getItem("billa_chat_result");
-        const context = sessionStorage.getItem("billa_chat_context"); 
-        
-        if (chatResult && context) {
-            const { splits, reasoning } = JSON.parse(chatResult);
-            const { items: origItems, people_list } = JSON.parse(context);
-            
-            setItems(origItems);
-            setPeople(people_list);
-            setStructuredSplit(splits);
-            setSplitResult(reasoning);
-            setStep("SUMMARY"); 
-            
-            sessionStorage.removeItem("billa_chat_result");
-            // Also update the snapshot so refreshing works
-            sessionStorage.setItem("billa_snapshot", JSON.stringify({
-                 items: origItems, people: people_list, structuredSplit: splits, splitResult: reasoning
-            }));
-        }
-        return;
-    }
-
-    // B. RESTORE FROM HISTORY (User clicked "Continue" in History)
-    if (restoreFromHistory) {
-        const historyData = sessionStorage.getItem("billa_restore_data");
-        if (historyData) {
-            const { data, currency } = JSON.parse(historyData);
-            
-            if (data.items && data.split) {
-                setItems(data.items);
-                setPeople(data.people || []);
-                setStructuredSplit(data.split);
-            } else {
-                const legacySplit = Array.isArray(data) ? data : data.splits || [];
-                setStructuredSplit(legacySplit);
-                setPeople(legacySplit.map((p:any) => p.name));
-                setItems({ items: [], total: 0, tax: 0, currency: currency }); 
+    // A. "Continue" from History: load the saved bill from the server (scoped to the
+    //    signed-in user), and keep its clientId so further edits UPDATE that history
+    //    row instead of creating a duplicate.
+    if (restoreId) {
+        const load = async () => {
+            const bill = await getBill(restoreId).catch(() => null);
+            if (!bill) {
+                router.replace("/dashboard/history");
+                return;
             }
-            
-            setSplitResult(data.reasoning || "Restored from history.");
+            setItems(receiptToLegacy(bill.data.items));
+            setPeople(bill.data.people);
+            setStructuredSplit(splitsToLegacy(bill.data.split));
+            setSplitResult(bill.data.reasoning || "Restored from history.");
+            setSessionClientId(bill.clientId);
+            setSessionName(bill.billTitle);
             setStep("SUMMARY");
-            sessionStorage.removeItem("billa_restore_data");
-            // Clear snapshot so we don't mix old drafts
-            sessionStorage.removeItem("billa_snapshot");
-        }
+        };
+        load();
         return;
     }
 
-    // C. NEW SESSION (URL Params)
-    if (namesParam || groupId) {
-        // Clear old snapshots because we are explicitly starting something new
-        sessionStorage.removeItem("billa_snapshot");
-        
-        if (namesParam) {
-            const loadedNames = decodeURIComponent(namesParam).split(",");
-            setPeople(loadedNames);
-        } else if (groupId) {
-            const loadGroup = async () => {
-                const data = await getGroup(groupId).catch(() => null);
-                if (data) {
+    // B. NEW SESSION (URL params)
+    if (namesParam) {
+        setPeople(decodeURIComponent(namesParam).split(","));
+    } else if (groupId) {
+        const loadGroup = async () => {
+            const data = await getGroup(groupId).catch(() => null);
+            if (data) {
                 setPeople(data.names);
                 setGroupName(data.groupName);
                 setActiveGroupId(data.id);
                 setOriginalPeople(data.names);
-                }
-            };
-            loadGroup();
-        }
-        return;
-    }
-
-    // D. CANCEL/BACK BUTTON FALLBACK (Snapshot Restore)
-    // If we have no specific instructions, check if we have an active session snapshot
-    const snapshot = sessionStorage.getItem("billa_snapshot");
-    if (snapshot) {
-        try {
-            const data = JSON.parse(snapshot);
-            // Only restore if it looks valid
-            if (data.items && data.structuredSplit) {
-                setItems(data.items);
-                setPeople(data.people);
-                setStructuredSplit(data.structuredSplit);
-                setSplitResult(data.splitResult);
-                setStep("SUMMARY");
             }
-        } catch (e) {
-            console.error("Failed to restore snapshot", e);
-        }
+        };
+        loadGroup();
     }
-
-  }, [searchParams]);
+  }, [searchParams, router]);
 
   const hasGroupChanged = () => {
       if (!activeGroupId) return false;
@@ -269,7 +237,11 @@ function BillSplitterContent() {
 
     setLoading(true);
     try {
-      const { parsed } = await scanReceipt(file, setScanStage);
+      const { parsed, prepared } = await scanReceipt(file, setScanStage);
+      setPhoto(prepared.display);
+      setEnhanced(false);
+      setInstructions([]);
+      setClarify(null);
       const receipt = receiptToLegacy(parsed.receipt);
       setItems(receipt);
       setScanInfo({
@@ -330,70 +302,128 @@ function BillSplitterContent() {
     return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
   };
 
-  const handleSplit = async () => {
+  // --- Splitting: route -> ambiguity check -> Groq -> Gemini -> on-device rules -> engine.
+  const describeTier = (o: Extract<PlanOutcome, { kind: "split" }>) => {
+    const why = explainAttempts(o.attempts);
+    if (o.tier === "groq") return "Split by Groq using your key.";
+    if (o.tier === "gemini") return why ? `${why}, so Gemini split this.` : "Split by Gemini using your key.";
+    return why
+      ? `${why} — used on-device rules instead.`
+      : "Split with on-device rules. Add a free Groq key for smarter splits.";
+  };
+
+  const applySplit = async (result: SplitPreview["result"], note: string, next: string[]) => {
+    const legacy = splitsToLegacy(result.splits);
+    setStructuredSplit(legacy);
+    setSplitResult(result.reasoning);
+    setInstructions(next);
+    setSplitNote(note);
+    setClarify(null);
+    await attemptSave(legacy, result.reasoning);
+    setStep("SUMMARY");
+  };
+
+  const runPlan = async (
+    next: string[],
+    opts: { ignoreAmbiguities?: boolean; peopleOverride?: string[] } = {},
+  ) => {
+    if (!items) return;
     setLoading(true);
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000);
-
+    setClarify(null);
     try {
-      const res = await fetch(`${API_URL}/split`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          receipt_data: JSON.stringify(items),
-          user_instruction: instruction || "Split equally",
-          people_list: people,
-          apply_tax: includeTax,
-        }),
-        signal: controller.signal
+      const outcome = await planSplit({
+        receipt: receiptToDomain(items),
+        people: opts.peopleOverride ?? people,
+        instructions: next,
+        applyTax: includeTax,
+        keys: getKeys(),
+        ignoreAmbiguities: opts.ignoreAmbiguities,
       });
-      
-      clearTimeout(timeoutId);
 
-      if (!res.ok) throw new Error(`Server Error: ${res.status}`);
-
-      const data = await res.json();
-      
-      try {
-        const cleanJson = data.result.replace(/```json/g, "").replace(/```/g, "").trim();
-        const parsedResult = JSON.parse(cleanJson);
-
-        if (parsedResult.splits && Array.isArray(parsedResult.splits)) {
-            setStructuredSplit(parsedResult.splits);
-            setSplitResult(parsedResult.reasoning || "Calculation complete.");
-            await attemptSave(parsedResult.splits, parsedResult.reasoning || data.result);
-            setStep("SUMMARY");
-        } 
-        else if (Array.isArray(parsedResult)) {
-            setStructuredSplit(parsedResult);
-            setSplitResult("Split successful.");
-            await attemptSave(parsedResult, data.result);
-            setStep("SUMMARY");
-        } 
-        else {
-            throw new Error("AI response was not a valid split list.");
+      if (outcome.kind === "add-members") {
+        const fresh = outcome.names.filter((n) => !people.some((p) => p.toLowerCase() === n.toLowerCase()));
+        const nextPeople = [...people, ...fresh];
+        setPeople(nextPeople);
+        setInstruction("");
+        if (step === "SUMMARY") {
+          // Someone joined after the split: recompute so they get their share.
+          await runPlan(instructions, { peopleOverride: nextPeople });
+        } else {
+          setSplitNote(`Added ${fresh.join(", ") || "nobody new"}. Now tell me how to split.`);
         }
-
-      } catch (parseError) {
-          console.error("JSON Parse Error:", parseError);
-          throw new Error("Failed to read AI response. Please try splitting again.");
-      }
-
-    } catch (err: any) {
-      console.error("Split Error:", err);
-      if (err.name === 'AbortError') {
-        alert("Split timed out. The server is waking up, please try clicking Split again.");
+      } else if (outcome.kind === "needs-clarification") {
+        setClarify({ chips: outcome.chips, preview: outcome.preview, pending: next });
       } else {
-        alert("Split failed. Please ensure your instructions are clear or try again.");
+        await applySplit(outcome.result, describeTier(outcome), next);
       }
+    } catch (err) {
+      console.error("Split error:", err);
+      alert("Something went wrong splitting this. Try rewording, or check the items.");
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
-  // Local-first: a save goes into the IndexedDB outbox and returns at once; the
-  // SyncManager pushes it in the background (and holds it while offline / as a
-  // guest). One clientId per session, so re-calculating updates the same row.
+  const handleSplit = () => runPlan([instruction]);
+
+  const handleModify = () => {
+    const text = modifyText.trim();
+    if (!text) return;
+    setModifyText("");
+    runPlan([...instructions, text]);
+  };
+
+  const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const handleClarify = async (a: ClarifyAction) => {
+    if (!clarify) return;
+    const pending = clarify.pending;
+    if (a.type === "edit") return setClarify(null);
+    if (a.type === "use-preview") {
+      if (clarify.preview) await applySplit(clarify.preview.result, "Split with on-device rules; the unclear parts were shared equally.", pending);
+      return;
+    }
+    if (a.type === "continue-anyway") return runPlan(pending, { ignoreAmbiguities: true });
+    if (a.type === "add-person") {
+      const nextPeople = people.some((p) => p.toLowerCase() === a.name.toLowerCase()) ? people : [...people, a.name];
+      setPeople(nextPeople);
+      return runPlan(pending, { peopleOverride: nextPeople });
+    }
+    // replace: fix the typo / pick the item, then re-run
+    const re = new RegExp(`\\b${escapeRe(a.from)}\\b`, "gi");
+    const fixed = pending.map((t) => t.replace(re, a.to));
+    if (fixed.length === 1) setInstruction(fixed[0]);
+    return runPlan(fixed);
+  };
+
+  // --- Cloud Enhance: opt-in, per scan, with the user's own Gemini key.
+  const handleEnhance = async () => {
+    const key = keys.gemini;
+    if (!key || !photo) return;
+    setEnhancing(true);
+    try {
+      const parsed = await enhanceReceipt(photo, key, { signal: AbortSignal.timeout(45_000) }) // vision on the free tier measured ~15 s;
+      setItems(receiptToLegacy(parsed.receipt));
+      setScanInfo({
+        confidence: parsed.confidence,
+        warnings: parsed.warnings,
+        itemConf: parsed.items.map((it) => it.confidence),
+        empty: parsed.items.length === 0,
+        printedTotal: parsed.totalSource === "keyword" ? parsed.receipt.total / 100 : null,
+      });
+      setEnhanced(true);
+    } catch (err) {
+      const kind = err instanceof ProviderError ? err.kind : "network";
+      alert(
+        kind === "auth" ? "Gemini rejected your key. Check it in AI settings."
+        : kind === "rate-limit" ? "Gemini is rate-limited right now. Try again in a minute."
+        : kind === "blocked" ? "Gemini declined to read this photo."
+        : "Couldn't get a second reading from Gemini. You can still fix the items by hand.",
+      );
+    } finally {
+      setEnhancing(false);
+    }
+  };
+
   const attemptSave = async (splitData: any, log: string) => {
      let finalTitle = sessionName.trim();
      if (!finalTitle) {
@@ -425,42 +455,9 @@ function BillSplitterContent() {
      }
   };
 
-  const handleModifyInChat = () => {
-    // 1. Save context for AI Logic
-    const contextData = JSON.stringify({
-        items: items, 
-        people_list: people,
-        current_instruction: instruction
-    });
-    sessionStorage.setItem("billa_chat_context", contextData);
-
-    // 2. NEW: Save Visual Snapshot for the "Cancel" / Back button
-    // This allows Step D in useEffect to restore the view when coming back
-    sessionStorage.setItem("billa_snapshot", JSON.stringify({
-        items,
-        people,
-        structuredSplit,
-        splitResult,
-        step: "SUMMARY"
-    }));
-
-    // 3. Prompt setup
-    const initialPrompt = instruction 
-        ? `I tried to split the bill with instruction: "${instruction}", but I need to make changes.` 
-        : `I split the bill equally, but I need to make specific adjustments.`;
-    
-    sessionStorage.setItem("billa_initial_prompt", initialPrompt);
-    
-    router.push(`/dashboard/chat`);
-  };
 
   // --- FINISH SESSION HANDLER ---
   const handleFinish = () => {
-      // Clear all snapshots to prevent stale data loading next time
-      sessionStorage.removeItem("billa_snapshot");
-      sessionStorage.removeItem("billa_chat_result");
-      sessionStorage.removeItem("billa_restore_data");
-      
       router.refresh(); 
       router.push("/dashboard");
   };
@@ -469,10 +466,26 @@ function BillSplitterContent() {
     <main className="flex flex-1 flex-col gap-6 p-6 max-w-xl mx-auto w-full mb-20 animate-in fade-in duration-300">
       
       {step !== "NAMES" && (
-        <Button variant="ghost" className="w-fit p-0 h-auto hover:bg-transparent text-slate-500 font-bold uppercase tracking-widest text-[10px]" onClick={() => setStep("NAMES")}>
-          <ChevronLeft size={14} className="mr-1" /> Back
-        </Button>
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" className="w-fit p-0 h-auto hover:bg-transparent text-slate-500 font-bold uppercase tracking-widest text-[10px]" onClick={() => setStep("NAMES")}>
+            <ChevronLeft size={14} className="mr-1" /> Back
+          </Button>
+          <Button variant="ghost" data-testid="open-ai-settings" className="h-auto p-0 hover:bg-transparent text-slate-500 hover:text-white font-bold uppercase tracking-widest text-[10px]" onClick={() => setKeySheetOpen(true)}>
+            <Sparkles size={12} className="mr-1 text-amber-400" /> AI settings{keys.groq || keys.gemini ? " ✓" : ""}
+          </Button>
+        </div>
       )}
+      <Sheet open={keySheetOpen} onOpenChange={setKeySheetOpen}>
+        <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto border-white/10 bg-[#0c0c0e] text-white sm:mx-auto sm:max-w-xl">
+          <SheetHeader>
+            <SheetTitle className="text-white">AI settings</SheetTitle>
+            <SheetDescription className="text-zinc-500">Bring your own free API key for smarter splits.</SheetDescription>
+          </SheetHeader>
+          <div className="px-4 pb-6">
+            <ApiKeySettings />
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {step === "NAMES" && (
         <div className="space-y-6 animate-in fade-in duration-500">
@@ -651,6 +664,26 @@ function BillSplitterContent() {
               </div>
             </div>
           )}
+          {(() => {
+            const diff = scanInfo?.printedTotal != null && items ? Math.round((scanInfo.printedTotal - (subtotal + items.tax)) * 100) / 100 : 0;
+            const unsure = !!scanInfo && (scanInfo.empty || scanInfo.confidence < 0.6 || Math.abs(diff) >= 0.01);
+            if (!unsure || !photo || enhanced) return null;
+            return keys.gemini ? (
+              <div data-testid="enhance-card" className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                <p className="text-xs font-bold text-white">Not sure about this scan?</p>
+                <p className="text-xs text-zinc-500">Ask Gemini to re-read the photo. This sends the photo to Google using your own key.</p>
+                <Button type="button" variant="ghost" onClick={handleEnhance} disabled={enhancing} className="h-9 rounded-full border border-white/10 bg-white/5 px-4 text-[11px] font-bold text-white hover:bg-white/10 hover:text-white">
+                  {enhancing ? <><Loader2 className="mr-2 h-3 w-3 animate-spin" /> Reading…</> : "Re-read with Gemini"}
+                </Button>
+              </div>
+            ) : (
+              <p data-testid="enhance-hint" className="px-1 text-[11px] text-zinc-500">
+                Scan looks shaky.{" "}
+                <button type="button" onClick={() => setKeySheetOpen(true)} className="font-bold text-indigo-400 hover:text-indigo-300">Add a free Gemini key</button>{" "}
+                to get a second opinion, or fix the numbers by hand.
+              </p>
+            );
+          })()}
           <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl rounded-3xl">
             <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase text-slate-500 tracking-widest">Extracted Items · tap to edit</div>
             <CardContent className="p-0">
@@ -751,7 +784,9 @@ function BillSplitterContent() {
                   <span data-testid="review-total" className="text-xl font-black font-mono italic text-white tracking-tighter">{symbol}{displayedTotal.toFixed(2)}</span>
                 </div>
 
-                <Input disabled={!isCreator} placeholder="Instructions (e.g. Split equally)" value={instruction} onChange={(e) => setInstruction(e.target.value)} className="bg-black border-white/5 h-12 text-white" />
+                <Input disabled={!isCreator} placeholder="Instructions (e.g. Split equally)" value={instruction} onChange={(e) => setInstruction(e.target.value)} onKeyDown={(e) => e.key === "Enter" && !loading && handleSplit()} className="bg-black border-white/5 h-12 text-white" />
+                {clarify && <ClarifyChips chips={clarify.chips} hasPreview={!!clarify.preview} onAction={handleClarify} />}
+                {splitNote && !clarify && <p data-testid="split-note" className="px-1 text-[11px] text-zinc-500">{splitNote}</p>}
                 <Button className="w-full h-12 bg-white text-black font-black uppercase tracking-tight rounded-xl" onClick={handleSplit} disabled={loading || !isCreator || !items || items.items.length === 0 || displayedTotal <= 0}>
                   {loading ? <Loader2 className="animate-spin" /> : "Split Bill"}
                 </Button>
@@ -786,20 +821,31 @@ function BillSplitterContent() {
                 {showReasoning && (
                   <div className="px-6 pb-6 animate-in slide-in-from-top-2 duration-200 space-y-4">
                     <div className="p-4 bg-black rounded-xl text-[10px] font-mono text-zinc-500 whitespace-pre-wrap leading-relaxed border border-white/5 max-h-60 overflow-y-auto italic text-left">{splitResult}</div>
-                    
-                    <Button 
-                        variant="ghost" 
-                        onClick={handleModifyInChat}
-                        className="w-full h-10 border border-white/10 bg-white/5 text-xs text-white hover:bg-white/10 hover:text-white uppercase tracking-wider font-bold rounded-xl"
-                    >
-                        <MessageSquare size={14} className="mr-2 text-indigo-400"/>
-                        Modify with AI Chat
-                        <Sparkles size={12} className="ml-2 text-amber-400"/>
-                    </Button>
                   </div>
                 )}
               </div>
-              <div className="p-6 space-y-3">
+              <div className="space-y-3 border-t border-white/5 p-6">
+                <div className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                  <Sparkles size={12} className="text-amber-400" /> Change something
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    data-testid="modify-input"
+                    value={modifyText}
+                    onChange={(e) => setModifyText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && !loading && handleModify()}
+                    placeholder="e.g. Aisha didn't have the rice"
+                    disabled={loading}
+                    className="h-11 border-white/5 bg-black text-white"
+                  />
+                  <Button data-testid="modify-apply" type="button" onClick={handleModify} disabled={loading || !modifyText.trim()} className="h-11 bg-white px-4 text-[10px] font-black uppercase tracking-widest text-black hover:bg-zinc-200">
+                    {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                  </Button>
+                </div>
+                {clarify && <ClarifyChips chips={clarify.chips} hasPreview={!!clarify.preview} onAction={handleClarify} />}
+                {splitNote && !clarify && <p data-testid="split-note" className="text-[11px] text-zinc-500">{splitNote}</p>}
+              </div>
+              <div className="p-6 pt-0 space-y-3">
                 <Button className="w-full h-12 bg-[#25D366] text-black font-black rounded-xl uppercase tracking-tighter" onClick={() => {
                   let text = `*Bill-a Summary (${symbol})*\n\n`;
                   structuredSplit.forEach((r) => (text += `👤 *${r.name}*: ${symbol}${r.amount.toFixed(2)}\n`));

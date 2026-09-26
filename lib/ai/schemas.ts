@@ -1,64 +1,66 @@
-// The schema below encodes the shape of types/domain.ts's AssignmentPlan
-// — the only thing the LLM is ever allowed to produce. It assigns
-// receipt items to people; it never computes a price. See
-// lib/split/engine.ts for where the actual arithmetic happens.
+// The JSON schema for types/domain.ts's AssignmentPlan — the only thing an LLM is
+// ever allowed to produce. It assigns receipt items to people; it never computes a
+// price (lib/split/engine.ts does every cent).
 //
-// The schema is built PER REQUEST, bounded to the actual candidate items
-// and people list. This isn't cosmetic: WebLLM enforces the JSON schema
-// via XGrammar during decoding, token by token. An unbounded schema
-// (bare `array`, bare `integer`) legally permits the model to keep
-// emitting array elements forever — observed in the Phase 0 spike as a
-// runaway repetition loop (itemIndex climbing past the real item count,
-// "people" filling with duplicate names) that ran until max_tokens cut
-// it off mid-string and JSON.parse failed on the truncated output.
-// Binding itemIndex/people to enums and every array to maxItems makes
-// that failure structurally impossible: the grammar simply won't
-// generate a token that would violate the bound, so the model is forced
-// to close the object correctly once it hits the real limits.
-// Note: maxItems bounds the array's total LENGTH to the real item count,
-// which is what stops runaway growth — but plain JSON Schema has no
-// clean way to also enforce "itemIndex is unique across array elements"
-// (that needs draft 2019+ contains/minContains, which WebLLM's XGrammar
-// support may not track). A model could in principle still emit the same
-// itemIndex twice within the bounded length. Left as a Phase 1 item:
-// either validate-and-reject in split-orchestrator.ts before handing the
-// plan to computeSplit(), or determine XGrammar's actual draft support
-// and tighten this further.
+// Built PER REQUEST and bounded to the real items and people, so the model can't
+// even express an out-of-range index or an unknown name. Constrained decoding
+// guarantees shape, NOT meaning (JSON Schema can't say "itemIndex is unique across
+// the array", and Gemini's docs say to always validate values) — so every response
+// still goes through lib/ai/validatePlan.ts.
 //
-// Deliberately NOT in this schema: a `weights` field. The Phase 1 model
-// bake-off tested it across two rounds — the second with an explicit
-// worked counter-example in the system prompt targeting exactly this
-// failure — and every model that produced valid JSON (Llama-3.2-1B,
-// Qwen2.5-1.5B, from two different model families) independently
-// hallucinated weights that mirror the item's receipt `quantity` field
-// rather than a genuine split ratio, even on the simplest possible case
-// ("split equally", one item). Two families, byte-identical failure
-// pattern, unmoved by a direct counter-example: that's a schema/model-
-// size mismatch, not a prompting problem. computeSplit() (lib/split/
-// engine.ts) and the Assignment type (types/domain.ts) both still
-// support weighted shares structurally — that capability isn't gone,
-// it's just not exposed to the LLM's output space in v1. Custom ratios
-// become an explicit, deterministic UI control later instead of an
-// inference target for a 1-2B model.
-export function buildAssignmentPlanSchema(candidateIndices: number[], peopleNames: string[]) {
+// Deliberately NOT in the schema: a `weights` field. The Phase 1 bake-off showed
+// small models hallucinating weights that mirror the receipt `quantity`. The engine
+// still supports weighted shares; custom ratios will be an explicit UI control, not
+// something inferred from free text.
+
+export type SchemaTarget = "groq" | "gemini";
+
+/**
+ * - groq: strict structured outputs — every object needs `additionalProperties:
+ *   false` and every property in `required`; `enum` and `minItems`/`maxItems` are
+ *   accepted (checked live). `uniqueItems` is NOT, despite the docs.
+ * - gemini: `responseSchema` is an OpenAPI-style subset. `enum` is only reliable
+ *   for strings, so itemIndex is a bounded integer (minimum/maximum) rather than an
+ *   integer enum, and keywords Gemini's schema has rejected historically
+ *   (`additionalProperties`, `uniqueItems`) are left out.
+ */
+export function buildAssignmentPlanSchema(
+  candidateIndices: number[],
+  peopleNames: string[],
+  target: SchemaTarget = "groq",
+) {
+  if (candidateIndices.length === 0) throw new Error("buildAssignmentPlanSchema: no candidate items");
+  if (peopleNames.length === 0) throw new Error("buildAssignmentPlanSchema: no people");
+
+  const itemIndex =
+    target === "groq"
+      ? { type: "integer", enum: candidateIndices }
+      : { type: "integer", minimum: Math.min(...candidateIndices), maximum: Math.max(...candidateIndices) };
+
+  const people = {
+    type: "array",
+    items: { type: "string", enum: peopleNames },
+    minItems: 1,
+    maxItems: peopleNames.length,
+    // No uniqueItems for either provider: Groq's strict mode rejects it outright
+    // (HTTP 400 "uniqueItems is not supported" — found by the live check, and contrary
+    // to the docs), and Gemini's schema subset doesn't take it either. validatePlan
+    // dedupes names instead.
+  };
+
+  const closed = target === "groq" ? { additionalProperties: false } : {};
+
   return {
     type: "object",
+    ...closed,
     properties: {
       assignments: {
         type: "array",
         maxItems: candidateIndices.length,
         items: {
           type: "object",
-          properties: {
-            itemIndex: { type: "integer", enum: candidateIndices },
-            people: {
-              type: "array",
-              items: { type: "string", enum: peopleNames },
-              minItems: 1,
-              maxItems: peopleNames.length,
-              uniqueItems: true,
-            },
-          },
+          ...closed,
+          properties: { itemIndex, people },
           required: ["itemIndex", "people"],
         },
       },
@@ -69,9 +71,6 @@ export function buildAssignmentPlanSchema(candidateIndices: number[], peopleName
   } as const;
 }
 
-// Re-exported so call sites can `import { buildAssignmentPlanSchema, type
-// AssignmentPlan } from "@/lib/ai/schemas"` without also reaching into
-// types/domain — but the canonical definition lives there, alongside
-// Receipt/SplitResult/SplitReconciliationError, so there's one source of
-// truth instead of two interfaces that can silently drift apart.
+// Re-exported so call sites can import the type from one place; the canonical
+// definition lives in types/domain.ts next to Receipt/SplitResult.
 export type { AssignmentPlan } from "@/types/domain";

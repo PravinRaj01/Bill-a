@@ -16,6 +16,7 @@ import {
   Mail
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 
 export default function AccountPage() {
   const [user, setUser] = useState<Awaited<ReturnType<typeof getCurrentUser>>>(null);
@@ -99,6 +100,10 @@ export default function AccountPage() {
 
         {/* Action Buttons */}
         <div className="pt-4 space-y-3">
+           <section className="space-y-3" data-testid="account-ai-settings">
+             <h2 className="px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">AI settings</h2>
+             <ApiKeySettings />
+           </section>
            <Button 
             onClick={handleSignOut}
             className="w-full h-14 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/5 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center justify-between px-6 group"

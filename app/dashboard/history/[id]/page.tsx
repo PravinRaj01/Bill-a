@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { deleteBills, getBill } from "@/lib/actions/history";
 import type { BillHistoryRow } from "@/lib/db/schema";
-import { formatMoney, receiptToLegacy, splitsToLegacy } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { useRouter, useParams } from "next/navigation"; // Import useParams
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -46,25 +46,10 @@ export default function BillDetailPage() {
       router.refresh();
   };
 
-  // 3. Handle Continue Session
+  // 3. Handle Continue Session: the new-session page loads the bill itself (scoped to
+  // the signed-in user on the server), so no data is passed through sessionStorage.
   const handleContinue = () => {
-      if (!bill) return;
-      
-      // Save data to session storage to pass it to the main app
-      // The DB stores integer cents; the current split UI still works in RM
-      // floats, so convert at this boundary (lib/money.ts). Phase 6 removes this.
-      sessionStorage.setItem("billa_restore_data", JSON.stringify({
-          data: {
-              split: splitsToLegacy(bill.data.split),
-              items: receiptToLegacy(bill.data.items),
-              people: bill.data.people,
-              reasoning: bill.data.reasoning,
-          },
-          currency: bill.currency
-      }));
-      
-      // Redirect to main app with restore flag
-      router.push("/dashboard/new?restore_from_history=true");
+      router.push(`/dashboard/new?restore=${encodeURIComponent(id)}`);
   };
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-black text-white"><Loader2 className="animate-spin" /></div>;

@@ -1,533 +1,226 @@
 "use client";
 
-// Phase 1 model bake-off — plan §3.2. Not product UI.
+// DEV-ONLY: measures the split pipeline's accuracy and latency per model, with YOUR
+// OWN key (read from the same localStorage the app uses; it never leaves your
+// browser except to the provider). Decides which Groq model is the default in
+// lib/ai/providers/models.ts, and what the on-device parser is worth.
 //
-// Runs each candidate model against the fixed case set in
-// lib/ai/bakeoff-cases.ts and scores it by running BOTH the model's
-// AssignmentPlan and the hand-authored expected AssignmentPlan through
-// the same, already-tested computeSplit() engine, then comparing the
-// resulting per-person cent amounts. This isolates "did the model
-// understand the instruction" from "was the arithmetic right" — the
-// arithmetic is proven separately by lib/split/engine.test.ts.
+// Scoring is the same as the original bake-off: run the case's expected plan AND the
+// model's plan through the real engine (computeSplit) and compare per-person cents —
+// so "did it understand the instruction" is separated from arithmetic.
 //
-// Results persist to localStorage per model id, so running all
-// candidates (each requiring a full model download + page reuse) builds
-// up a leaderboard without manual note-taking. Wrapped in try/catch per
-// the usual caveat: localStorage can throw or silently no-op in private
-// browsing, and that must never break the harness itself.
+// /dev is excluded from auth middleware and must be blocked in production (Phase 7).
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { createEngine, isModelCached } from "@/lib/ai/engine-client";
-import { buildAssignmentPlanSchema } from "@/lib/ai/schemas";
-import { buildSystemPrompt, buildUserPrompt, buildItemMenu } from "@/lib/ai/prompts";
-import { resolveInstruction } from "@/lib/retrieval/resolve";
+import { useEffect, useMemo, useState } from "react";
 import { BAKEOFF_CASES, type BakeoffCase } from "@/lib/ai/bakeoff-cases";
+import { HELDOUT_CASES } from "@/lib/split/heldout-cases";
 import { computeSplit } from "@/lib/split/engine";
-import type { AssignmentPlan, SplitRecord } from "@/types/domain";
-import type { InitProgressReport, MLCEngineInterface } from "@mlc-ai/web-llm";
+import { parseInstruction } from "@/lib/split/fallback-parser";
+import { resolveInstruction } from "@/lib/retrieval/resolve";
+import { runCascade } from "@/lib/ai/providers/cascade";
+import { MODELS } from "@/lib/ai/providers/models";
+import type { ProviderId } from "@/lib/ai/providers/types";
+import { getKeys, onKeysChanged, type Keys } from "@/lib/ai/keyStore";
 
-// Run 1 (original 5, kept for the leaderboard's historical record):
-// gemma3-1b-it and Qwen3-0.6B both hit WebLLM's documented "spins on
-// whitespace until max_tokens" failure — not a capability gap, a stall.
-// Qwen2.5-0.5B returned near-constant empty assignments regardless of
-// instruction complexity, i.e. it wasn't engaging with the task at all.
-// Only Llama-3.2-1B and Qwen2.5-1.5B showed real capability, and their
-// failures clustered into two fixable patterns (see lib/ai/prompts.ts's
-// revision history comment) rather than random noise.
-//
-// Run 2 additions: the original plan (§3.2) rejected these as
-// "over-specced" under the assumption that an assignment-only task needs
-// little capability. Run 1's results partially contradict that — even
-// the capable models struggled with categorical binding independent of
-// the weights bug — so they're back in for a real comparison instead of
-// an assumption. All three are upstream-validated for JSON-schema mode
-// in WebLLM's own examples/json-schema.
-const CANDIDATES = [
-  "gemma3-1b-it-q4f16_1-MLC",
-  "Llama-3.2-1B-Instruct-q4f16_1-MLC",
-  "Qwen2.5-0.5B-Instruct-q4f16_1-MLC",
-  "Qwen3-0.6B-q4f16_1-MLC",
-  "Qwen2.5-1.5B-Instruct-q4f16_1-MLC", // optional upgrade tier, plan §3.2
-  "Llama-3.2-3B-Instruct-q4f16_1-MLC", // run 2: previously rejected as over-specced
-  "Phi-3.5-mini-instruct-q4f16_1-MLC", // run 2: previously rejected as over-specced
-  "gemma-2-2b-it-q4f16_1-MLC", // run 2: gemma3-1b's failure was config-specific; try the gemma-2 family
-] as const;
+type Target =
+  | { id: string; label: string; kind: "cloud"; provider: ProviderId; model: string }
+  | { id: string; label: string; kind: "fallback" };
 
-interface CaseResult {
+const TARGETS: Target[] = [
+  { id: "groq-primary", label: `Groq ${MODELS.groq.primary}`, kind: "cloud", provider: "groq", model: MODELS.groq.primary },
+  { id: "groq-secondary", label: `Groq ${MODELS.groq.secondary}`, kind: "cloud", provider: "groq", model: MODELS.groq.secondary },
+  { id: "gemini", label: `Gemini ${MODELS.gemini.primary}`, kind: "cloud", provider: "gemini", model: MODELS.gemini.primary },
+  { id: "fallback", label: "On-device parser (no key)", kind: "fallback" },
+];
+
+type Verdict = "correct" | "wrong" | "safe-chip" | "error";
+interface Row {
   caseId: string;
-  pass: boolean;
-  reason?: string; // "parse_error" | "split_error" | "mismatch"
-  elapsedMs: number;
-  actualPlan?: AssignmentPlan;
-  actualSplits?: SplitRecord[];
-  expectedSplits?: SplitRecord[];
-  rawOutput?: string;
-  /** What lib/retrieval/resolve.ts injected into the prompt, if anything — kept for debugging. */
-  resolvedBlock?: string;
+  verdict: Verdict;
+  ms: number;
+  detail: string;
 }
 
-interface ModelRunResult {
-  modelId: string;
-  usedResolution: boolean;
-  accuracy: number; // 0-1
-  avgElapsedMs: number;
-  timestamp: number;
-  cases: CaseResult[];
-}
+const amounts = (c: BakeoffCase, plan: BakeoffCase["expectedPlan"]) =>
+  computeSplit(c.receipt, c.people, plan, c.applyTax).splits.map((s) => s.amount);
+const sameAmounts = (a: number[], b: number[]) => a.length === b.length && a.every((v, i) => v === b[i]);
+const quantile = (xs: number[], q: number) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length ? s[Math.min(s.length - 1, Math.floor(q * s.length))] : 0;
+};
 
-const STORAGE_PREFIX = "billa_bakeoff_";
-
-// Keyed by modelId + variant (not just modelId) so a "with resolution"
-// run never overwrites the "without" run for the same model — the
-// decision gate in plan §11 needs BOTH numbers side by side to mean
-// anything ("same models, same cases, nothing else changed").
-const storageKey = (modelId: string, usedResolution: boolean) =>
-  `${STORAGE_PREFIX}${modelId}${usedResolution ? "__resolved" : "__raw"}`;
-
-function loadLeaderboard(): Record<string, ModelRunResult> {
-  const out: Record<string, ModelRunResult> = {};
+async function runCase(t: Target, c: BakeoffCase, keys: Keys, withResolution: boolean, tries = 0): Promise<Row> {
+  const started = performance.now();
   try {
-    for (const id of CANDIDATES) {
-      for (const variant of [false, true]) {
-        const raw = localStorage.getItem(storageKey(id, variant));
-        if (raw) out[storageKey(id, variant)] = JSON.parse(raw);
+    let plan: BakeoffCase["expectedPlan"];
+    let chips = 0;
+    if (t.kind === "fallback") {
+      const r = parseInstruction(c.instruction, c.people, c.receipt.items);
+      plan = r.plan;
+      chips = r.chips.length;
+    } else {
+      const resolvedBlock = withResolution ? resolveInstruction(c.instruction, c.receipt.items).promptBlock : undefined;
+      const r = await runCascade(
+        { people: c.people, items: c.receipt.items, instructions: [c.instruction], resolvedBlock },
+        { keys: { [t.provider]: keys[t.provider] }, order: [t.provider], models: { [t.provider]: t.model }, timeoutMs: 30_000 },
+      );
+      if (r.tier === "fallback") {
+        const a = r.attempts[0];
+        // A 429 is the provider's free-tier limit, not a wrong answer: wait as long as it
+        // says (default 20 s) and try this case again, up to 3 more times.
+        if (a?.kind === "rate-limit" && tries < 3) {
+          await new Promise((res) => setTimeout(res, a.retryAfterMs ?? 20_000));
+          return runCase(t, c, keys, withResolution, tries + 1);
+        }
+        return { caseId: c.id, verdict: "error", ms: performance.now() - started, detail: `${a?.kind ?? "no key"}: ${a?.message ?? ""}` };
       }
+      plan = r.plan;
     }
-  } catch {
-    // Private browsing / storage disabled — harness still works, just
-    // without cross-run persistence.
+    const ms = performance.now() - started;
+    const ok = sameAmounts(amounts(c, c.expectedPlan), amounts(c, plan));
+    if (ok) return { caseId: c.id, verdict: "correct", ms, detail: "" };
+    return { caseId: c.id, verdict: chips > 0 ? "safe-chip" : "wrong", ms, detail: JSON.stringify(plan.assignments) };
+  } catch (e) {
+    return { caseId: c.id, verdict: "error", ms: performance.now() - started, detail: e instanceof Error ? e.message : String(e) };
   }
-  return out;
 }
 
-/**
- * Builds a self-contained markdown report from every persisted model run
- * so results can be handed off (as a file) rather than relayed one
- * screenshot at a time. Includes full expected/actual splits and raw
- * model output for every failing case, and a one-line summary for
- * passes — enough to diagnose *why* a model failed without needing to
- * re-run anything.
- */
-function generateReport(leaderboard: Record<string, ModelRunResult>): string {
-  const lines: string[] = [];
-  lines.push("# Bill.a Model Bake-off Report");
-  lines.push(`Generated: ${new Date().toISOString()}`);
-  lines.push(`Case set: ${BAKEOFF_CASES.length} cases from lib/ai/bakeoff-cases.ts`);
-  lines.push("");
-  lines.push(
-    "Scoring: both the model's AssignmentPlan and the hand-authored expectedPlan are run " +
-      "through the real computeSplit() engine; a case passes only if every person's final " +
-      "amount matches exactly. This isolates instruction-following from arithmetic.",
-  );
-  lines.push("");
+export default function ModelBakeoff() {
+  const [keys, setKeys] = useState<Keys>({});
+  const [chosen, setChosen] = useState<Record<string, boolean>>({ "groq-primary": true, "groq-secondary": true, gemini: true, fallback: true });
+  const [set, setSet] = useState<"dev" | "heldout" | "both">("dev");
+  const [withResolution, setWithResolution] = useState(true);
+  const [rows, setRows] = useState<Record<string, Row[]>>({});
+  const [running, setRunning] = useState<string | null>(null);
 
-  const keysFor = (id: string) => [storageKey(id, false), storageKey(id, true)];
-  const run = CANDIDATES.flatMap((id) => keysFor(id))
-    .map((k) => leaderboard[k])
-    .filter((r): r is ModelRunResult => !!r);
+  useEffect(() => {
+    setKeys(getKeys());
+    return onKeysChanged(() => setKeys(getKeys()));
+  }, []);
 
-  lines.push("## Leaderboard");
-  lines.push("");
-  lines.push(
-    "Mode: **raw** = today's prompt, model searches the item list itself. **resolved** = " +
-      "plan §5.1b's deterministic resolution layer injects pre-resolved indices; nothing else " +
-      "changes (same model, same cases, same schema). This is the decision-gate comparison.",
+  const cases = useMemo(
+    () => (set === "dev" ? BAKEOFF_CASES : set === "heldout" ? HELDOUT_CASES : [...BAKEOFF_CASES, ...HELDOUT_CASES]),
+    [set],
   );
-  lines.push("");
-  lines.push("| Model | Mode | Accuracy | Pass/Total | Avg latency | Run at |");
-  lines.push("|---|---|---|---|---|---|");
-  for (const id of CANDIDATES) {
-    for (const variant of [false, true]) {
-      const r = leaderboard[storageKey(id, variant)];
-      const mode = variant ? "resolved" : "raw";
-      if (!r) {
-        lines.push(`| ${id} | ${mode} | — | not run | — | — |`);
+
+  const run = async () => {
+    setRows({});
+    for (const t of TARGETS.filter((x) => chosen[x.id])) {
+      if (t.kind === "cloud" && !keys[t.provider]) {
+        setRows((r) => ({ ...r, [t.id]: [{ caseId: "-", verdict: "error", ms: 0, detail: `no ${t.provider} key saved (open the app → AI settings)` }] }));
         continue;
       }
-      const passCount = r.cases.filter((c) => c.pass).length;
-      lines.push(
-        `| ${id} | ${mode} | ${(r.accuracy * 100).toFixed(0)}% | ${passCount}/${r.cases.length} | ` +
-          `${r.avgElapsedMs.toFixed(0)}ms | ${new Date(r.timestamp).toLocaleString()} |`,
-      );
-    }
-  }
-  lines.push("");
-
-  for (const r of run) {
-    lines.push(`## ${r.modelId} (${r.usedResolution ? "resolved" : "raw"})`);
-    lines.push("");
-    const passCount = r.cases.filter((c) => c.pass).length;
-    lines.push(
-      `Accuracy: ${(r.accuracy * 100).toFixed(0)}% (${passCount}/${r.cases.length}), ` +
-        `avg latency ${r.avgElapsedMs.toFixed(0)}ms`,
-    );
-    lines.push("");
-
-    for (const cr of r.cases) {
-      const c = BAKEOFF_CASES.find((bc) => bc.id === cr.caseId);
-      const mark = cr.pass ? "✓" : "✗";
-      lines.push(`### ${mark} ${cr.caseId} — "${c?.instruction ?? "(unknown case)"}"`);
-      lines.push("");
-      lines.push(`- Elapsed: ${cr.elapsedMs.toFixed(0)}ms`);
-      if (cr.reason) lines.push(`- Reason: ${cr.reason}`);
-      if (cr.resolvedBlock) {
-        lines.push("Resolved references injected into the prompt:");
-        lines.push("```");
-        lines.push(cr.resolvedBlock);
-        lines.push("```");
-      }
-      if (!cr.pass) {
-        lines.push("");
-        lines.push("Expected splits:");
-        lines.push("```json");
-        lines.push(JSON.stringify(cr.expectedSplits ?? "n/a", null, 2));
-        lines.push("```");
-        lines.push("Actual splits:");
-        lines.push("```json");
-        lines.push(JSON.stringify(cr.actualSplits ?? "n/a", null, 2));
-        lines.push("```");
-        if (cr.actualPlan) {
-          lines.push("Actual plan:");
-          lines.push("```json");
-          lines.push(JSON.stringify(cr.actualPlan, null, 2));
-          lines.push("```");
-        }
-        lines.push("Raw model output:");
-        lines.push("```");
-        lines.push(cr.rawOutput ?? "n/a");
-        lines.push("```");
-      }
-      lines.push("");
-    }
-  }
-
-  return lines.join("\n");
-}
-
-function downloadReport(leaderboard: Record<string, ModelRunResult>) {
-  const markdown = generateReport(leaderboard);
-  const blob = new Blob([markdown], { type: "text/markdown" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `billa-bakeoff-report-${Date.now()}.md`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-function saveResult(result: ModelRunResult) {
-  try {
-    localStorage.setItem(storageKey(result.modelId, result.usedResolution), JSON.stringify(result));
-  } catch {
-    // Non-fatal — see loadLeaderboard.
-  }
-}
-
-function splitsEqual(a: SplitRecord[], b: SplitRecord[]): boolean {
-  if (a.length !== b.length) return false;
-  const byName = new Map(b.map((s) => [s.name, s.amount]));
-  return a.every((s) => byName.get(s.name) === s.amount);
-}
-
-function runCase(
-  engine: MLCEngineInterface,
-  c: BakeoffCase,
-  useResolution: boolean,
-): Promise<CaseResult> {
-  const candidateIndices = c.receipt.items.map((_, i) => i);
-  const schema = buildAssignmentPlanSchema(candidateIndices, c.people);
-
-  const menu = buildItemMenu(c.receipt.items);
-
-  // Plan §5.1b / decision gate: this is the ONLY thing that changes
-  // between "round 3" (no resolution) and "round 4" (with it) numbers —
-  // same models, same cases, same schema, same everything else. That's
-  // what makes the before/after comparison mean something.
-  const resolution = useResolution ? resolveInstruction(c.instruction, c.receipt.items) : null;
-
-  const messages = [
-    { role: "system" as const, content: buildSystemPrompt(candidateIndices, c.people) },
-    {
-      role: "user" as const,
-      content: buildUserPrompt(c.people, menu, c.instruction, resolution?.promptBlock),
-    },
-  ];
-
-  const expectedSplits = computeSplit(c.receipt, c.people, c.expectedPlan, c.applyTax).splits;
-
-  const t0 = performance.now();
-  return engine.chat.completions
-    .create({
-      messages,
-      temperature: 0,
-      stream: false,
-      max_tokens: 512,
-      response_format: { type: "json_object", schema: JSON.stringify(schema) },
-    })
-    .then((response) => {
-      const elapsedMs = performance.now() - t0;
-      const raw = response.choices[0]?.message?.content ?? "";
-
-      const resolvedBlock = resolution?.promptBlock || undefined;
-
-      let plan: AssignmentPlan;
-      try {
-        plan = JSON.parse(raw) as AssignmentPlan;
-      } catch {
-        return { caseId: c.id, pass: false, reason: "parse_error", elapsedMs, rawOutput: raw, resolvedBlock };
-      }
-
-      try {
-        const actualSplits = computeSplit(c.receipt, c.people, plan, c.applyTax).splits;
-        const pass = splitsEqual(actualSplits, expectedSplits);
-        return {
-          caseId: c.id,
-          pass,
-          reason: pass ? undefined : "mismatch",
-          elapsedMs,
-          actualPlan: plan,
-          actualSplits,
-          expectedSplits,
-          rawOutput: raw,
-          resolvedBlock,
-        };
-      } catch {
-        // Should be unreachable — computeSplit's own defensive dedup
-        // handles duplicate itemIndex / duplicate names — but a model
-        // could still name an out-of-range index if it ever fell back to
-        // freeform generation, so this stays a genuine failure mode to
-        // record rather than let crash the whole harness run.
-        return { caseId: c.id, pass: false, reason: "split_error", elapsedMs, rawOutput: raw, resolvedBlock };
-      }
-    });
-}
-
-export default function ModelBakeoffPage() {
-  const [modelId, setModelId] = useState<string>(CANDIDATES[0]);
-  const [engine, setEngine] = useState<MLCEngineInterface | null>(null);
-  // Not rendered — held so loadModel can dispose of the PREVIOUS engine
-  // before creating a new one. Forgetting this is what caused the
-  // 20-30x latency blowup on later-loaded models in the first re-run
-  // (GPU resources from every earlier model's Worker never released).
-  const disposeRef = useRef<(() => Promise<void>) | null>(null);
-  const [progress, setProgress] = useState("");
-  const [wasCached, setWasCached] = useState<boolean | null>(null);
-  const [running, setRunning] = useState(false);
-  const [liveIndex, setLiveIndex] = useState(0);
-  const [results, setResults] = useState<CaseResult[]>([]);
-  const [leaderboard, setLeaderboard] = useState<Record<string, ModelRunResult>>({});
-  const [error, setError] = useState("");
-  // Default true: this is Phase 2a's whole point. Untick to reproduce a
-  // "raw" (round 3) number for direct comparison — same model, same
-  // cases, only this changes.
-  const [useResolution, setUseResolution] = useState(true);
-
-  useEffect(() => {
-    setLeaderboard(loadLeaderboard());
-  }, []);
-
-  // Release GPU resources if the user navigates away mid-session instead
-  // of clicking "Load model" again (which is the other dispose path).
-  useEffect(() => {
-    return () => {
-      disposeRef.current?.();
-    };
-  }, []);
-
-  const loadModel = useCallback(async () => {
-    setError("");
-    setEngine(null);
-    setResults([]);
-    try {
-      if (disposeRef.current) {
-        setProgress("Releasing previous model's GPU resources...");
-        await disposeRef.current();
-        disposeRef.current = null;
-      }
-      const cached = await isModelCached(modelId);
-      setWasCached(cached);
-      const { engine: eng, dispose } = await createEngine(modelId, (r: InitProgressReport) =>
-        setProgress(r.text),
-      );
-      disposeRef.current = dispose;
-      setEngine(eng);
-    } catch (e) {
-      setError(`Load failed: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  }, [modelId]);
-
-  const runAll = useCallback(async () => {
-    if (!engine) return;
-    setRunning(true);
-    setError("");
-    const collected: CaseResult[] = [];
-
-    for (let i = 0; i < BAKEOFF_CASES.length; i++) {
-      setLiveIndex(i);
-      try {
-        const r = await runCase(engine, BAKEOFF_CASES[i], useResolution);
-        collected.push(r);
-        setResults([...collected]);
-      } catch (e) {
-        collected.push({
-          caseId: BAKEOFF_CASES[i].id,
-          pass: false,
-          reason: "engine_error",
-          elapsedMs: 0,
-        });
-        setResults([...collected]);
+      setRunning(t.label);
+      const out: Row[] = [];
+      for (const c of cases) {
+        out.push(await runCase(t, c, keys, withResolution));
+        setRows((r) => ({ ...r, [t.id]: [...out] }));
+        // Free tier: Groq ~8,000 tokens/min (~8 plan calls/min), Gemini flash-lite ~15 requests/min.
+        if (t.kind === "cloud") await new Promise((res) => setTimeout(res, t.provider === "groq" ? 7500 : 4500));
       }
     }
+    setRunning(null);
+  };
 
-    const passCount = collected.filter((r) => r.pass).length;
-    const summary: ModelRunResult = {
-      modelId,
-      usedResolution: useResolution,
-      accuracy: passCount / collected.length,
-      avgElapsedMs: collected.reduce((s, r) => s + r.elapsedMs, 0) / collected.length,
-      timestamp: Date.now(),
-      cases: collected,
-    };
-    saveResult(summary);
-    setLeaderboard(loadLeaderboard());
-    setRunning(false);
-  }, [engine, modelId, useResolution]);
+  const summary = TARGETS.filter((t) => rows[t.id]).map((t) => {
+    const r = rows[t.id];
+    const ms = r.filter((x) => x.verdict !== "error").map((x) => x.ms);
+    const n = (v: Verdict) => r.filter((x) => x.verdict === v).length;
+    return { t, n: r.length, correct: n("correct"), wrong: n("wrong"), chip: n("safe-chip"), error: n("error"), p50: quantile(ms, 0.5), p95: quantile(ms, 0.95) };
+  });
+
+  const markdown = () =>
+    [
+      `# Split bake-off (${new Date().toISOString().slice(0, 10)})`,
+      "",
+      `Cases: ${set} (${cases.length}) · reference resolution in prompt: ${withResolution ? "yes" : "no"}`,
+      "",
+      "| target | correct | wrong | asked (chip) | error | p50 ms | p95 ms |",
+      "|---|---|---|---|---|---|---|",
+      ...summary.map((s) => `| ${s.t.label} | ${s.correct}/${s.n} | ${s.wrong} | ${s.chip} | ${s.error} | ${s.p50.toFixed(0)} | ${s.p95.toFixed(0)} |`),
+      "",
+      ...summary.flatMap((s) => [
+        `## ${s.t.label}`,
+        ...rows[s.t.id].filter((r) => r.verdict !== "correct").map((r) => `- ${r.caseId}: ${r.verdict}${r.detail ? ` — ${r.detail}` : ""}`),
+        "",
+      ]),
+    ].join("\n");
+
+  const download = () => {
+    const url = URL.createObjectURL(new Blob([markdown()], { type: "text/markdown" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "split-bakeoff.md";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   return (
-    <main style={{ maxWidth: 900, margin: "0 auto", padding: 24, fontFamily: "monospace", fontSize: 13 }}>
-      <h1 style={{ fontSize: 18, fontWeight: 700 }}>Model Bake-off (Phase 1 — dev only)</h1>
-      <p style={{ opacity: 0.7 }}>
-        {BAKEOFF_CASES.length} cases. Scores by running both the model's plan and the hand-authored
-        expected plan through the real computeSplit() engine and comparing final amounts — not by
-        diffing JSON structure. Not product UI.
+    <main className="mx-auto max-w-4xl space-y-6 bg-black p-6 font-mono text-sm text-zinc-200">
+      <h1 className="text-xl font-bold text-white">Split bake-off (cloud models + on-device parser)</h1>
+      <p className="text-xs text-zinc-500">
+        Uses the keys saved in this browser (AI settings in the app). Calls go straight to the provider. Groq key: {keys.groq ? "saved" : "missing"} · Gemini key: {keys.gemini ? "saved" : "missing"}.
       </p>
 
-      {/* Leaderboard */}
-      <section style={{ marginTop: 16 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700 }}>Leaderboard (this browser)</h2>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginTop: 8 }}>
+      <div className="flex flex-wrap items-center gap-4 rounded border border-white/10 p-4">
+        {TARGETS.map((t) => (
+          <label key={t.id} className="flex items-center gap-2">
+            <input type="checkbox" checked={!!chosen[t.id]} onChange={(e) => setChosen((c) => ({ ...c, [t.id]: e.target.checked }))} />
+            {t.label}
+          </label>
+        ))}
+        <select value={set} onChange={(e) => setSet(e.target.value as typeof set)} className="bg-black border border-white/20 p-1">
+          <option value="dev">15 bake-off cases</option>
+          <option value="heldout">20 held-out cases</option>
+          <option value="both">both (35)</option>
+        </select>
+        <label className="flex items-center gap-2">
+          <input type="checkbox" checked={withResolution} onChange={(e) => setWithResolution(e.target.checked)} />
+          resolved references in prompt
+        </label>
+        <button onClick={run} disabled={!!running} className="rounded bg-white px-4 py-1 font-bold text-black disabled:opacity-40">
+          {running ? `Running ${running}…` : "Run"}
+        </button>
+        {summary.length > 0 && !running && (
+          <button onClick={download} className="rounded border border-white/30 px-4 py-1">Download report</button>
+        )}
+      </div>
+
+      {summary.length > 0 && (
+        <table className="w-full border-collapse text-left text-xs">
           <thead>
-            <tr style={{ textAlign: "left", borderBottom: "1px solid #555" }}>
-              <th style={{ padding: 4 }}>Model</th>
-              <th style={{ padding: 4 }}>Mode</th>
-              <th style={{ padding: 4 }}>Accuracy</th>
-              <th style={{ padding: 4 }}>Avg latency</th>
-              <th style={{ padding: 4 }}>Run at</th>
+            <tr className="border-b border-white/20 text-zinc-500">
+              <th className="py-2">target</th><th>correct</th><th>wrong</th><th>asked</th><th>error</th><th>p50 ms</th><th>p95 ms</th>
             </tr>
           </thead>
           <tbody>
-            {CANDIDATES.flatMap((id) =>
-              [false, true].map((variant) => {
-                const key = storageKey(id, variant);
-                const r = leaderboard[key];
-                return (
-                  <tr key={key} style={{ borderBottom: "1px solid #333" }}>
-                    <td style={{ padding: 4 }}>{id}</td>
-                    <td style={{ padding: 4, opacity: 0.7 }}>{variant ? "resolved" : "raw"}</td>
-                    <td style={{ padding: 4, color: r && r.accuracy >= 0.9 ? "#0f0" : r ? "#fc0" : undefined }}>
-                      {r ? `${(r.accuracy * 100).toFixed(0)}% (${r.cases.filter((c) => c.pass).length}/${r.cases.length})` : "—"}
-                    </td>
-                    <td style={{ padding: 4 }}>{r ? `${r.avgElapsedMs.toFixed(0)}ms` : "—"}</td>
-                    <td style={{ padding: 4 }}>{r ? new Date(r.timestamp).toLocaleTimeString() : "—"}</td>
-                  </tr>
-                );
-              }),
-            )}
+            {summary.map((s) => (
+              <tr key={s.t.id} className="border-b border-white/5">
+                <td className="py-2">{s.t.label}</td>
+                <td className="text-emerald-400">{s.correct}/{s.n}</td>
+                <td className="text-red-400">{s.wrong}</td>
+                <td className="text-amber-300">{s.chip}</td>
+                <td className="text-red-400">{s.error}</td>
+                <td>{s.p50.toFixed(0)}</td>
+                <td>{s.p95.toFixed(0)}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
-        <p style={{ opacity: 0.5, marginTop: 4 }}>
-          Decision gate (plan §11): ≥13/15 resolved → ship, skip fine-tuning. 10-12/15 → train the
-          residual. &lt;10/15 → the resolution layer needs rework first.
-        </p>
-        <button
-          onClick={() => downloadReport(leaderboard)}
-          disabled={Object.keys(leaderboard).length === 0}
-          style={{ marginTop: 8 }}
-        >
-          Download full report (.md)
-        </button>{" "}
-        <span style={{ opacity: 0.5 }}>
-          Saves every run's full expected/actual splits and raw model output — hand the file off
-          instead of screenshotting individual cases.
-        </span>
-      </section>
-
-      {/* Controls */}
-      <section style={{ marginTop: 24 }}>
-        <select
-          value={modelId}
-          onChange={(e) => setModelId(e.target.value)}
-          disabled={running}
-          style={{ background: "#111", color: "#0f0", padding: 4 }}
-        >
-          {CANDIDATES.map((id) => (
-            <option key={id} value={id}>
-              {id}
-            </option>
-          ))}
-        </select>{" "}
-        <button onClick={loadModel} disabled={running}>
-          Load model
-        </button>{" "}
-        <button onClick={runAll} disabled={!engine || running}>
-          Run all {BAKEOFF_CASES.length} cases
-        </button>{" "}
-        <label style={{ marginLeft: 8 }}>
-          <input
-            type="checkbox"
-            checked={useResolution}
-            onChange={(e) => setUseResolution(e.target.checked)}
-            disabled={running}
-          />{" "}
-          Use resolution layer (§5.1b) — untick to reproduce a raw/round-3 number
-        </label>
-        {wasCached !== null && <p style={{ marginTop: 8 }}>Was already cached: {String(wasCached)}</p>}
-        {progress && <pre style={{ whiteSpace: "pre-wrap", marginTop: 8 }}>{progress}</pre>}
-        {running && (
-          <p style={{ marginTop: 8 }}>
-            Running case {liveIndex + 1}/{BAKEOFF_CASES.length}: {BAKEOFF_CASES[liveIndex]?.id}
-          </p>
-        )}
-        {error && <pre style={{ whiteSpace: "pre-wrap", color: "red", marginTop: 8 }}>{error}</pre>}
-      </section>
-
-      {/* Per-case results for the current run */}
-      {results.length > 0 && (
-        <section style={{ marginTop: 24 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700 }}>
-            Results — {modelId} ({results.filter((r) => r.pass).length}/{results.length} passed)
-          </h2>
-          {results.map((r) => {
-            const c = BAKEOFF_CASES.find((bc) => bc.id === r.caseId)!;
-            return (
-              <details key={r.caseId} style={{ marginTop: 8, border: "1px solid #333", padding: 8 }}>
-                <summary style={{ color: r.pass ? "#0f0" : "#f55", cursor: "pointer" }}>
-                  {r.pass ? "✓" : "✗"} {r.caseId} — {c.instruction} ({r.elapsedMs.toFixed(0)}ms
-                  {r.reason ? `, ${r.reason}` : ""})
-                </summary>
-                {r.resolvedBlock && (
-                  <div style={{ marginTop: 8, fontSize: 12 }}>
-                    <p style={{ opacity: 0.6 }}>Resolved references injected into the prompt:</p>
-                    <pre style={{ whiteSpace: "pre-wrap", background: "#1a1a1a", padding: 4 }}>{r.resolvedBlock}</pre>
-                  </div>
-                )}
-                {!r.pass && (
-                  <div style={{ marginTop: 8, fontSize: 12 }}>
-                    <p style={{ opacity: 0.6 }}>Expected splits:</p>
-                    <pre>{JSON.stringify(r.expectedSplits ?? "n/a", null, 2)}</pre>
-                    <p style={{ opacity: 0.6 }}>Actual splits:</p>
-                    <pre>{JSON.stringify(r.actualSplits ?? "n/a", null, 2)}</pre>
-                    <p style={{ opacity: 0.6 }}>Raw model output:</p>
-                    <pre style={{ whiteSpace: "pre-wrap" }}>{r.rawOutput ?? "n/a"}</pre>
-                  </div>
-                )}
-              </details>
-            );
-          })}
-        </section>
       )}
+
+      {summary.map((s) => (
+        <details key={s.t.id} className="rounded border border-white/10 p-3">
+          <summary className="cursor-pointer">{s.t.label} — per case</summary>
+          <ul className="mt-2 space-y-1 text-xs">
+            {rows[s.t.id].map((r, i) => (
+              <li key={i} className={r.verdict === "correct" ? "text-zinc-500" : r.verdict === "safe-chip" ? "text-amber-300" : "text-red-400"}>
+                {r.caseId}: {r.verdict} ({r.ms.toFixed(0)} ms){r.detail ? ` — ${r.detail}` : ""}
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
     </main>
   );
 }

@@ -1,6 +1,5 @@
-// Centralized prompt construction for the assignment-plan LLM call, used
-// by both app/dev/webllm-spike and app/dev/model-bakeoff so the two
-// harnesses never silently drift apart.
+// Centralized prompt construction for the assignment-plan LLM call, shared by
+// the Groq/Gemini providers and the bake-off harness so they never drift apart.
 //
 // Revision history worth keeping in mind:
 // - Round 1 (5 models x 15 cases): a `weights` field in the schema let
@@ -53,11 +52,24 @@ export function buildSystemPrompt(candidateIndices: number[], peopleNames: strin
 export function buildUserPrompt(
   people: string[],
   menu: string,
-  instruction: string,
+  instruction: string | string[],
   resolvedBlock?: string,
 ): string {
-  const resolved = resolvedBlock ? `\n\n${resolvedBlock}` : "";
-  return `PEOPLE: ${JSON.stringify(people)}\n\nCANDIDATE ITEMS (index, name, quantity):\n${menu}\n\nINSTRUCTION: ${JSON.stringify(instruction)}${resolved}`;
+  const NL = "\n";
+  const resolved = resolvedBlock ? NL + NL + resolvedBlock : "";
+  // A conversation ("actually, Aisha didn't have the rice") arrives as several
+  // instructions; the model must apply them in order, later ones winning.
+  const said =
+    Array.isArray(instruction) && instruction.length > 1
+      ? "INSTRUCTIONS (apply in order; a later one overrides an earlier one for the same item):" +
+        NL +
+        instruction.map((t, i) => `  ${i + 1}. ${JSON.stringify(t)}`).join(NL)
+      : `INSTRUCTION: ${JSON.stringify(Array.isArray(instruction) ? instruction[0] ?? "" : instruction)}`;
+  return (
+    `PEOPLE: ${JSON.stringify(people)}` +
+    NL + NL + "CANDIDATE ITEMS (index, name, quantity):" + NL + menu +
+    NL + NL + said + resolved
+  );
 }
 
 export function buildItemMenu(items: Array<{ name: string; quantity: number }>): string {
