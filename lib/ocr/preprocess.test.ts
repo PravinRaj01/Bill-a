@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fitWithin, greyscaleStretch } from "./preprocess";
+import { ENLARGE_TO, LOW_RES_EDGE, fitWithin, greyscaleStretch, ocrSizeFor } from "./preprocess";
 
 describe("fitWithin", () => {
   it.each([
@@ -10,6 +10,27 @@ describe("fitWithin", () => {
     [1601, 1, 1600, 1], // never collapses a dimension to 0
   ])("%ix%i -> %ix%i", (w, h, ew, eh) => {
     expect(fitWithin(w, h)).toEqual({ width: ew, height: eh });
+  });
+});
+
+describe("ocrSizeFor", () => {
+  it("leaves normal and large photos alone (only shrinking, as before)", () => {
+    expect(ocrSizeFor(1024, 1536)).toEqual({ width: 1024, height: 1536, enlarged: false }); // already under the 1600 cap
+    expect(ocrSizeFor(4000, 3000)).toEqual({ width: 1600, height: 1200, enlarged: false });
+    expect(ocrSizeFor(612, 1023)).toMatchObject({ enlarged: false }); // the Kaggle benchmark photos are untouched
+    expect(ocrSizeFor(LOW_RES_EDGE, 300).enlarged).toBe(false); // the boundary is "below"
+  });
+
+  it("enlarges a tiny photo so its long edge is ENLARGE_TO, keeping the aspect ratio", () => {
+    // the real 338x450 Real Food receipt
+    const r = ocrSizeFor(338, 450);
+    expect(r).toMatchObject({ height: ENLARGE_TO, enlarged: true });
+    expect(r.width).toBe(1052);
+    expect(ocrSizeFor(450, 338)).toMatchObject({ width: ENLARGE_TO, height: 1052, enlarged: true });
+  });
+
+  it("just under the threshold is enlarged", () => {
+    expect(ocrSizeFor(LOW_RES_EDGE - 1, 200).enlarged).toBe(true);
   });
 });
 

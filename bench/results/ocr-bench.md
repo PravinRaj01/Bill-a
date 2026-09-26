@@ -6,7 +6,8 @@ Images are downscaled to 1600 px (JPEG q80) first, exactly as the app will send 
 
 | config | total exact | total seen | items seen | items parsed | unlabelled: total line | unlabelled: consistent | p50 ms | p95 ms | init ms | errors |
 |---|---|---|---|---|---|---|---|---|---|---|
-| tesseract/gray | 12/18 (67%) | 89% | 58% | 38% | 28% | 20% | 621 | 1078 | 159 | 0 |
+| tesseract/gray | 12/18 (67%) | 89% | 58% | 38% | 28% | 20% | 585 | 986 | 323 | 0 |
+| tesseract/gray-up | 11/18 (61%) | 83% | 69% | 38% | 28% | 20% | 603 | 1225 | 154 | 0 |
 | paddle-v5-en/gray | 11/18 (61%) | 78% | 41% | 33% | 30% | 18% | 1193 | 1529 | 77 | 0 |
 | tesseract/plain | 10/18 (56%) | 83% | 60% | 39% | 28% | 20% | 612 | 1089 | 178 | 0 |
 | paddle-v5-en/plain | 10/18 (56%) | 83% | 41% | 34% | 30% | 18% | 1302 | 1700 | 92 | 0 |

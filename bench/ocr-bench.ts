@@ -27,15 +27,25 @@ const OUT = path.join(ROOT, "bench", "results");
 
 const QUICK = process.argv.includes("--quick");
 const MERGE = process.argv.includes("--merge");
+const ONLY_VARIANTS = process.argv.find((a) => a.startsWith("--variants="))?.split("=")[1]?.split(",") as Variant[] | undefined;
 const ONLY = process.argv.find((a) => a.startsWith("--only="))?.split("=")[1]?.split(",");
 
 // ---------------------------------------------------------------------------
 
-type Variant = "plain" | "gray";
+type Variant = "plain" | "gray" | "gray-up";
 
 async function prepare(file: string, variant: Variant) {
-  let img = sharp(file).rotate().resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true });
-  if (variant === "gray") img = img.greyscale().normalise();
+  // "gray-up": images whose long edge is under 1200 px are enlarged to 1600 px first
+  // (tesseract wants text lines ~20+ px tall; a small photo gives it 6-8 px).
+  const { width: w0 = 0, height: h0 = 0 } = await sharp(file).rotate().metadata().then(async (m) => {
+    const buf = await sharp(file).rotate().toBuffer({ resolveWithObject: true });
+    return { width: buf.info.width, height: buf.info.height };
+  });
+  const enlarge = variant === "gray-up" && Math.max(w0, h0) < 1200;
+  let img = sharp(file)
+    .rotate()
+    .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: !enlarge, kernel: "lanczos3" });
+  if (variant !== "plain") img = img.greyscale().normalise();
   const { data, info } = await img.jpeg({ quality: 80 }).toBuffer({ resolveWithObject: true });
   const bytes = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) as ArrayBuffer;
   return { bytes, width: info.width, height: info.height };
@@ -112,8 +122,9 @@ const ENGINES: { id: string; make: () => OcrEngine }[] = [
   { id: "paddle-v5-en", make: paddle("paddle-v5-en", "V5_EN_MOBILE_MODEL") },
 ];
 
+const VARIANTS: Variant[] = ONLY_VARIANTS ?? ["plain", "gray"];
 const CONFIGS: Config[] = ENGINES.filter((e) => (ONLY ? ONLY.includes(e.id) : !e.id.startsWith("paddle"))).flatMap((e) =>
-  (["plain", "gray"] as Variant[]).map((variant) => ({ id: `${e.id}/${variant}`, variant, make: e.make })),
+  (VARIANTS as Variant[]).map((variant) => ({ id: `${e.id}/${variant}`, variant, make: e.make })),
 );
 
 // ---------------------------------------------------------------------------
@@ -186,7 +197,7 @@ async function main() {
       runs: Run[];
     };
     const rerun = new Set(CONFIGS.map((c) => c.id));
-    const known = new Set(ENGINES.flatMap((e) => (["plain", "gray"] as const).map((v) => `${e.id}/${v}`)));
+    const known = new Set(ENGINES.flatMap((e) => (["plain", "gray", "gray-up"] as const).map((v) => `${e.id}/${v}`)));
     for (const r of prev.runs) if (known.has(r.config) && !rerun.has(r.config)) runs.push(r);
     for (const r of prev.rows) if (known.has(r.id) && !rerun.has(r.id)) initMs[r.id] = r.init;
     console.log(`merged ${new Set(runs.map((r) => r.config)).size} configs from the previous run`);
