@@ -16,11 +16,14 @@ import { getGroup, listGroups, saveGroup, updateGroupNames } from "@/lib/actions
 import { nextSessionTitle } from "@/lib/actions/history";
 import { enqueueBill } from "@/lib/sync/outbox";
 import { inferMerchantCategory } from "@/lib/ai/merchantCategory";
-import { receiptToDomain, splitsToDomain, toCents } from "@/lib/money";
+import { receiptToDomain, receiptToLegacy, splitsToDomain, toCents } from "@/lib/money";
+import { releaseReceiptReader, scanReceipt, warmReceiptReader, type ScanStage } from "@/lib/ocr/client";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   Loader2,
   Plus,
+  Trash2,
+  TriangleAlert,
   Receipt,
   Share2,
   X,
@@ -62,6 +65,9 @@ function BillSplitterContent() {
   const [user, setUser] = useState<any>(null);
   const [isGuest, setIsGuest] = useState(false);
   const [sessionClientId] = useState(() => crypto.randomUUID());
+  // What the local scan was unsure about; drives the amber highlights on REVIEW.
+  const [scanStage, setScanStage] = useState<ScanStage | null>(null);
+  const [scanInfo, setScanInfo] = useState<{ confidence: number; warnings: string[]; itemConf: number[]; empty: boolean; printedTotal: number | null } | null>(null);
 
   // GROUP SAVING STATE
   const [saveThisGroup, setSaveThisGroup] = useState(false);
@@ -73,6 +79,12 @@ function BillSplitterContent() {
   // GROUP LOADING UI STATE
   const [savedGroups, setSavedGroups] = useState<any[]>([]);
   const [showGroupList, setShowGroupList] = useState(false);
+
+  // Load the (self-hosted) reader while the user is still lining up the photo.
+  useEffect(() => {
+    if (step === "SCAN") warmReceiptReader().catch(() => {});
+  }, [step]);
+  useEffect(() => () => void releaseReceiptReader(), []);
 
   const isCreator = true;
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -244,6 +256,8 @@ function BillSplitterContent() {
     setStep("SCAN");
   };
 
+  // Scanning happens entirely on this device: shrink the photo, read it with the
+  // local OCR engine, parse it. Nothing is uploaded, so it also works offline.
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -254,50 +268,66 @@ function BillSplitterContent() {
     }
 
     setLoading(true);
-    const formData = new FormData();
-    formData.append("file", file);
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 45000); 
-
     try {
-      const res = await fetch(`${API_URL}/scan`, { 
-        method: "POST", 
-        body: formData,
-        signal: controller.signal
+      const { parsed } = await scanReceipt(file, setScanStage);
+      const receipt = receiptToLegacy(parsed.receipt);
+      setItems(receipt);
+      setScanInfo({
+        confidence: parsed.confidence,
+        warnings: parsed.warnings,
+        itemConf: parsed.items.map((it) => it.confidence),
+        empty: parsed.items.length === 0,
+        // Only a total that was actually read off a TOTAL line is worth reconciling against.
+        printedTotal: parsed.totalSource === "keyword" ? parsed.receipt.total / 100 : null,
       });
-      clearTimeout(timeoutId);
-
-      if (!res.ok) {
-          throw new Error(`Server responded with ${res.status}`);
-      }
-
-      const data = await res.json();
-      
-      if (!data.items || !Array.isArray(data.items) || data.items.length === 0) {
-        alert("Could not detect any receipt items. \n\nPlease ensure:\n1. The photo is clear and well-lit\n2. It is a valid receipt (not a random selfie!)\n3. Prices and item names are visible.");
-        setLoading(false);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-        if (galleryRef.current) galleryRef.current.value = "";
-        return;
-      }
-
-      setItems(data);
+      // Even a failed read goes to REVIEW: the user can type the items in, which is
+      // better than a dead end.
       setStep("REVIEW");
-
     } catch (err: any) {
       console.error("Scan Error:", err);
-      if (err.name === 'AbortError') {
-        alert("Scanning timed out. The server might be waking up (cold start). Please try again in a few seconds.");
-      } else {
-        alert("Failed to scan receipt. Please check your connection and try again.");
-      }
-      
+      alert(String(err?.message).startsWith("Couldn't read") ? err.message : "Could not scan that photo. Try again, or add the items by hand.");
       if (fileInputRef.current) fileInputRef.current.value = "";
       if (galleryRef.current) galleryRef.current.value = "";
     } finally {
-        setLoading(false);
+      setScanStage(null);
+      setLoading(false);
     }
+  };
+
+  // --- REVIEW edits. The printed total is re-derived from the items + tax, so a
+  // corrected price never leaves a stale total (and tax stays whatever the user set).
+  const withTotal = (d: ReceiptData): ReceiptData => ({
+    ...d,
+    total: Math.round((d.items.reduce((sum, it) => sum + it.total_price, 0) + d.tax) * 100) / 100,
+  });
+  const clearConf = (i: number) => setScanInfo((si) => (si ? { ...si, itemConf: si.itemConf.map((c, k) => (k === i ? 1 : c)) } : si));
+  const editItem = (i: number, patch: Partial<ReceiptItem>) => {
+    setItems((prev) => {
+      if (!prev) return prev;
+      const items = prev.items.map((it, k) => {
+        if (k !== i) return it;
+        const next = { ...it, ...patch };
+        next.unit_price = next.quantity > 0 ? Math.round((next.total_price / next.quantity) * 100) / 100 : next.total_price;
+        return next;
+      });
+      return withTotal({ ...prev, items });
+    });
+    clearConf(i);
+  };
+  const removeItem = (i: number) => {
+    setItems((prev) => (prev ? withTotal({ ...prev, items: prev.items.filter((_, k) => k !== i) }) : prev));
+    setScanInfo((si) => (si ? { ...si, itemConf: si.itemConf.filter((_, k) => k !== i) } : si));
+  };
+  const addItem = () => {
+    setItems((prev) =>
+      prev ? { ...prev, items: [...prev.items, { name: "", quantity: 1, unit_price: 0, total_price: 0 }] } : prev,
+    );
+    setScanInfo((si) => (si ? { ...si, itemConf: [...si.itemConf, 1] } : si));
+  };
+  const editTax = (tax: number) => setItems((prev) => (prev ? withTotal({ ...prev, tax }) : prev));
+  const num = (raw: string) => {
+    const n = parseFloat(raw.replace(",", "."));
+    return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : 0;
   };
 
   const handleSplit = async () => {
@@ -592,7 +622,7 @@ function BillSplitterContent() {
               
               <div className="flex flex-col gap-2 px-4">
                 <Button className="w-full h-14 text-md bg-white text-black font-bold rounded-xl" onClick={() => fileInputRef.current?.click()} disabled={loading || !isCreator}>
-                  {loading ? <Loader2 className="animate-spin mr-2" /> : "Snap Photo"}
+                  {loading ? (<><Loader2 className="animate-spin mr-2" />{scanStage === "preparing" ? "Preparing photo…" : scanStage === "loading-reader" ? "Loading reader (first time only)…" : "Reading receipt…"}</>) : "Snap Photo"}
                 </Button>
                 <Button variant="ghost" className="text-xs text-slate-500 hover:text-white uppercase font-bold tracking-widest" onClick={() => galleryRef.current?.click()} disabled={loading || !isCreator}>
                   <ImageIcon size={14} className="mr-2" /> Gallery
@@ -605,36 +635,124 @@ function BillSplitterContent() {
 
       {step === "REVIEW" && (
         <div className="space-y-6">
+          {scanInfo && (scanInfo.empty || scanInfo.confidence < 0.6 || scanInfo.warnings.some((w) => !w.startsWith("Items add up"))) && (
+            <div data-testid="scan-warning" className="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-amber-200">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="space-y-1 text-xs">
+                <p className="font-bold">
+                  {scanInfo.empty
+                    ? "We couldn't read any items from that photo."
+                    : "Please check these numbers against your receipt."}
+                </p>
+                {scanInfo.empty && <p className="opacity-80">Add the items below, or go back and try a clearer photo.</p>}
+                {scanInfo.warnings.filter((w) => !w.startsWith("Items add up")).slice(0, 3).map((w, i) => (
+                  <p key={i} className="opacity-80">{w}</p>
+                ))}
+              </div>
+            </div>
+          )}
           <Card className="bg-[#0c0c0e] border-white/5 overflow-hidden shadow-2xl rounded-3xl">
-            <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase text-slate-500 tracking-widest">Extracted Items</div>
+            <div className="bg-white/5 p-4 border-b border-white/5 text-[10px] font-bold uppercase text-slate-500 tracking-widest">Extracted Items · tap to edit</div>
             <CardContent className="p-0">
-              <Table>
-                <TableBody>
-                  {items?.items.map((item, i) => (
-                    <TableRow key={i} className="border-white/5">
-                      <TableCell className="py-4 text-sm font-medium text-zinc-200">{item.name}</TableCell>
-                      <TableCell className="text-center text-sm text-slate-500">x{item.quantity}</TableCell>
-                      <TableCell className="text-right font-mono text-white">{item.total_price.toFixed(2)}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+              <div className="divide-y divide-white/5">
+                {items?.items.map((item, i) => {
+                  const unsure = (scanInfo?.itemConf[i] ?? 1) < 0.6;
+                  return (
+                    <div
+                      key={i}
+                      data-testid="review-row"
+                      data-unsure={unsure ? "true" : undefined}
+                      className={`flex items-center gap-2 px-4 py-3 ${unsure ? "bg-amber-500/5 ring-1 ring-inset ring-amber-500/30" : ""}`}
+                    >
+                      <Input
+                        aria-label="Item name"
+                        value={item.name}
+                        placeholder="Item"
+                        onChange={(e) => editItem(i, { name: e.target.value })}
+                        disabled={!isCreator}
+                        className="h-9 flex-1 border-white/5 bg-black text-sm text-zinc-200"
+                      />
+                      <Input
+                        aria-label="Quantity"
+                        key={`q${i}-${item.quantity}`}
+                        type="number"
+                        min={1}
+                        step={1}
+                        defaultValue={item.quantity}
+                        onBlur={(e) => editItem(i, { quantity: Math.max(1, Math.round(num(e.target.value))) })}
+                        disabled={!isCreator}
+                        className="h-9 w-14 border-white/5 bg-black text-center text-sm text-slate-400"
+                      />
+                      <Input
+                        aria-label="Price"
+                        key={`p${i}-${item.total_price}`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        defaultValue={item.total_price.toFixed(2)}
+                        onBlur={(e) => editItem(i, { total_price: num(e.target.value) })}
+                        disabled={!isCreator}
+                        className="h-9 w-24 border-white/5 bg-black text-right font-mono text-sm text-white"
+                      />
+                      <button
+                        type="button"
+                        aria-label="Remove item"
+                        onClick={() => removeItem(i)}
+                        className="p-1 text-zinc-600 transition-colors hover:text-red-500"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              {scanInfo?.printedTotal != null && items && items.items.length > 0 && (() => {
+                const mine = Math.round((subtotal + items.tax) * 100) / 100;
+                const diff = Math.round((scanInfo.printedTotal - mine) * 100) / 100;
+                return Math.abs(diff) < 0.005 ? (
+                  <p data-testid="reconcile" data-ok="true" className="px-4 pt-3 text-[11px] font-bold text-emerald-400">
+                    ✓ Items + tax match the receipt total ({symbol}{scanInfo.printedTotal.toFixed(2)})
+                  </p>
+                ) : (
+                  <p data-testid="reconcile" className="px-4 pt-3 text-[11px] font-bold text-amber-300">
+                    Receipt says {symbol}{scanInfo.printedTotal.toFixed(2)}; items + tax come to {symbol}{mine.toFixed(2)} ({diff > 0 ? `${symbol}${diff.toFixed(2)} missing` : `${symbol}${(-diff).toFixed(2)} too much`}).
+                  </p>
+                );
+              })()}
+              <div className="px-4 pt-3">
+                <Button type="button" variant="ghost" onClick={addItem} className="h-9 text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-white">
+                  <Plus className="mr-1 h-3 w-3" /> Add item
+                </Button>
+              </div>
               <div className="p-6 space-y-4">
                 <div className="flex items-center justify-between p-4 rounded-xl bg-black border border-white/5">
                   <div className="space-y-0.5">
                     <div className="text-xs text-white opacity-60 font-mono tracking-tighter uppercase">Apply Tax & Svc</div>
-                    <div className="text-[10px] text-zinc-600 font-bold uppercase italic">+{symbol}{items?.tax.toFixed(2)}</div>
+                    <div className="flex items-center gap-1 text-[10px] text-zinc-600 font-bold uppercase italic">
+                      +{symbol}
+                      <Input
+                        aria-label="Tax and service"
+                        key={`tax-${items?.tax}`}
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        defaultValue={(items?.tax ?? 0).toFixed(2)}
+                        onBlur={(e) => editTax(num(e.target.value))}
+                        disabled={!isCreator}
+                        className="h-7 w-20 border-white/5 bg-black px-2 font-mono text-[11px] text-zinc-400"
+                      />
+                    </div>
                   </div>
                   <Switch checked={includeTax} onCheckedChange={setIncludeTax} disabled={!isCreator} />
                 </div>
 
                 <div className="flex justify-between items-center px-2 py-2 border-t border-white/5 pt-4">
                   <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500">Total to Split</span>
-                  <span className="text-xl font-black font-mono italic text-white tracking-tighter">{symbol}{displayedTotal.toFixed(2)}</span>
+                  <span data-testid="review-total" className="text-xl font-black font-mono italic text-white tracking-tighter">{symbol}{displayedTotal.toFixed(2)}</span>
                 </div>
 
                 <Input disabled={!isCreator} placeholder="Instructions (e.g. Split equally)" value={instruction} onChange={(e) => setInstruction(e.target.value)} className="bg-black border-white/5 h-12 text-white" />
-                <Button className="w-full h-12 bg-white text-black font-black uppercase tracking-tight rounded-xl" onClick={handleSplit} disabled={loading || !isCreator}>
+                <Button className="w-full h-12 bg-white text-black font-black uppercase tracking-tight rounded-xl" onClick={handleSplit} disabled={loading || !isCreator || !items || items.items.length === 0 || displayedTotal <= 0}>
                   {loading ? <Loader2 className="animate-spin" /> : "Split Bill"}
                 </Button>
               </div>
