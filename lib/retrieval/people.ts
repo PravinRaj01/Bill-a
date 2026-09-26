@@ -29,7 +29,8 @@ const NOT_NAMES = new Set(
     "cover covers covering treat treats treating put add invite include except apart from than not no never dont doesnt didnt " +
     "wont isnt arent did do does is are was were be been for on of to with without between among into per about ignore forget leave out " +
     "please can could would should will shall may might must who whom whose which that this these those it its there here " +
-    "food drinks drink extra order bill table today tonight lunch dinner breakfast"
+    "food drinks drink extra order bill table today tonight lunch dinner breakfast " +
+    "tax taxes gst sst vat svc charge fee service tip"
   ).split(" "),
 );
 

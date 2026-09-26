@@ -65,9 +65,18 @@ export function buildAssignmentPlanSchema(
         },
       },
       defaultRule: { type: "string", enum: ["equal", "exclude"] },
+      // Who pays the tax / service charge. Empty = the default (everyone, in proportion to
+      // what they ordered). Required (possibly empty) because Groq's strict mode needs every
+      // property listed in `required`.
+      taxPayers: {
+        type: "array",
+        items: { type: "string", enum: peopleNames },
+        minItems: 0,
+        maxItems: peopleNames.length,
+      },
       notes: { type: "string" },
     },
-    required: ["assignments", "defaultRule", "notes"],
+    required: ["assignments", "defaultRule", "taxPayers", "notes"],
   } as const;
 }
 

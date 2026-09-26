@@ -28,13 +28,16 @@ export function buildSystemPrompt(candidateIndices: number[], peopleNames: strin
     "You assign receipt items to people. You never calculate money.\n" +
     "Respond with a single JSON object matching exactly:\n" +
     '{"assignments":[{"itemIndex":<int>,"people":["<name>",...]}],' +
-    '"defaultRule":"equal"|"exclude","notes":"<string>"}\n' +
+    '"defaultRule":"equal"|"exclude","taxPayers":["<name>",...],"notes":"<string>"}\n' +
     `itemIndex must be one of ${JSON.stringify(candidateIndices)}. ` +
     `people must be drawn only from ${JSON.stringify(peopleNames)}, no duplicates. ` +
     "Every person named in the instruction must appear in the people list; ignore unknown names. " +
     "Every person you list for an item shares it EVENLY — there is no way to give someone a " +
     "larger or smaller share of a single item. " +
     "Items not mentioned follow defaultRule. Emit each item index at most once.\n" +
+    "taxPayers names who pays the tax / service charge (SST, GST, service charge), shared equally " +
+    "between them. Leave it [] unless the instruction says who pays the tax — by default it is " +
+    "shared in proportion to what each person ordered. Tax is not an item: never put it in assignments.\n" +
     "\n" +
     "When deciding which items match a category the user names (e.g. \"drinks\", \"desserts\"), " +
     "judge by the item's own name — common drink words include tea, coffee, juice, soda, " +
