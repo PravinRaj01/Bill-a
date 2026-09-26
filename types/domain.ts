@@ -66,6 +66,19 @@ export interface SplitResult {
   verified: true;
 }
 
+/**
+ * The single shape stored in bill_history.data. Replaces the two legacy
+ * shapes the old pages defensively unwrapped (a bare array, or
+ * `{ splits }` vs `{ split }`) — with a clean-slate database there is
+ * nothing to stay compatible with.
+ */
+export interface BillData {
+  split: SplitRecord[];
+  items: Receipt;
+  people: string[];
+  reasoning: string;
+}
+
 export class SplitReconciliationError extends Error {
   constructor(
     public readonly expected: Cents,

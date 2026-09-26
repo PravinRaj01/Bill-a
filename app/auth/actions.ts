@@ -1,66 +1,88 @@
-'use server'
+"use server";
 
-import { revalidatePath } from 'next/cache'
-import { redirect } from 'next/navigation'
-import { createClient } from '@/utils/supabase/server'
+import { AuthError } from "next-auth";
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { signIn, signOut } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth/password";
+import { getDb } from "@/lib/db/client";
+import { users } from "@/lib/db/schema";
 
-export async function login(formData: FormData) {
-  const supabase = await createClient()
+// Same return contract the login page already uses: `{ error }` on failure,
+// a redirect on success. Note redirect() must stay OUTSIDE try/catch — it works
+// by throwing, and a catch would swallow it.
 
-  // 1. Get data from form
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
+const loginSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address").max(254),
+  password: z.string().min(1, "Enter your password").max(128),
+});
 
-  // 2. Sign in
-  const { error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  })
+const signupSchema = z.object({
+  email: z.string().trim().toLowerCase().email("Enter a valid email address").max(254),
+  // Length, not composition rules: long passphrases beat "P@ssw0rd!" and
+  // argon2id is what protects a leaked hash.
+  password: z.string().min(8, "Password must be at least 8 characters").max(128),
+  name: z.string().trim().max(80).optional(),
+});
 
-  if (error) {
-    return { error: error.message }
-  }
-
-  // 3. Redirect to dashboard
-  revalidatePath('/', 'layout')
-  redirect('/dashboard')
+function firstError(err: z.ZodError): string {
+  return err.issues[0]?.message ?? "Invalid input";
 }
 
-export async function signup(formData: FormData) {
-  const supabase = await createClient()
+export async function login(formData: FormData): Promise<{ error: string } | undefined> {
+  const parsed = loginSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  if (!parsed.success) return { error: firstError(parsed.error) };
 
-  const email = formData.get('email') as string
-  const password = formData.get('password') as string
-  
-  // 1. Sign up
-  const { error } = await supabase.auth.signUp({
-    email,
-    password,
-  })
-
-  if (error) {
-    return { error: error.message }
+  try {
+    await signIn("credentials", { ...parsed.data, redirect: false });
+  } catch (e) {
+    // One message for every credential failure — never say which half was wrong.
+    if (e instanceof AuthError) return { error: "Invalid email or password" };
+    throw e;
   }
-
-  // 2. Redirect
-  revalidatePath('/', 'layout')
-  redirect('/dashboard')
+  redirect("/dashboard");
 }
 
-export async function saveGroup(name: string, namesList: string[]) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
+export async function signup(formData: FormData): Promise<{ error: string } | undefined> {
+  const parsed = signupSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+    name: formData.get("name") || undefined,
+  });
+  if (!parsed.success) return { error: firstError(parsed.error) };
+  const { email, password, name } = parsed.data;
 
-  if (!user) return { error: "Login required to save groups" }
+  const passwordHash = await hashPassword(password);
 
-  const { error } = await supabase
-    .from('saved_groups')
-    .insert({
-      user_id: user.id,
-      group_name: name,
-      names: namesList
-    })
+  // onConflictDoNothing makes "email already taken" atomic — no check-then-insert
+  // race between two simultaneous signups.
+  const inserted = await getDb()
+    .insert(users)
+    .values({ email, name: name ?? null, passwordHash })
+    .onConflictDoNothing({ target: users.email })
+    .returning({ id: users.id });
 
-  if (error) return { error: error.message }
-  revalidatePath('/dashboard')
+  if (inserted.length === 0) {
+    return { error: "An account with this email already exists. Try logging in instead." };
+  }
+
+  try {
+    await signIn("credentials", { email, password, redirect: false });
+  } catch (e) {
+    if (e instanceof AuthError) return { error: "Account created, but sign-in failed. Please log in." };
+    throw e;
+  }
+  redirect("/dashboard");
+}
+
+/** Used as a <form action>. signIn() throws a redirect to Google's consent screen. */
+export async function loginWithGoogle() {
+  await signIn("google", { redirectTo: "/dashboard" });
+}
+
+export async function signOutAction() {
+  await signOut({ redirectTo: "/" });
 }
