@@ -140,6 +140,35 @@ describe("enhanceReceipt", () => {
     const f = vi.fn().mockResolvedValue(new Response("{}", { status: 401 }));
     await expect(enhanceReceipt(new Blob(["x"], { type: "image/jpeg" }), "k", { fetchImpl: f as never })).rejects.toMatchObject({ kind: "auth" });
   });
+
+  const okBody = JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(answer()) }] }, finishReason: "STOP" }] });
+
+  it("primary model overloaded (after its own retry) -> falls back to the secondary Gemini model", async () => {
+    const urls: string[] = [];
+    const f = vi.fn(async (url: string) => {
+      urls.push(url);
+      return url.includes("gemini-3.5-flash-lite") ? new Response("{}", { status: 503 }) : new Response(okBody);
+    });
+    const r = await enhanceReceipt(new Blob(["x"], { type: "image/jpeg" }), "k", { fetchImpl: f as never });
+    expect(r.receipt.total).toBe(1980);
+    // primary tried twice (its own internal retry), then the secondary model once
+    expect(urls.filter((u) => u.includes("gemini-3.5-flash-lite"))).toHaveLength(2);
+    expect(urls.filter((u) => u.includes("gemini-3.1-flash-lite"))).toHaveLength(1);
+  });
+
+  it("does not fall back to a second model for a non-capacity failure (auth would fail there too)", async () => {
+    const f = vi.fn().mockResolvedValue(new Response("{}", { status: 401 }));
+    await expect(enhanceReceipt(new Blob(["x"], { type: "image/jpeg" }), "k", { fetchImpl: f as never })).rejects.toMatchObject({ kind: "auth" });
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("a pinned model (the bake-off scoring one model) never falls back to another", async () => {
+    const f = vi.fn().mockResolvedValue(new Response("{}", { status: 503 }));
+    await expect(
+      enhanceReceipt(new Blob(["x"], { type: "image/jpeg" }), "k", { fetchImpl: f as never, model: "gemini-3.5-flash-lite" }),
+    ).rejects.toMatchObject({ kind: "overloaded" });
+    expect(f).toHaveBeenCalledTimes(2); // its own one retry, no secondary model
+  });
 });
 
 describe("toBase64", () => {

@@ -43,6 +43,8 @@ export interface CascadeOptions {
   models?: Partial<Record<ProviderId, string>>;
   /** Try Groq's second model if the first one fails (default on; limits are per model). */
   groqSecondModel?: boolean;
+  /** Try Gemini's second model if the first one fails (default on; capacity problems are per model). */
+  geminiSecondModel?: boolean;
 }
 
 /**
@@ -62,16 +64,17 @@ export async function runCascade(req: PlanRequest, opts: CascadeOptions): Promis
   const attempts: Attempt[] = [];
   const itemCount = req.items.length;
 
-  // The ordered list of (provider, model) attempts. Groq gets two: rate limits are per
-  // model, so a 429 on the first may not apply to the second. A rejected key would fail
-  // both, so once a provider says "auth" it is not tried again.
+  // The ordered list of (provider, model) attempts. Both providers get two models: Groq's
+  // rate limits are per model, and Gemini's capacity problems ("high demand" 503s) are too —
+  // verified live, one model overloaded while the other answered. A rejected key would fail
+  // both of a provider's models identically, so once a provider says "auth" it is not tried again.
   const steps: { tier: ProviderId; model?: string }[] = [];
   for (const tier of opts.order ?? (["groq", "gemini"] as ProviderId[])) {
     const chosen = opts.models?.[tier];
-    steps.push({ tier, model: chosen ?? (tier === "groq" ? MODELS.groq.primary : undefined) });
-    if (tier === "groq" && !chosen && opts.groqSecondModel !== false) {
-      steps.push({ tier, model: MODELS.groq.secondary });
-    }
+    steps.push({ tier, model: chosen ?? MODELS[tier].primary });
+    if (chosen) continue; // the bake-off pins a model — no second attempt with a different one
+    if (tier === "groq" && opts.groqSecondModel !== false) steps.push({ tier, model: MODELS.groq.secondary });
+    if (tier === "gemini" && opts.geminiSecondModel !== false) steps.push({ tier, model: MODELS.gemini.secondary });
   }
   const rejected = new Set<ProviderId>();
 
@@ -114,6 +117,7 @@ export function explainAttempts(attempts: Attempt[]): string | null {
     ({
       auth: "rejected your key",
       "rate-limit": "is rate-limited",
+      overloaded: "is overloaded right now (on their side, not your key)",
       server: "had a server problem",
       "model-gone": "no longer offers this model",
       "bad-request": "rejected the request",

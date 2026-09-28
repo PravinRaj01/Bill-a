@@ -502,6 +502,7 @@ function BillSplitterContent() {
       alert(
         kind === "auth" ? "Gemini rejected your key. Check it in AI settings."
         : kind === "rate-limit" ? "Gemini is rate-limited right now. Try again in a minute."
+        : kind === "overloaded" ? "Gemini is overloaded right now — that's on Google's side, not your key. Try again in a minute."
         : kind === "blocked" ? "Gemini declined to read this photo."
         : "Couldn't get a second reading from Gemini. You can still fix the items by hand.",
       );

@@ -43,6 +43,11 @@ describe("event schema is a strict allowlist", () => {
     expect(telemetryEventSchema.safeParse({ type: "error", where: "split", name: "Error", message: "boom", reconciliation: { expected: 100, actual: 101 } }).success).toBe(true);
   });
 
+  it("accepts 'overloaded' as an attempt kind (Gemini 503 high-demand)", () => {
+    expect(telemetryEventSchema.safeParse({ ...split, attempts: [{ tier: "gemini", kind: "overloaded" }] }).success).toBe(true);
+    expect(telemetryEventSchema.safeParse({ type: "enhance", ok: false, kind: "overloaded", ms: 900 }).success).toBe(true);
+  });
+
   it.each([
     ["an API key", { ...split, apiKey: "gsk_x" }],
     ["people's names", { ...split, people: ["Pravin"] }],

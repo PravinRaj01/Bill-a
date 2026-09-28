@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { buildAssignmentPlanSchema } from "../schemas";
 import { buildGroqBody, groqPlan } from "./groq";
-import { buildGeminiBody, geminiPlan, geminiUrl, readGeminiText } from "./gemini";
+import { buildGeminiBody, fetchGeminiWithRetry, geminiPlan, geminiUrl, OVERLOAD_RETRY_MS, readGeminiText } from "./gemini";
 import { explainAttempts, runCascade } from "./cascade";
 import { testKey } from "./testKey";
 import { ProviderError, kindForStatus, type PlanRequest } from "./types";
@@ -98,7 +98,7 @@ describe("groqPlan", () => {
   });
 
   it.each([
-    [401, "auth"], [403, "auth"], [429, "rate-limit"], [404, "model-gone"], [400, "bad-request"], [500, "server"], [503, "server"],
+    [401, "auth"], [403, "auth"], [429, "rate-limit"], [404, "model-gone"], [400, "bad-request"], [500, "server"], [503, "overloaded"],
   ])("HTTP %i -> %s", async (status, kind) => {
     const f = vi.fn().mockResolvedValue(json({ error: "x" }, status));
     await expect(groqPlan(req, "k", { fetchImpl: f as never })).rejects.toMatchObject({ kind, provider: "groq" });
@@ -135,9 +135,16 @@ describe("geminiPlan", () => {
     expect(() => readGeminiText({ candidates: [{ finishReason: "STOP", content: { parts: [{ text: "ok" }] } }] })).not.toThrow();
   });
 
-  it.each([[401, "auth"], [429, "rate-limit"], [404, "model-gone"], [500, "server"]])("HTTP %i -> %s", async (status, kind) => {
+  it.each([[401, "auth"], [429, "rate-limit"], [404, "model-gone"], [500, "server"], [503, "overloaded"]])("HTTP %i -> %s", async (status, kind) => {
     const f = vi.fn().mockResolvedValue(json({}, status));
     await expect(geminiPlan(req, "k", { fetchImpl: f as never })).rejects.toMatchObject({ kind, provider: "gemini" });
+  });
+
+  it("rides through a single 503 'high demand' blip (retries once, transparently)", async () => {
+    const f = vi.fn().mockResolvedValueOnce(json({}, 503)).mockResolvedValueOnce(geminiOk());
+    const raw = await geminiPlan(req, "k", { fetchImpl: f as never });
+    expect(JSON.parse(raw)).toEqual(goodPlan);
+    expect(f).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -202,6 +209,60 @@ describe("kindForStatus", () => {
     expect(kindForStatus(408)).toBe("server");
     expect(kindForStatus(422)).toBe("bad-request");
   });
+
+  it("503 is 'overloaded', distinct from a generic server error", () => {
+    expect(kindForStatus(503)).toBe("overloaded");
+    expect(kindForStatus(500)).toBe("server");
+    expect(kindForStatus(502)).toBe("server");
+    expect(kindForStatus(504)).toBe("server");
+  });
+});
+
+describe("fetchGeminiWithRetry", () => {
+  const req503 = () => new Response("{}", { status: 503 });
+  const req200 = () => new Response("{}", { status: 200 });
+
+  it("retries exactly once on 503, and succeeds if the retry does", async () => {
+    const f = vi.fn().mockResolvedValueOnce(req503()).mockResolvedValueOnce(req200());
+    const res = await fetchGeminiWithRetry("http://x", {}, { fetchImpl: f as never });
+    expect(res.status).toBe(200);
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after the one retry — two 503s in a row stay a 503, not an infinite loop", async () => {
+    const f = vi.fn().mockResolvedValue(req503());
+    const res = await fetchGeminiWithRetry("http://x", {}, { fetchImpl: f as never });
+    expect(res.status).toBe(503);
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry anything other than 503 (429 is a real quota limit, not transient)", async () => {
+    const f = vi.fn().mockResolvedValue(new Response("{}", { status: 429 }));
+    const res = await fetchGeminiWithRetry("http://x", {}, { fetchImpl: f as never });
+    expect(res.status).toBe(429);
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("a success on the first try needs no retry", async () => {
+    const f = vi.fn().mockResolvedValue(req200());
+    await fetchGeminiWithRetry("http://x", {}, { fetchImpl: f as never });
+    expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("an aborted signal stops it from retrying into a call nobody wants", async () => {
+    const controller = new AbortController();
+    const f = vi.fn().mockImplementation(async () => {
+      controller.abort(); // simulate the caller's timeout firing during the first call
+      return req503();
+    });
+    const res = await fetchGeminiWithRetry("http://x", {}, { signal: controller.signal, fetchImpl: f as never });
+    expect(res.status).toBe(503);
+    expect(f).toHaveBeenCalledTimes(1); // the retry was skipped, not attempted and discarded
+  });
+
+  it("the wait before retrying is short (measured: real 503s clear in well under a second)", () => {
+    expect(OVERLOAD_RETRY_MS).toBeLessThanOrEqual(1000);
+  });
 });
 
 describe("runCascade", () => {
@@ -260,7 +321,7 @@ describe("runCascade", () => {
     const f = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
     const r = await runCascade(req, { keys, fetchImpl: f as never });
     expect(r.tier).toBe("fallback");
-    expect(r.attempts.map((a) => a.kind)).toEqual(["network", "network", "network"]); // groq x2 models, gemini
+    expect(r.attempts.map((a) => a.kind)).toEqual(["network", "network", "network", "network"]); // groq x2 models, gemini x2 models
     expect(r.plan.assignments).toEqual([{ itemIndex: 1, people: ["Pravin"] }]); // "Pravin pays for the teh tarik"
   });
 
@@ -341,6 +402,53 @@ describe("runCascade: Groq's two models and per-provider timeouts", () => {
     const f = vi.fn(async () => json({}, 429));
     const r = await runCascade(req, { keys: { groq: "gsk_x" }, fetchImpl: f as never });
     expect(explainAttempts(r.attempts)).toBe("Groq is rate-limited");
+  });
+});
+
+describe("runCascade: Gemini's two models (capacity problems are per model too)", () => {
+  const keys = { gemini: "AIza_x" };
+
+  it("tries flash-lite first, then 3.1-flash-lite, using each model id", async () => {
+    const models: string[] = [];
+    // Primary model always overloaded (its own internal retry doesn't save it either); the
+    // secondary model answers straight away.
+    const f = vi.fn(async (url: string) => {
+      const model = String(url).match(/models\/([^:]+):/)?.[1];
+      models.push(model!);
+      return model === MODELS.gemini.primary ? json({}, 503) : geminiOk();
+    });
+    const r = await runCascade(req, { keys, fetchImpl: f as never });
+    // fetchGeminiWithRetry itself retries the first (503) call once before giving up on it,
+    // so the primary model is hit twice, then the cascade moves to the secondary model.
+    expect(models).toEqual([MODELS.gemini.primary, MODELS.gemini.primary, MODELS.gemini.secondary]);
+    expect(r.tier).toBe("gemini");
+    expect(r.attempts.map((a) => [a.model, a.ok])).toEqual([[MODELS.gemini.primary, false], [MODELS.gemini.secondary, true]]);
+  });
+
+  it("a rejected key is not retried with the second Gemini model", async () => {
+    const f = vi.fn().mockResolvedValue(json({}, 401));
+    const r = await runCascade(req, { keys, fetchImpl: f as never });
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(r.tier).toBe("fallback");
+  });
+
+  it("can be limited to one Gemini model", async () => {
+    const f = vi.fn().mockResolvedValue(json({}, 503));
+    await runCascade(req, { keys, fetchImpl: f as never, geminiSecondModel: false });
+    // 2 calls: the primary model's own single retry — no second MODEL is tried.
+    expect(f).toHaveBeenCalledTimes(2);
+  });
+
+  it("an explicit model (the bake-off) is used as-is, with no second model", async () => {
+    const f = vi.fn().mockResolvedValue(json({}, 503));
+    await runCascade(req, { keys, models: { gemini: "gemini-3.5-flash-lite" }, fetchImpl: f as never });
+    expect(f).toHaveBeenCalledTimes(2); // the one model's own retry, nothing more
+  });
+
+  it("does not repeat itself when explaining two overloaded Gemini attempts", async () => {
+    const f = vi.fn().mockResolvedValue(json({}, 503));
+    const r = await runCascade(req, { keys, fetchImpl: f as never });
+    expect(explainAttempts(r.attempts)).toBe("Gemini is overloaded right now (on their side, not your key)");
   });
 });
 

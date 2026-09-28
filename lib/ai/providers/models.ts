@@ -25,6 +25,10 @@ export const MODELS = {
   },
   gemini: {
     primary: "gemini-3.5-flash-lite",
+    // Google's capacity problems ("high demand" 503s) are per-model, not account-wide —
+    // verified live: flash-lite failed 3/3 while flash-lite-3.1 got through. A different,
+    // separately-provisioned model, tried after the primary's own retry still fails.
+    secondary: "gemini-3.1-flash-lite",
   },
 } as const;
 

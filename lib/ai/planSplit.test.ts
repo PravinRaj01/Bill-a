@@ -109,6 +109,6 @@ describe("planSplit", () => {
     expect(out.kind).toBe("split");
     if (out.kind !== "split") return;
     expect(out.tier).toBe("fallback");
-    expect(out.attempts.map((a) => a.kind)).toEqual(["network", "network", "network"]); // groq x2 models, gemini
+    expect(out.attempts.map((a) => a.kind)).toEqual(["network", "network", "network", "network"]); // groq x2 models, gemini x2 models
   });
 });

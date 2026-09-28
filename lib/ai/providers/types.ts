@@ -15,7 +15,8 @@ export interface PlanRequest {
 export type ProviderErrorKind =
   | "auth" //          401/403: the key is wrong, revoked, or not allowed
   | "rate-limit" //    429
-  | "server" //        5xx / 408
+  | "overloaded" //    503: the PROVIDER is out of capacity right now — not our fault, not the key's
+  | "server" //        other 5xx / 408
   | "model-gone" //    404: the model id was retired or renamed
   | "bad-request" //   400/422: the provider rejected our request or schema
   | "blocked" //       content policy / safety block
@@ -56,6 +57,9 @@ export function kindForStatus(status: number): ProviderErrorKind {
   if (status === 401 || status === 403) return "auth";
   if (status === 429) return "rate-limit";
   if (status === 404) return "model-gone";
+  // Seen live on Gemini: 503 "This model is currently experiencing high demand" — distinct
+  // from a genuine server error so the UI can say "that's Google's side, not your key".
+  if (status === 503) return "overloaded";
   if (status === 408 || status >= 500) return "server";
   return "bad-request";
 }

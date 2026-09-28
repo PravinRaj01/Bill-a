@@ -16,6 +16,24 @@ export function geminiUrl(model: string) {
   return `${ENDPOINTS.geminiBase}/models/${model}:generateContent`;
 }
 
+/** How long to wait before the one retry on a 503. Measured live: these clear in well under a second. */
+export const OVERLOAD_RETRY_MS = 800;
+
+/**
+ * callFetch, but retries ONCE if Google answers 503 "high demand" — a transient, provider-side
+ * capacity problem, not a request or key problem. Nothing else is retried here: 429 is a real
+ * quota limit (retrying immediately just wastes it), and other 5xx are a genuine server fault,
+ * not "try again in under a second and it's fine". A second, unrelated overload gets reported as
+ * such; the caller (the cascade, or enhanceReceipt) decides whether to try a different model.
+ */
+export async function fetchGeminiWithRetry(url: string, init: RequestInit, ctx: CallContext): Promise<Response> {
+  const res = await callFetch("gemini", url, init, ctx);
+  if (res.status !== 503 || ctx.signal?.aborted) return res;
+  await new Promise((resolve) => setTimeout(resolve, OVERLOAD_RETRY_MS));
+  if (ctx.signal?.aborted) return res;
+  return callFetch("gemini", url, init, ctx);
+}
+
 export function buildGeminiBody(req: PlanRequest) {
   const candidateIndices = req.items.map((_, i) => i);
   return {
@@ -76,8 +94,7 @@ export async function geminiFailure(res: Response): Promise<ProviderError> {
 }
 
 export async function geminiPlan(req: PlanRequest, apiKey: string, ctx: CallContext = {}): Promise<string> {
-  const res = await callFetch(
-    "gemini",
+  const res = await fetchGeminiWithRetry(
     geminiUrl(ctx.model ?? MODELS.gemini.primary),
     {
       method: "POST",

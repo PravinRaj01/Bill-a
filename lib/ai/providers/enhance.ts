@@ -1,8 +1,8 @@
 import { z } from "zod";
 import type { ParsedItem, ParsedReceipt } from "@/lib/ocr/parse-lines";
-import { geminiFailure, geminiUrl, readGeminiText } from "./gemini";
+import { fetchGeminiWithRetry, geminiFailure, geminiUrl, readGeminiText } from "./gemini";
 import { MODELS } from "./models";
-import { callFetch, ProviderError, type CallContext } from "./types";
+import { ProviderError, type CallContext } from "./types";
 
 // "Cloud Enhance": when the local OCR read is poor, the user can choose to send the
 // (already-shrunk) receipt photo to Gemini with THEIR OWN key and get a better
@@ -155,22 +155,33 @@ export function receiptFromAnswer(raw: unknown): ParsedReceipt {
   };
 }
 
+async function enhanceWith(model: string, body: string, apiKey: string, ctx: CallContext): Promise<ParsedReceipt> {
+  const res = await fetchGeminiWithRetry(
+    geminiUrl(model),
+    { method: "POST", headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey }, body },
+    ctx,
+  );
+  if (!res.ok) throw await geminiFailure(res);
+  return receiptFromAnswer(readGeminiText(await res.json()));
+}
+
 export async function enhanceReceipt(
   image: Blob,
   apiKey: string,
   ctx: CallContext = {},
 ): Promise<ParsedReceipt> {
   const bytes = new Uint8Array(await image.arrayBuffer());
-  const res = await callFetch(
-    "gemini",
-    geminiUrl(ctx.model ?? MODELS.gemini.primary),
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-      body: JSON.stringify(buildEnhanceBody(toBase64(bytes), image.type || "image/jpeg")),
-    },
-    ctx,
-  );
-  if (!res.ok) throw await geminiFailure(res);
-  return receiptFromAnswer(readGeminiText(await res.json()));
+  const body = JSON.stringify(buildEnhanceBody(toBase64(bytes), image.type || "image/jpeg"));
+  const primary = ctx.model ?? MODELS.gemini.primary;
+  try {
+    return await enhanceWith(primary, body, apiKey, ctx);
+  } catch (e) {
+    // One model's overload doesn't mean the other is down too (verified live). Only fall back
+    // when the caller didn't pin a specific model (the bake-off does, to score one model alone),
+    // and only for a capacity problem — an auth/blocked/bad-output failure would fail identically
+    // on the second model too, so there's no point spending the extra call.
+    const retryable = e instanceof ProviderError && (e.kind === "overloaded" || e.kind === "server");
+    if (ctx.model || !retryable) throw e;
+    return await enhanceWith(MODELS.gemini.secondary, body, apiKey, ctx);
+  }
 }

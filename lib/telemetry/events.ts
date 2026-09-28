@@ -14,7 +14,7 @@ import { z } from "zod";
 
 const tier = z.enum(["groq", "gemini", "fallback"]);
 const kind = z.enum([
-  "auth", "rate-limit", "server", "model-gone", "bad-request", "blocked", "bad-output", "timeout", "network",
+  "auth", "rate-limit", "overloaded", "server", "model-gone", "bad-request", "blocked", "bad-output", "timeout", "network",
 ]);
 
 export const telemetryEventSchema = z.discriminatedUnion("type", [
