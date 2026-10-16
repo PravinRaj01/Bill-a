@@ -604,7 +604,7 @@ export function useSplitSession() {
 
   const finish = useCallback(() => {
     router.refresh();
-    router.push("/dashboard");
+    router.push("/dashboard", { transitionTypes: ["nav-back"] });
   }, [router]);
 
   return {

@@ -4,6 +4,7 @@ import { AnimatePresence, m } from "motion/react";
 import { ChevronLeft, Loader2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { PageTransition } from "@/components/page-transition";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { AmountStep } from "@/components/split/steps/AmountStep";
@@ -30,6 +31,7 @@ function BillSplitterContent() {
   const wide = s.step === "REVIEW" && s.showPhoto && !!s.photoUrl;
 
   return (
+    <PageTransition>
     <main className={`mx-auto mb-20 flex w-full max-w-xl flex-1 flex-col gap-6 p-6 ${s.step === "REVIEW" ? "lg:max-w-5xl" : ""} ${wide ? "2xl:max-w-7xl" : ""}`}>
       {s.step !== s.firstStep && (
         <div className="flex items-center justify-between">
@@ -71,6 +73,7 @@ function BillSplitterContent() {
         </m.div>
       </AnimatePresence>
     </main>
+    </PageTransition>
   );
 }
 

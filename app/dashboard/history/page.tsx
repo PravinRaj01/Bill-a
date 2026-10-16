@@ -1,4 +1,5 @@
 import HistoryList from "@/components/history-list";
+import { PageTransition } from "@/components/page-transition";
 import { listBills } from "@/lib/actions/history";
 
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,7 @@ export default async function HistoryPage() {
   const history = await listBills();
 
   return (
+    <PageTransition>
     <div className="p-6 md:p-10 max-w-4xl mx-auto space-y-8 mb-20">
       <header className="space-y-1">
         <h1 className="text-3xl font-black tracking-tighter uppercase italic text-white">History</h1>
@@ -18,5 +20,6 @@ export default async function HistoryPage() {
 
       <HistoryList initialHistory={history} />
     </div>
+    </PageTransition>
   );
 }

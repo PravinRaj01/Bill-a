@@ -6,6 +6,7 @@ import type { SavedGroup } from "@/lib/db/schema"
 import { Button } from "@/components/ui/button"
 import { ChevronLeft, Trash2 } from "lucide-react"
 import Link from "next/link"
+import { PageTransition } from "@/components/page-transition"
 
 export default function ManageGroups() {
   const [groups, setGroups] = useState<SavedGroup[]>([])
@@ -31,8 +32,9 @@ export default function ManageGroups() {
   }
 
   return (
-    <main className="p-6 md:p-10 max-w-xl mx-auto space-y-8 min-h-screen bg-black text-white">
-      <Link href="/dashboard" className="flex items-center text-[10px] font-black uppercase text-zinc-500 tracking-widest hover:text-white transition-colors">
+    <PageTransition>
+    <main className="p-6 md:p-10 max-w-xl mx-auto space-y-8 min-h-screen bg-background text-white">
+      <Link href="/dashboard" transitionTypes={["nav-back"]} className="flex items-center text-[10px] font-black uppercase text-zinc-500 tracking-widest hover:text-white transition-colors">
         <ChevronLeft size={14} className="mr-1" /> Back to Dashboard
       </Link>
       
@@ -67,5 +69,6 @@ export default function ManageGroups() {
         )}
       </div>
     </main>
+    </PageTransition>
   )
 }

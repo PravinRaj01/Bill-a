@@ -6,6 +6,7 @@ import { getAccountStats } from "@/lib/actions/history";
 import { getCurrentUser } from "@/lib/actions/user";
 import { fromCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
+import { PageTransition } from "@/components/page-transition";
 import { Card, CardContent } from "@/components/ui/card";
 import { 
   LogOut, 
@@ -37,7 +38,8 @@ export default function AccountPage() {
   const handleSignOut = () => signOutAction();
 
   return (
-    <div className="min-h-screen bg-black text-white p-6 md:p-10 max-w-xl mx-auto animate-in fade-in duration-500">
+    <PageTransition>
+    <div className="min-h-screen bg-background text-white p-6 md:p-10 max-w-xl mx-auto">
       
       {/* Header */}
       <header className="space-y-1 mb-8">
@@ -119,5 +121,6 @@ export default function AccountPage() {
 
       </div>
     </div>
+    </PageTransition>
   );
 }

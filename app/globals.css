@@ -186,6 +186,17 @@
 ::view-transition {
   pointer-events: none;
 }
+/* Only the page content slides. Everything else (background, header, side and bottom nav) is the
+   same on both pages, so the browser's default whole-page crossfade would add nothing but flicker.
+   Hide the old snapshot and keep the new one still (the default blends the two additively, so
+   simply stopping both animations would double the brightness). */
+::view-transition-old(root) {
+  display: none;
+}
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
 ::view-transition-group(app-header) {
   animation: none;
   z-index: 100;
@@ -197,19 +208,19 @@
   animation: none;
 }
 ::view-transition-old(.nav-forward) {
-  --slide-offset: -60px;
+  --slide-offset: -32px;
   animation: 150ms ease-in both vt-fade reverse, 400ms ease-in-out both vt-slide reverse;
 }
 ::view-transition-new(.nav-forward) {
-  --slide-offset: 60px;
+  --slide-offset: 32px;
   animation: 210ms ease-out 150ms both vt-fade, 400ms ease-in-out both vt-slide;
 }
 ::view-transition-old(.nav-back) {
-  --slide-offset: 60px;
+  --slide-offset: 32px;
   animation: 150ms ease-in both vt-fade reverse, 400ms ease-in-out both vt-slide reverse;
 }
 ::view-transition-new(.nav-back) {
-  --slide-offset: -60px;
+  --slide-offset: -32px;
   animation: 210ms ease-out 150ms both vt-fade, 400ms ease-in-out both vt-slide;
 }
 @keyframes vt-fade {
