@@ -154,3 +154,45 @@ describe("parseReceiptLines", () => {
     expect(r.items.map((i) => i.totalPrice)).toEqual([20, 400, 300]);
   });
 });
+
+describe("parseReceiptLines: cash rounding adjustment", () => {
+  const withLines = (extra: string[], subtotal = "22.00", total = "23.30") =>
+    parseReceiptLines(ocr(["NASI LEMAK 15.00", "TEH TARIK 7.00", `SUBTOTAL ${subtotal}`, ...extra, `TOTAL RM ${total}`, "CASH 30.00"]));
+
+  it("reads a negative rounding line and keeps it out of the tax", () => {
+    const r = withLines(["SST 6% 1.32", "ROUNDING ADJ -0.02"]);
+    expect(r.receipt.tax).toBe(132);
+    expect(r.receipt.rounding).toBe(-2);
+    expect(r.receipt.total).toBe(2330);
+    expect(r.warnings.join(" ")).not.toMatch(/Items add up/);
+  });
+
+  it("reads a positive rounding line with no tax line: the 0.02 is not mistaken for tax", () => {
+    const r = parseReceiptLines(ocr(["NASI LEMAK 10.00", "TEH TARIK 4.33", "SUBTOTAL 14.33", "ROUNDING 0.02", "TOTAL RM 14.35", "CASH 20.00"]));
+    expect(r.receipt.tax).toBe(0);
+    expect(r.receipt.rounding).toBe(2);
+    expect(r.receipt.total).toBe(1435);
+  });
+
+  it("reads a parenthesised amount and a trailing minus as deductions", () => {
+    expect(withLines(["SST 6% 1.32", "ROUNDING (0.02)"]).receipt.rounding).toBe(-2);
+    expect(withLines(["SST 6% 1.32", "ROUNDING ADJUSTMENT 0.02-"]).receipt.rounding).toBe(-2);
+  });
+
+  it("a zero rounding line, or none, leaves rounding unset", () => {
+    expect(withLines(["SST 6% 1.32", "ROUNDING ADJ 0.00"], "22.00", "23.32").receipt.rounding).toBeUndefined();
+    expect(withLines(["SST 6% 1.32"], "22.00", "23.32").receipt.rounding).toBeUndefined();
+  });
+
+  it("does not trust an enormous 'rounding' amount (a misread), and says so", () => {
+    const r = withLines(["SST 6% 1.32", "ROUNDING 9.99"], "22.00", "33.31");
+    expect(r.receipt.rounding).toBeUndefined();
+    expect(r.warnings.join(" ")).toMatch(/unusually large rounding/);
+  });
+
+  it("computes the total with the rounding when no total line was read", () => {
+    const r = parseReceiptLines(ocr(["NASI LEMAK 15.00", "TEH TARIK 7.00", "SUBTOTAL 22.00", "SST 6% 1.32", "ROUNDING ADJ -0.02"]));
+    expect(r.totalSource).toBe("computed");
+    expect(r.receipt.total).toBe(2330);
+  });
+});

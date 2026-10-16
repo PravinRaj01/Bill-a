@@ -17,6 +17,7 @@ const PROMPT =
   "Transcribe this receipt exactly as printed. Do NOT calculate, correct or infer any number.\n" +
   "- items: every purchased line, with its name, its quantity (1 if not shown) and the line's total price as printed.\n" +
   "- Do not list subtotal, tax, service charge, total, rounding, cash, change or payment lines as items.\n" +
+  "- rounding: the signed cash-rounding adjustment line (\"Rounding\", \"Rounding Adj\") exactly as printed, negative if it reduces the bill; 0 if there is none.\n" +
   "- tax: the sum of tax / service-charge lines (SST, GST, VAT, service charge) as printed; 0 if there are none.\n" +
   "- subtotal: the printed subtotal before tax/service, or 0 if none is printed.\n" +
   "- amountTendered: the cash or card amount paid/handed over, or 0 if none is printed.\n" +
@@ -44,14 +45,17 @@ const RESPONSE_SCHEMA = {
     subtotal: { type: "number" },
     total: { type: "number" },
     amountTendered: { type: "number" },
+    rounding: { type: "number" },
   },
-  required: ["currency", "items", "tax", "subtotal", "total", "amountTendered"],
+  required: ["currency", "items", "tax", "subtotal", "total", "amountTendered", "rounding"],
 } as const;
 
 const answerSchema = z.object({
   currency: z.string().max(8).default(""),
   subtotal: z.number().finite().min(0).max(10_000_000).default(0),
   amountTendered: z.number().finite().min(0).max(10_000_000).default(0),
+  // Optional so a model that omits it (or an older cached answer) still parses.
+  rounding: z.number().finite().min(-1).max(1).default(0),
   items: z
     .array(
       z.object({
@@ -117,6 +121,7 @@ export function receiptFromAnswer(raw: unknown): ParsedReceipt {
   let totalC = cents(a.total);
   const subtotalC = cents(a.subtotal);
   const tenderedC = cents(a.amountTendered);
+  const roundingC = cents(a.rounding);
   let confidence = 0.9;
 
   // Gemini sometimes reads the CASH/tendered line as the total (seen live: a Trader Joe's
@@ -125,17 +130,17 @@ export function receiptFromAnswer(raw: unknown): ParsedReceipt {
   // agrees: it gave the same figure for total and amount tendered, AND the items add up
   // to the printed subtotal. Otherwise leave the total alone and let the check below warn.
   const tol = Math.max(2, subtotalC * 0.01);
-  if (tenderedC > 0 && totalC === tenderedC && subtotalC > 0 && Math.abs(itemSum - subtotalC) <= tol && totalC !== subtotalC + taxC) {
-    totalC = subtotalC + taxC;
+  if (tenderedC > 0 && totalC === tenderedC && subtotalC > 0 && Math.abs(itemSum - subtotalC) <= tol && totalC !== subtotalC + taxC + roundingC) {
+    totalC = subtotalC + taxC + roundingC;
   }
 
   if (items.length === 0) {
     confidence = 0.1;
     warnings.push("Gemini couldn't find any items either — is this a receipt photo?");
-  } else if (totalC > 0 && Math.abs(itemSum + taxC - totalC) > Math.max(2, totalC * 0.01)) {
+  } else if (totalC > 0 && Math.abs(itemSum + taxC + roundingC - totalC) > Math.max(2, totalC * 0.01)) {
     confidence = 0.6;
     warnings.push(
-      `Items + tax come to ${((itemSum + taxC) / 100).toFixed(2)} but the receipt total was read as ${(totalC / 100).toFixed(2)} — please check.`,
+      `Items + tax come to ${((itemSum + taxC + roundingC) / 100).toFixed(2)} but the receipt total was read as ${(totalC / 100).toFixed(2)} — please check.`,
     );
   }
 
@@ -143,7 +148,8 @@ export function receiptFromAnswer(raw: unknown): ParsedReceipt {
     receipt: {
       items: items.map(({ name, quantity, unitPrice, totalPrice }) => ({ name, quantity, unitPrice, totalPrice })),
       tax: taxC,
-      total: totalC > 0 ? totalC : itemSum + taxC,
+      total: totalC > 0 ? totalC : itemSum + taxC + roundingC,
+      ...(roundingC !== 0 ? { rounding: roundingC } : {}),
       currency: a.currency.trim() || "RM",
     },
     items,

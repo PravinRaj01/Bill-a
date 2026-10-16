@@ -28,10 +28,16 @@ export const billSchema = z.object({
         .max(300),
       tax: z.number().int(),
       total: z.number().int(),
+      rounding: z.number().int().min(-100_000).max(100_000).optional(),
       currency: z.string().max(8),
     }),
     people: z.array(z.string().max(60)).max(50),
     reasoning: z.string().max(20_000),
+    cashRounding: z.object({ unit: z.number().int().min(1).max(10_000), absorber: z.string().max(60) }).optional(),
+    exactSplit: z
+      .array(z.object({ name: z.string().max(60), amount: z.number().int(), items: z.string().max(2000) }))
+      .max(50)
+      .optional(),
   }),
 });
 
