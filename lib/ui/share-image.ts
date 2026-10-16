@@ -25,6 +25,8 @@ export function isWebKit(ua: string): boolean {
 /** The page's fonts must be loaded before capture or the picture falls back to a default font. */
 export async function renderPng(node: HTMLElement, opts: { systemFont?: boolean } = {}): Promise<Blob> {
   await document.fonts.ready;
+  // Pictures inside the receipt (the portraits) must be decoded or they can come out blank.
+  await Promise.all(Array.from(node.querySelectorAll("img")).map((img) => img.decode().catch(() => undefined)));
   const blob = await domToBlob(node, {
     scale: 1,
     type: "image/png",

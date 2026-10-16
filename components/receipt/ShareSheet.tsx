@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Switch } from "@/components/ui/switch";
 import type { PaymentShare } from "@/hooks/use-payment-share";
+import { avatarsFor } from "@/lib/ui/avatar";
 import { allOwedToMe } from "@/lib/split/settle";
 import { isWebKit, renderPng, saveImage, shareImage } from "@/lib/ui/share-image";
 
@@ -29,18 +30,33 @@ export function ShareSheet({
   const hostRef = useRef<HTMLDivElement>(null);
   const [png, setPng] = useState<{ blob: Blob; url: string } | null>(null);
   const [failed, setFailed] = useState(false);
+  // Portraits for the people on the receipt; the picture waits for them so it never goes out with blanks.
+  const [avatars, setAvatars] = useState<Record<string, string> | null>(null);
+  const names = data.shares.map((s) => s.name);
+  const namesKey = JSON.stringify(names);
   // Safari needs the system font in the picture (see lib/ui/share-image.ts).
   const [systemFont] = useState(() => typeof navigator !== "undefined" && isWebKit(navigator.userAgent));
 
   // "Pay me" only makes sense when what is still owed is owed to the user.
   const paysMe = allOwedToMe(data.view, data.settlement?.me);
   const withPayment = paysMe && payment.include && payment.details ? payment.details : null;
-  const image = useMemo<ReceiptImageData>(() => ({ ...data, payment: withPayment }), [data, withPayment]);
+  const image = useMemo<ReceiptImageData>(() => ({ ...data, payment: withPayment, avatars: avatars ?? undefined }), [data, withPayment, avatars]);
   // A stable key for "what the picture shows", so it is only redrawn when that really changes.
   const key = useMemo(() => JSON.stringify(image), [image]);
 
   useEffect(() => {
     if (!open) return;
+    let cancelled = false;
+    avatarsFor(JSON.parse(namesKey) as string[])
+      .then((a) => !cancelled && setAvatars(a))
+      .catch(() => !cancelled && setAvatars({})); // no portraits: initials
+    return () => {
+      cancelled = true;
+    };
+  }, [open, namesKey]);
+
+  useEffect(() => {
+    if (!open || avatars === null) return;
     let cancelled = false;
     let url: string | null = null;
     // Let the hidden copy render (and the QR svg mount) before capturing it.
@@ -63,7 +79,7 @@ export function ShareSheet({
       clearTimeout(timer);
       if (url) URL.revokeObjectURL(url);
     };
-  }, [open, key, systemFont]);
+  }, [open, key, systemFont, avatars]);
 
   const ready = open && png;
   const share = async () => {

@@ -20,13 +20,15 @@ export interface ReceiptImageData {
   view: SettleView | null;
   /** Shown at the bottom as "Pay <me>"; null leaves the pay block out. */
   payment: PaymentDetails | null;
+  /** Portrait data URIs by person name (lib/ui/avatar.ts); a person without one gets their initials. */
+  avatars?: Record<string, string>;
 }
 
 // The receipt as one tall picture, sized for a phone chat. It is a plain static tree on purpose: no
 // animated NumberFlow (it draws in a shadow root, which screenshot libraries capture unreliably), no
 // hover or motion, amounts as text. Every number comes from the same data as the on-screen ticket.
 export const ReceiptImage = forwardRef<HTMLDivElement, { data: ReceiptImageData; systemFont?: boolean }>(function ReceiptImage({ data, systemFont }, ref) {
-  const { title, date, symbol, shares, settlement, view, payment } = data;
+  const { title, date, symbol, shares, settlement, view, payment, avatars } = data;
   const money = (c: number) => formatMoney(c, symbol);
   const total = shares.reduce((a, s) => a + s.amount, 0);
   const positionOf = new Map(view?.ok && settlement ? positions(shares, settlement.paidBy).map((p) => [p.name, p] as const) : []);
@@ -66,10 +68,15 @@ export const ReceiptImage = forwardRef<HTMLDivElement, { data: ReceiptImageData;
             return (
               <li key={s.name} className="flex items-start gap-6">
                 <span
-                  className="flex size-20 shrink-0 items-center justify-center rounded-full bg-surface-2 text-3xl font-bold"
+                  className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full bg-surface-2 text-3xl font-bold"
                   style={{ boxShadow: `0 0 0 4px ${personColor(s.name)}` }}
                 >
-                  {initials(s.name)}
+                  {avatars?.[s.name] ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={avatars[s.name]} alt="" width={80} height={80} className="size-full" />
+                  ) : (
+                    initials(s.name)
+                  )}
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline justify-between gap-6">
