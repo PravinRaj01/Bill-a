@@ -1,17 +1,23 @@
 'use client'
 import { useState, useEffect } from "react"
-import { deleteGroup as deleteGroupAction, listGroups } from "@/lib/actions/groups"
+import Link from "next/link"
+import { ChevronLeft, Pencil, Users } from "lucide-react"
+import { toast } from "sonner"
+
+import { GroupEditSheet } from "@/components/groups/GroupEditSheet"
+import { PageTransition } from "@/components/page-transition"
+import { AvatarStack } from "@/components/person-avatar"
+import { ConfirmSheet } from "@/components/ui/confirm-sheet"
+import { deleteGroup as deleteGroupAction, listGroups, updateGroup } from "@/lib/actions/groups"
 import { getCurrentUser } from "@/lib/actions/user"
 import type { SavedGroup } from "@/lib/db/schema"
-import { Button } from "@/components/ui/button"
-import { ChevronLeft, Trash2 } from "lucide-react"
-import Link from "next/link"
-import { PageTransition } from "@/components/page-transition"
 
 export default function ManageGroups() {
   const [groups, setGroups] = useState<SavedGroup[]>([])
   // null = still loading, false = guest, true = signed in
   const [signedIn, setSignedIn] = useState<boolean | null>(null)
+  const [editing, setEditing] = useState<SavedGroup | null>(null)
+  const [deleting, setDeleting] = useState<SavedGroup | null>(null)
 
   useEffect(() => {
     getCurrentUser().then(async (user) => {
@@ -20,55 +26,118 @@ export default function ManageGroups() {
     })
   }, [])
 
-  const deleteGroup = async (id: string) => {
-    if (!confirm("Delete this saved group?")) return
+  const save = async (g: SavedGroup, input: { groupName: string; names: string[] }): Promise<string | null> => {
+    try {
+      const r = await updateGroup(g.id, input)
+      if (!r.ok) return r.error
+      setGroups((all) => all.map((x) => (x.id === g.id ? r.group : x)))
+      toast.success("Group saved")
+      return null
+    } catch {
+      return "Couldn't save. Check your connection and try again."
+    }
+  }
+
+  const remove = async (g: SavedGroup) => {
     try {
       // Server-side ownership check: only the signed-in user's own group can be deleted.
-      await deleteGroupAction(id)
-      setGroups(groups.filter(g => g.id !== id))
+      await deleteGroupAction(g.id)
+      setGroups((all) => all.filter((x) => x.id !== g.id))
+      setEditing(null)
+      toast("Group deleted")
     } catch {
-      alert("Couldn't delete that group. Please try again.")
+      toast.error("Couldn't delete that group. Please try again.")
     }
   }
 
   return (
     <PageTransition>
-    <main className="p-6 md:p-10 max-w-xl mx-auto space-y-8 min-h-screen bg-background text-white">
-      <Link href="/dashboard" transitionTypes={["nav-back"]} className="flex items-center text-[10px] font-black uppercase text-zinc-500 tracking-widest hover:text-white transition-colors">
-        <ChevronLeft size={14} className="mr-1" /> Back to Dashboard
-      </Link>
-      
-      <header className="space-y-1">
-        <h1 className="text-3xl font-black italic tracking-tighter uppercase">Groups</h1>
-        <p className="text-zinc-500 font-mono text-[10px] uppercase tracking-widest">Manage Saved Crews</p>
-      </header>
+      <div className="mx-auto mb-20 min-h-screen max-w-xl space-y-6 bg-background p-6 text-white md:p-10">
+        <Link href="/dashboard" transitionTypes={["nav-back"]} className="flex min-h-11 items-center text-sm font-semibold text-muted-foreground transition-colors hover:text-white">
+          <ChevronLeft size={16} className="mr-1" /> Home
+        </Link>
 
-      <div className="space-y-4">
-        {groups.length > 0 ? (
-          groups.map(group => (
-            <div key={group.id} className="bg-[#0c0c0e] border border-white/5 rounded-3xl p-6 flex justify-between items-center shadow-xl group">
-              <div className="space-y-1">
-                <h3 className="font-black uppercase tracking-tight text-white">{group.groupName}</h3>
-                <p className="text-[10px] text-zinc-600 font-mono uppercase tracking-tight">{group.names.join(", ")}</p>
+        <header className="space-y-1">
+          <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">Groups</h1>
+          <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Your saved crews</p>
+        </header>
+
+        <ul className="space-y-3">
+          {groups.map((group) => (
+            <li key={group.id} data-testid="group-card" className="space-y-4 rounded-3xl border border-white/5 bg-surface p-5">
+              <div className="flex items-center gap-3">
+                <AvatarStack names={group.names} max={4} />
+                <div className="min-w-0 flex-1">
+                  <h3 className="truncate text-base font-bold text-white">{group.groupName}</h3>
+                  <p className="truncate text-sm text-muted-foreground">
+                    {group.names.length} {group.names.length === 1 ? "person" : "people"} · {group.names.join(", ")}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="group-edit-open"
+                  aria-label={`Edit ${group.groupName}`}
+                  onClick={() => setEditing(group)}
+                  className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
+                >
+                  <Pencil size={18} />
+                </button>
               </div>
-              <Button variant="ghost" className="text-zinc-800 hover:text-red-500 hover:bg-white/5 transition-all" onClick={() => deleteGroup(group.id)}>
-                <Trash2 size={18} />
-              </Button>
-            </div>
-          ))
-        ) : (
-          <div className="text-center py-12 border-2 border-dashed border-zinc-900 rounded-3xl">
+              <Link
+                href={`/dashboard/new?group_id=${group.id}`}
+                transitionTypes={["nav-forward"]}
+                data-testid="group-split"
+                className="flex min-h-11 w-full items-center justify-center rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/5"
+              >
+                Split with this group
+              </Link>
+            </li>
+          ))}
+        </ul>
+
+        {groups.length === 0 && (
+          <div className="space-y-3 rounded-3xl border-2 border-dashed border-white/5 px-6 py-14 text-center">
+            <Users className="mx-auto size-9 text-muted-foreground/50" />
             {signedIn === false ? (
-              <p className="text-zinc-600 font-medium italic">
-                <Link href="/" className="underline underline-offset-4 hover:text-white">Log in</Link> to save and reuse groups.
+              <p className="text-sm text-muted-foreground">
+                <Link href="/" className="font-semibold text-white underline underline-offset-4">Log in</Link> to save and reuse groups.
               </p>
+            ) : signedIn === null ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
             ) : (
-              <p className="text-zinc-600 font-medium italic">{signedIn === null ? "Loading..." : "No saved groups found."}</p>
+              <>
+                <p className="text-base font-semibold text-white">No saved groups yet</p>
+                <p className="mx-auto max-w-xs text-sm text-muted-foreground">Add your people on the next split and choose &ldquo;Save this group&rdquo; to find them here.</p>
+              </>
             )}
           </div>
         )}
+
+        {editing && (
+          <GroupEditSheet
+            key={editing.id}
+            group={editing}
+            open
+            onOpenChange={(o) => !o && setEditing(null)}
+            onSave={(input) => save(editing, input)}
+            onDelete={() => {
+              toast.dismiss() // a leftover toast would sit on top of the sheet's Delete button
+              setDeleting(editing)
+            }}
+          />
+        )}
+
+        <ConfirmSheet
+          open={!!deleting}
+          onOpenChange={(o) => !o && setDeleting(null)}
+          title={`Delete ${deleting?.groupName ?? "this group"}?`}
+          description="The saved group is removed. Bills you already split with it stay in History."
+          confirmLabel="Delete"
+          onConfirm={async () => {
+            if (deleting) await remove(deleting)
+          }}
+        />
       </div>
-    </main>
     </PageTransition>
   )
 }
