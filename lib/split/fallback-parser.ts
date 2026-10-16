@@ -16,7 +16,10 @@ import { findAmbiguities, type Ambiguity } from "@/lib/ai/intentRouter";
 export type Chip =
   | Ambiguity
   | { kind: "unresolved"; clause: string; reason: string }
-  | { kind: "exception-unassigned"; phrase: string; options: { index: number; name: string }[] };
+  | { kind: "exception-unassigned"; phrase: string; options: { index: number; name: string }[] }
+  // A %/ratio/amount instruction that doesn't add up or has no owner: a message plus one-tap fixes
+  // (each appends a clause to the instruction and re-runs). See lib/split/shares-parser.ts.
+  | { kind: "shares"; message: string; fixes: { label: string; append: string }[] };
 
 export interface FallbackResult {
   plan: AssignmentPlan;

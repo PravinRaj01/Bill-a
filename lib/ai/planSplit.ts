@@ -2,13 +2,16 @@ import { computeSplit } from "@/lib/split/engine";
 import type { AssignmentPlan, Receipt, SplitResult } from "@/types/domain";
 import { resolveInstruction } from "@/lib/retrieval/resolve";
 import { parseInstruction, type Chip } from "@/lib/split/fallback-parser";
+import { parseShareInstruction } from "@/lib/split/shares-parser";
+import { computeShareSplit } from "@/lib/split/shares";
 import { findAmbiguities, routeIntent } from "./intentRouter";
 import { runCascade, type Attempt, type CascadeOptions } from "./providers/cascade";
 import type { ProviderId } from "./providers/types";
 
 // The whole "instruction -> split" pipeline, in one place:
 //
-//   route (regex, <1 ms)  ->  ambiguity check  ->  resolve references
+//   route (regex, <1 ms)  ->  ambiguity check  ->  whole-bill shares (%, ratio, RM amounts)
+//     ->  resolve references
 //     ->  cascade (Groq -> Gemini -> fallback)  ->  validatePlan  ->  computeSplit
 //     ->  cross-check against the on-device rules
 //
@@ -38,6 +41,12 @@ export interface PlanSplitInput {
 
 export type PlanOutcome =
   | { kind: "add-members"; names: string[] }
+  | {
+      /** "Pravin 70%, Lakx 30%": worked out on the device from the numbers given; no model was asked. */
+      kind: "shares";
+      result: SplitResult;
+      summary: string;
+    }
   | { kind: "needs-clarification"; chips: Chip[]; /** best guess, if the user wants to go ahead */ preview?: SplitPreview }
   | {
       kind: "split";
@@ -85,14 +94,29 @@ export async function planSplit(input: PlanSplitInput): Promise<PlanOutcome> {
     if (ambiguities.length > 0) return { kind: "needs-clarification", chips: ambiguities };
   }
 
-  // 3. Resolve "the drinks" / "the rest" in code, then let the cascade build the plan.
+  // 3. Whole-bill shares ("Pravin 70%, Lakx 30%", "Lakx pays RM30, the rest equally") are arithmetic on
+  //    numbers the user typed, not language to interpret: read them here, never ask a model, and ask
+  //    a question (rather than guess) when they don't add up.
+  const subtotal = receipt.items.reduce((s, it) => s + it.totalPrice, 0);
+  const billTotal = input.applyTax ? receipt.total : subtotal;
+  const shares = parseShareInstruction(latest, people, billTotal, receipt.items);
+  if (shares.kind === "ask") return { kind: "needs-clarification", chips: shares.chips };
+  if (shares.kind === "shares") {
+    return {
+      kind: "shares",
+      result: computeShareSplit(people, shares.amounts, shares.labels, billTotal, shares.notes),
+      summary: "Split by the shares you gave, worked out on your device (no AI used).",
+    };
+  }
+
+  // 4. Resolve "the drinks" / "the rest" in code, then let the cascade build the plan.
   const resolution = resolveInstruction(joined, receipt.items);
   const cascade = await runCascade(
     { people, items: receipt.items, instructions, resolvedBlock: resolution.promptBlock },
     { keys: input.keys, timeoutMs: input.timeoutMs, fetchImpl: input.fetchImpl, models: input.models },
   );
 
-  // 4. All the arithmetic, in integer cents.
+  // 5. All the arithmetic, in integer cents.
   const result = computeSplit(receipt, people, cascade.plan, input.applyTax);
 
   // The fallback parser asks questions instead of guessing; surface them, with its
@@ -101,7 +125,7 @@ export async function planSplit(input: PlanSplitInput): Promise<PlanOutcome> {
     return { kind: "needs-clarification", chips: cascade.chips, preview: { result, plan: cascade.plan } };
   }
 
-  // 5. Cross-check a cloud answer against the local rules.
+  // 6. Cross-check a cloud answer against the local rules.
   if (cascade.tier !== "fallback" && input.crossCheck !== false) {
     const rules = parseInstruction(joined, people, receipt.items);
     if (rules.understood && rules.chips.length === 0) {

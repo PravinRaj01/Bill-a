@@ -441,6 +441,8 @@ export function useSplitSession() {
         } else {
           setSplitNote(`Added ${fresh.join(", ") || "nobody new"}. Now tell me how to split.`);
         }
+      } else if (outcome.kind === "shares") {
+        await applySplit(outcome.result, outcome.summary, next);
       } else if (outcome.kind === "needs-clarification") {
         setClarify({ chips: outcome.chips, preview: outcome.preview, pending: next });
       } else if (outcome.kind === "disagreement") {
@@ -499,6 +501,12 @@ export function useSplitSession() {
       const nextPeople = people.some((p) => p.toLowerCase() === a.name.toLowerCase()) ? people : [...people, a.name];
       setPeople(nextPeople);
       return runPlan(pending, { peopleOverride: nextPeople });
+    }
+    if (a.type === "append") {
+      // A one-tap fix from a shares question: add the clause to the latest instruction and re-run.
+      const fixed = pending.map((t, i) => (i === pending.length - 1 ? `${t}, ${a.text}` : t));
+      if (fixed.length === 1) setInstruction(fixed[0]);
+      return runPlan(fixed);
     }
     // replace: fix the typo / pick the item, then re-run
     const re = new RegExp(`\\b${escapeRe(a.from)}\\b`, "gi");
