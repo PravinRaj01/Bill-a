@@ -6,21 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
-import { ClarifyChips } from "@/components/ai/ClarifyChips";
-import { CrossCheck } from "@/components/ai/CrossCheck";
 import { ReceiptPhoto } from "@/components/receipt-photo";
+import { SplitPanel } from "@/components/split/SplitPanel";
 import { centsToInput, formatMoney, parseMoneyInput } from "@/lib/money";
 import type { SplitSession } from "@/hooks/use-split-session";
 
 const inputBase = "h-11 border-white/5 bg-surface-2 text-base";
-
-/** Tappable examples under the instruction box, using the actual people (so they work as typed). */
-function exampleInstructions(people: string[]): string[] {
-  const out = ["Split equally"];
-  if (people.length >= 2) out.push(`${people[0]} 70%, ${people[1]} 30%`);
-  if (people.length >= 3) out.push(`${people[0]} pays RM20, the rest equally`);
-  return out;
-}
 
 export function ReviewStep({ s }: { s: SplitSession }) {
   const { receipt, scanInfo, symbol } = s;
@@ -75,10 +66,19 @@ export function ReviewStep({ s }: { s: SplitSession }) {
     );
   })();
 
+  // Phone and tablet portrait: one column (items, then the split panel). From lg (the app's side
+  // nav takes 256px, so the content needs ~1024px to fit two columns): items left, split panel
+  // sticky on the right. 2xl with the photo open: photo | items | split panel.
   return (
-    <div className={photoOpen ? "lg:grid lg:grid-cols-2 lg:items-start lg:gap-6" : ""}>
+    <div>
       {photoOpen && s.photoUrl && (
-        <div className="mb-6 lg:sticky lg:top-6 lg:mb-0">
+        <div className="mb-6 2xl:hidden">
+          <ReceiptPhoto url={s.photoUrl} onHide={s.togglePhoto} />
+        </div>
+      )}
+      <div className={`lg:grid lg:items-start lg:gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(320px,380px)] ${photoOpen ? "2xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)_minmax(340px,380px)]" : ""}`}>
+      {photoOpen && s.photoUrl && (
+        <div className="hidden 2xl:sticky 2xl:top-20 2xl:block">
           <ReceiptPhoto url={s.photoUrl} onHide={s.togglePhoto} />
         </div>
       )}
@@ -249,41 +249,12 @@ export function ReviewStep({ s }: { s: SplitSession }) {
               <span className="text-sm font-semibold text-muted-foreground">Total to split</span>
               <span data-testid="review-total" className="text-2xl font-bold tabular-nums tracking-tight text-white">{formatMoney(s.displayedTotal, symbol)}</span>
             </div>
-
-            <Input
-              aria-label="How to split"
-              placeholder={`How to split (e.g. ${s.people[0] ?? "Sam"} pays the drinks)`}
-              value={s.instruction}
-              onChange={(e) => s.setInstruction(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && !s.loading && s.split()}
-              enterKeyHint="go"
-              className="h-12 border-white/5 bg-surface-2 text-base text-white"
-            />
-            <div className="-mt-2 flex flex-wrap gap-2" aria-label="Examples">
-              {exampleInstructions(s.people).map((ex) => (
-                <button
-                  key={ex}
-                  type="button"
-                  onClick={() => s.setInstruction(ex)}
-                  className="min-h-9 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
-                >
-                  {ex}
-                </button>
-              ))}
-            </div>
-            {s.clarify && <ClarifyChips chips={s.clarify.chips} hasPreview={!!s.clarify.preview} onAction={s.handleClarify} />}
-            {s.disagree && <CrossCheck aiName={s.disagree.tier === "groq" ? "Groq" : "Gemini"} ai={s.disagree.ai.result} rules={s.disagree.rules.result} symbol={symbol} onPick={s.pickReading} />}
-            {s.splitNote && !s.clarify && <p data-testid="split-note" className="px-1 text-xs text-muted-foreground">{s.splitNote}</p>}
-            <Button
-              type="button"
-              className="h-12 w-full rounded-xl bg-coral text-base font-bold text-coral-foreground shadow-[var(--coral-glow)] hover:bg-coral/90"
-              onClick={s.split}
-              disabled={s.loading || !receipt || receipt.items.length === 0 || s.displayedTotal <= 0}
-            >
-              {s.loading ? <Loader2 className="animate-spin" /> : "Split bill"}
-            </Button>
           </div>
         </div>
+      </div>
+      <div className="mt-6 lg:sticky lg:top-20 lg:mt-0">
+        <SplitPanel key={s.people.join("|")} s={s} />
+      </div>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ClarifyChips } from "@/components/ai/ClarifyChips";
 import { CrossCheck } from "@/components/ai/CrossCheck";
 import { PersonAvatar } from "@/components/person-avatar";
+import { AdjustShares } from "@/components/split/AdjustShares";
 import { Money } from "@/components/ui/money";
 import { Segmented } from "@/components/ui/segmented";
 import { CASH_UNITS } from "@/lib/split/cashRound";
@@ -66,6 +67,12 @@ export function SummaryStep({ s }: { s: SplitSession }) {
             );
           })}
         </ul>
+
+        {s.finalSplit.length > 1 && (
+          <div className="border-t border-white/5 p-5">
+            <AdjustShares s={s} />
+          </div>
+        )}
 
         {s.finalSplit.length > 1 && (
           <div className="space-y-3 border-t border-white/5 p-5">

@@ -28,7 +28,7 @@ function BillSplitterContent() {
   const wide = s.step === "REVIEW" && s.showPhoto && !!s.photoUrl;
 
   return (
-    <main className={`mx-auto mb-20 flex w-full max-w-xl flex-1 flex-col gap-6 p-6 ${wide ? "lg:max-w-5xl" : ""}`}>
+    <main className={`mx-auto mb-20 flex w-full max-w-xl flex-1 flex-col gap-6 p-6 ${s.step === "REVIEW" ? "lg:max-w-5xl" : ""} ${wide ? "2xl:max-w-7xl" : ""}`}>
       {s.step !== "NAMES" && (
         <div className="flex items-center justify-between">
           <Button variant="ghost" className="h-11 w-fit px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-white" onClick={() => s.setStep("NAMES")}>
