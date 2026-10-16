@@ -9,6 +9,7 @@ import { CrossCheck } from "@/components/ai/CrossCheck";
 import { PersonAvatar } from "@/components/person-avatar";
 import { AdjustShares } from "@/components/split/AdjustShares";
 import { SettleUp } from "@/components/split/SettleUp";
+import { localDate, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
 import { shareMessage, shareText } from "@/lib/ui/share";
 import { toast } from "sonner";
 import { Money } from "@/components/ui/money";
@@ -29,11 +30,14 @@ export function SummaryStep({ s }: { s: SplitSession }) {
     s.modify(text);
   };
 
+  // Settle-up state of this bill (null until there are two people to settle between).
+  const settleNow = s.settlement && s.finalSplit.length > 1 ? settleView(s.finalSplit, s.settlement, localDate()) : null;
+  const positionOf = new Map(
+    settleNow?.ok && s.settlement ? positions(s.finalSplit, s.settlement.paidBy).map((p) => [p.name, p] as const) : [],
+  );
+
   const share = () => {
-    let text = `*Bill-a Summary (${symbol})*\n\n`;
-    s.finalSplit.forEach((r) => (text += `👤 *${r.name}*: ${formatMoney(r.amount, symbol)}\n`));
-    const payer = s.settlement && s.settlement.paidBy.length === 1 ? s.settlement.paidBy[0].name : null;
-    if (payer) text += `\nPaid by ${payer}.`;
+    const text = summaryText({ currency: symbol, shares: s.finalSplit, settlement: s.settlement, view: settleNow });
     void shareText(text).then((o) => {
       const msg = shareMessage(o);
       if (msg) toast(msg);
@@ -63,6 +67,11 @@ export function SummaryStep({ s }: { s: SplitSession }) {
                 <PersonAvatar name={row.name} />
                 <div className="min-w-0 flex-1">
                   <span className="block truncate text-base font-bold text-white">{row.name}</span>
+                  {positionOf.get(row.name) && positionNote(positionOf.get(row.name)!, symbol) && (
+                    <span data-testid="position-note" className="block text-xs text-muted-foreground">
+                      {positionNote(positionOf.get(row.name)!, symbol)}
+                    </span>
+                  )}
                   {s.cashRoundingActive && delta !== 0 && (
                     <span data-testid="cash-delta" className="block text-xs text-muted-foreground">
                       {delta > 0 ? "+" : "−"}{formatMoney(Math.abs(delta), symbol)} rounding

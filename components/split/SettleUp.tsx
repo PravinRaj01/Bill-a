@@ -11,10 +11,12 @@ import type { SplitSession } from "@/hooks/use-split-session";
 import { formatMoney } from "@/lib/money";
 import {
   addDays,
+  everyonePaidOwn,
   groupNudgeText,
   localDate,
   markPaid,
   nudgeText,
+  scalePaidBy,
   settleView,
   singlePayer,
   unmarkPaid,
@@ -42,6 +44,8 @@ function dueLabel(due: string, dueIn: number): { text: string; tone: string } {
 // everyone paid for in cash into an open debt in History.
 export function SettleUp({ s }: { s: SplitSession }) {
   const [custom, setCustom] = useState(false);
+  // Showing the one-person chips even though several people paid ("One person paid it all").
+  const [choosing, setChoosing] = useState(false);
   const { settlement, symbol, finalSplit: shares } = s;
   if (!settlement || shares.length < 2) return null;
 
@@ -56,8 +60,45 @@ export function SettleUp({ s }: { s: SplitSession }) {
     const msg = shareMessage(await shareText(text));
     if (msg) toast(msg);
   };
-  const nudge = (t: Transfer) =>
-    send(nudgeText({ debtor: t.from, payTo: payTo(t.to), title: s.billTitle, date: new Date(), amount: t.amount, currency: symbol, items: shares.find((x) => x.name === t.from)?.items }));
+  /**
+   * One message per person with EVERYTHING they still owe, whichever of their rows was tapped. It says what
+   * they owe to whom (not "your share": with several payers those differ), and describes the items only
+   * when the amount is their whole share.
+   */
+  const nudge = (debtor: string) => {
+    if (!view || !view.ok) return;
+    const open = view.transfers.filter((t) => t.from === debtor && !t.paid);
+    if (open.length === 0) return;
+    const share = shares.find((x) => x.name === debtor);
+    const wholeShare = open.length === 1 && open[0].amount === share?.amount;
+    void send(
+      nudgeText({
+        debtor,
+        title: s.billTitle,
+        date: new Date(),
+        currency: symbol,
+        owes: open.map((t) => ({ to: payTo(t.to), amount: t.amount })),
+        items: wholeShare ? share?.items : undefined,
+      }),
+    );
+  };
+
+  /** The group-chat message: one creditor ("still to pay Alex") or several ("who still owes what"). */
+  const nudgeAll = () => {
+    if (!view || !view.ok) return;
+    const open = view.transfers.filter((t) => !t.paid);
+    if (open.length === 0) return;
+    const single = new Set(open.map((t) => norm(t.to))).size === 1;
+    void send(
+      groupNudgeText({
+        title: s.billTitle,
+        date: new Date(),
+        currency: symbol,
+        payTo: single ? payTo(open[0].to) : undefined,
+        lines: open.map((t) => ({ debtor: t.from, to: t.to, amount: t.amount })),
+      }),
+    );
+  };
 
   const toggle = (t: Transfer) => {
     if (t.paid) {
@@ -91,6 +132,9 @@ export function SettleUp({ s }: { s: SplitSession }) {
         symbol={symbol}
         onSingle={(name) => void s.changeSettlement((x) => withPayers(x, singlePayer(name, total)))}
         onMulti={(paidBy) => void s.changeSettlement((x) => withPayers(x, paidBy))}
+        onEveryoneOwn={() => void s.changeSettlement((x) => withPayers(x, everyonePaidOwn(shares)))}
+        choosing={choosing}
+        setChoosing={setChoosing}
       />
 
       <label className="flex min-h-11 items-center justify-between gap-3 px-1 text-sm">
@@ -109,9 +153,29 @@ export function SettleUp({ s }: { s: SplitSession }) {
       </label>
 
       {view && !view.ok && (
-        <p role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200">
-          What was paid ({formatMoney(view.fronted, symbol)}) doesn&apos;t match the bill ({formatMoney(view.owed, symbol)}). Change who paid to fix it.
-        </p>
+        <div role="alert" data-testid="paid-mismatch" className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200">
+          <p>
+            What was paid ({formatMoney(view.fronted, symbol)}) doesn&apos;t match the bill ({formatMoney(view.owed, symbol)}). That happens when the split changed after you entered who paid.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              data-testid="scale-paid"
+              onClick={() => void s.changeSettlement((x) => withPayers(x, scalePaidBy(x.paidBy, view.owed)))}
+              className="min-h-11 rounded-full border border-amber-400/40 bg-amber-400/10 px-4 text-sm font-semibold text-amber-100 hover:bg-amber-400/20"
+            >
+              Scale what each paid to {formatMoney(view.owed, symbol)}
+            </button>
+            <button
+              type="button"
+              data-testid="one-paid-fix"
+              onClick={() => setChoosing(true)}
+              className="min-h-11 rounded-full border border-white/15 px-4 text-sm font-semibold text-zinc-200 hover:bg-white/5"
+            >
+              One person paid it all
+            </button>
+          </div>
+        </div>
       )}
 
       {view?.ok && (
@@ -160,7 +224,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
                       <button
                         type="button"
                         aria-label={`Nudge ${t.from}`}
-                        onClick={() => void nudge(t)}
+                        onClick={() => nudge(t.from)}
                         className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
                       >
                         <Send className="size-4" />
@@ -186,20 +250,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
                 <button
                   type="button"
                   data-testid="nudge-all"
-                  onClick={() => {
-                    const open = view.transfers.filter((t) => !t.paid);
-                    const creditors = new Set(open.map((t) => norm(t.to)));
-                    const single = creditors.size === 1;
-                    void send(
-                      groupNudgeText({
-                        title: s.billTitle,
-                        date: new Date(),
-                        payTo: single ? payTo(open[0].to) : "whoever fronted it",
-                        currency: symbol,
-                        lines: open.map((t) => ({ debtor: single ? t.from : `${t.from} → ${t.to}`, amount: t.amount })),
-                      }),
-                    );
-                  }}
+                  onClick={nudgeAll}
                   className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/5"
                 >
                   <Send className="size-4" /> Nudge everyone who owes
