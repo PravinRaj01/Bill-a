@@ -33,6 +33,13 @@ describe("toCents / fromCents", () => {
     expect(formatMoney(1050)).toBe("RM10.50");
     expect(formatMoney(5, "$")).toBe("$0.05");
   });
+
+  it("puts a space after a currency written as a word, but not a symbol or two-letter code", () => {
+    expect(formatMoney(9745, "Euro")).toBe("Euro 97.45");
+    expect(formatMoney(5000, "USD")).toBe("USD 50.00");
+    expect(formatMoney(9745, "RM")).toBe("RM97.45");
+    expect(formatMoney(9745, "€")).toBe("€97.45");
+  });
 });
 
 describe("parseMoneyInput / centsToInput", () => {

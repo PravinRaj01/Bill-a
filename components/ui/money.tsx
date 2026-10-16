@@ -1,6 +1,7 @@
 "use client";
 import NumberFlow from "@number-flow/react";
 
+import { currencyPrefix } from "@/lib/money";
 import type { Cents } from "@/types/domain";
 
 // A money amount whose digits roll when it changes (respects prefers-reduced-motion by
@@ -21,7 +22,7 @@ export function Money({
   return (
     <NumberFlow
       value={cents / 100}
-      prefix={currency}
+      prefix={currencyPrefix(currency)}
       format={{ minimumFractionDigits: 2, maximumFractionDigits: 2, signDisplay: signed ? "exceptZero" : "auto" }}
       locales="en-US"
       className={className}

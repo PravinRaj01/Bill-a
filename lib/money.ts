@@ -9,8 +9,11 @@ export const toCents = (amount: number): Cents =>
 
 export const fromCents = (cents: Cents): number => cents / 100;
 
+/** What goes in front of an amount: symbols and short codes ("RM", "$") sit against it; a word ("Euro", "USD") gets a space. */
+export const currencyPrefix = (currency: string): string => (/^[A-Za-z]{3,}$/.test(currency) ? `${currency} ` : currency);
+
 export const formatMoney = (cents: Cents, currency = "RM"): string =>
-  `${currency}${fromCents(cents).toFixed(2)}`;
+  `${currencyPrefix(currency)}${fromCents(cents).toFixed(2)}`;
 
 /** The text for a money <input>: "12.50" (no currency symbol). */
 export const centsToInput = (cents: Cents): string => fromCents(cents).toFixed(2);
