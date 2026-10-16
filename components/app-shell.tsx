@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, History, User, LogOut, LogIn } from "lucide-react"
+import { Home, History, Scale, User, LogOut, LogIn } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { signOutAction } from "@/app/auth/actions"
@@ -17,6 +17,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
     ...(signedIn
       ? [
           { name: 'History', href: '/dashboard/history', icon: History },
+          { name: 'Balances', href: '/dashboard/balances', icon: Scale },
           { name: 'Account', href: '/dashboard/account', icon: User },
         ]
       : []),

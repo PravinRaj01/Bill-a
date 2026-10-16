@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { listGroups } from "@/lib/actions/groups"
+import { getBalances } from "@/lib/actions/history"
+import { formatMoney } from "@/lib/money"
 import type { SavedGroup } from "@/lib/db/schema"
 import { Users, ChevronRight, Zap, Camera, Share2, ArrowUpRight, Calculator } from "lucide-react"
 import { Card } from "@/components/ui/card"
@@ -14,10 +16,24 @@ const SCAN_COLORS = ["#0e0f12", "#3a1b22", "#ff6b57", "#1f2228"]
 
 export default function DashboardPage() {
   const [groups, setGroups] = useState<SavedGroup[]>([])
+  // What people owe you / you owe, per currency, from tracked bills (empty for guests and when all square).
+  const [owed, setOwed] = useState<[string, { owedToYou: number; youOwe: number }][]>([])
 
   useEffect(() => {
     // Resolved on the server from the session: guests simply get an empty list.
     listGroups().then(setGroups).catch(() => setGroups([]))
+    getBalances()
+      .then((r) => {
+        const by = new Map<string, { owedToYou: number; youOwe: number }>()
+        for (const p of r.people) {
+          const t = by.get(p.currency) ?? { owedToYou: 0, youOwe: 0 }
+          if (p.net > 0) t.owedToYou += p.net
+          else t.youOwe += -p.net
+          by.set(p.currency, t)
+        }
+        setOwed([...by])
+      })
+      .catch(() => setOwed([]))
   }, [])
 
   return (
@@ -58,6 +74,20 @@ export default function DashboardPage() {
           </div>
         </Link>
       </section>
+
+      {owed.length > 0 && (
+        <Link href="/dashboard/balances" transitionTypes={["nav-forward"]} data-testid="home-owed" className="flex min-h-16 items-center justify-between gap-4 rounded-3xl border border-white/5 bg-surface p-5 transition-colors hover:border-white/20">
+          <div className="space-y-0.5 text-sm text-muted-foreground">
+            {owed.map(([cur, t]) => (
+              <div key={cur}>
+                {t.owedToYou > 0 && <p>You&apos;re owed <strong className="text-lg font-bold text-success tabular-nums">{formatMoney(t.owedToYou, cur)}</strong></p>}
+                {t.youOwe > 0 && <p>You owe <strong className="text-lg font-bold text-coral tabular-nums">{formatMoney(t.youOwe, cur)}</strong></p>}
+              </div>
+            ))}
+          </div>
+          <span className="flex items-center gap-1 text-sm font-semibold text-muted-foreground">Balances <ChevronRight size={16} /></span>
+        </Link>
+      )}
 
       <div className="grid grid-cols-1 gap-10 lg:grid-cols-2 lg:items-start lg:gap-12">
         {/* Instructions */}
