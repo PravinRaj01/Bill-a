@@ -12,25 +12,11 @@ import { ConfirmSheet } from "@/components/ui/confirm-sheet";
 import { Segmented } from "@/components/ui/segmented";
 import { clearHistory, deleteBills, type BillListEntry } from "@/lib/actions/history";
 import { formatMoney } from "@/lib/money";
-import { localDate, settleStatus } from "@/lib/split/settle";
+import { localDate } from "@/lib/split/settle";
+import { settlePill } from "@/lib/ui/settle-pill";
 import { cn } from "@/lib/utils";
 
 type Filter = "all" | "open" | "settled";
-
-/** Settle-up state of one bill as a short pill. `today` is the user's own date (the server's is not). */
-function pillFor(e: BillListEntry, today: string): { text: string; tone: string } | null {
-  const s = e.settle;
-  if (!s) return null;
-  const cur = e.currency || "RM";
-  if (s.mismatch) return { text: "Check who paid", tone: "border-amber-500/40 bg-amber-500/10 text-amber-300" };
-  const { status, dueIn } = settleStatus(s.outstanding, s.dueDate, today);
-  const left = `${formatMoney(s.outstanding, cur)} outstanding`;
-  if (status === "settled") return { text: "Settled ✓", tone: "border-success/40 bg-success/10 text-success" };
-  if (status === "overdue") return { text: `${left} · overdue ${-dueIn!} ${dueIn === -1 ? "day" : "days"}`, tone: "border-coral/40 bg-coral/10 text-coral" };
-  if (status === "due") return { text: `${left} · due today`, tone: "border-amber-500/40 bg-amber-500/10 text-amber-300" };
-  if (dueIn !== null) return { text: `${left} · due in ${dueIn} ${dueIn === 1 ? "day" : "days"}`, tone: "border-white/10 bg-white/5 text-zinc-300" };
-  return { text: `${left} · ${s.paidCount} of ${s.transferCount} paid`, tone: "border-white/10 bg-white/5 text-zinc-300" };
-}
 
 const isUnsettled = (e: BillListEntry) => !!e.settle && (e.settle.mismatch || e.settle.outstanding > 0);
 const isSettled = (e: BillListEntry) => !!e.settle && !e.settle.mismatch && e.settle.outstanding === 0;
@@ -169,7 +155,7 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
       <div className="space-y-3">
         {shown.length > 0 ? (
           shown.map((bill) => {
-            const pill = today ? pillFor(bill, today) : null;
+            const pill = today ? settlePill(bill, today) : null;
             const s = bill.settle;
             const cur = bill.currency || "RM";
             return (
