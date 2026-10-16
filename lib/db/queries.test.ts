@@ -5,6 +5,7 @@ import { getDb } from "./client";
 import { billHistory, savedGroups, users } from "./schema";
 import {
   billStats,
+  billTotalsByCurrency,
   clearBills,
   deleteBills,
   deleteGroup,
@@ -170,6 +171,11 @@ describe.skipIf(!hasDb)("cross-user authorization (real Neon DB)", { timeout: 90
     expect(s.count).toBe(1);
     expect(s.totalCents).toBe(1000);
     expect(Number.isInteger(s.totalCents)).toBe(true);
+  });
+
+  it("billTotalsByCurrency groups the caller's bills by currency and never mixes users", async () => {
+    const totals = await billTotalsByCurrency(db, B);
+    expect(totals).toEqual([{ currency: "RM", cents: 1000 }]);
   });
 
   // Destructive to A's data — must stay last.

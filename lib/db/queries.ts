@@ -153,6 +153,20 @@ export async function billStats(db: Db, userId: string) {
   return { count: row?.count ?? 0, totalCents: row?.totalCents ?? 0 };
 }
 
+/** Total of all the user's bills per currency, in cents (bills can be in different currencies, so they are never summed together). */
+export async function billTotalsByCurrency(db: Db, userId: string): Promise<{ currency: string; cents: number }[]> {
+  return db
+    .select({
+      currency: billHistory.currency,
+      cents: sql<number>`coalesce(sum(${billHistory.totalAmount}), 0)::bigint`.mapWith(Number),
+    })
+    .from(billHistory)
+    .where(eq(billHistory.userId, userId))
+    .groupBy(billHistory.currency)
+    .orderBy(desc(sql`sum(${billHistory.totalAmount})`));
+}
+
+
 export interface BillInput {
   clientId: string;
   billTitle: string;
