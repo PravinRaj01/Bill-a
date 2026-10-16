@@ -6,7 +6,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: var(--font-jakarta), var(--font-geist-sans), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -44,6 +44,21 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-coral: var(--coral);
+  --color-coral-foreground: var(--coral-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-person-1: var(--person-1);
+  --color-person-2: var(--person-2);
+  --color-person-3: var(--person-3);
+  --color-person-4: var(--person-4);
+  --color-person-5: var(--person-5);
+  --color-person-6: var(--person-6);
+  --color-person-7: var(--person-7);
+  --color-person-8: var(--person-8);
 }
 
 :root {
@@ -115,6 +130,37 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
+/* Graphite glass + coral. App is dark-only (html.dark). Use these semantic tokens in new
+   components instead of hard-coded hex. */
+.dark {
+  --background: #0e0f12;
+  --surface: #17191e;
+  --surface-2: #1f2228;
+  --muted-foreground: #8b8f98;
+  --coral: #ff6b57;
+  --coral-foreground: #1a0b08;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --destructive: #f87171;
+  --person-1: oklch(0.72 0.15 20);
+  --person-2: oklch(0.74 0.14 60);
+  --person-3: oklch(0.78 0.14 105);
+  --person-4: oklch(0.74 0.14 155);
+  --person-5: oklch(0.74 0.12 205);
+  --person-6: oklch(0.72 0.14 255);
+  --person-7: oklch(0.72 0.15 305);
+  --person-8: oklch(0.74 0.14 350);
+  --glass: rgb(255 255 255 / 0.04);
+  --glass-border: rgb(255 255 255 / 0.06);
+  --coral-glow: 0 8px 24px -6px rgb(255 107 87 / 0.45);
+}
+
+@utility glass {
+  background: var(--glass);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(24px);
+}
+
 @keyframes fade-out {
   from { opacity: 1; }
   to { opacity: 0; visibility: hidden; }
@@ -131,5 +177,54 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+/* ---- View transitions (Next 16 / React <ViewTransition>) ----------------------------------
+   See node_modules/next/dist/docs/01-app/02-guides/view-transitions.md */
+::view-transition {
+  pointer-events: none;
+}
+::view-transition-group(app-header) {
+  animation: none;
+  z-index: 100;
+}
+::view-transition-old(app-header) {
+  display: none;
+}
+::view-transition-new(app-header) {
+  animation: none;
+}
+::view-transition-old(.nav-forward) {
+  --slide-offset: -60px;
+  animation: 150ms ease-in both vt-fade reverse, 400ms ease-in-out both vt-slide reverse;
+}
+::view-transition-new(.nav-forward) {
+  --slide-offset: 60px;
+  animation: 210ms ease-out 150ms both vt-fade, 400ms ease-in-out both vt-slide;
+}
+::view-transition-old(.nav-back) {
+  --slide-offset: 60px;
+  animation: 150ms ease-in both vt-fade reverse, 400ms ease-in-out both vt-slide reverse;
+}
+::view-transition-new(.nav-back) {
+  --slide-offset: -60px;
+  animation: 210ms ease-out 150ms both vt-fade, 400ms ease-in-out both vt-slide;
+}
+@keyframes vt-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes vt-slide {
+  from { translate: var(--slide-offset); }
+  to { translate: 0; }
+}
+/* Reduced motion: no positional movement, instant swaps. */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
   }
 }
