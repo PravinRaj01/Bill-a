@@ -1,0 +1,219 @@
+"use client";
+import { Image as ImageIcon, Loader2, Plus, Trash2, TriangleAlert } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { ClarifyChips } from "@/components/ai/ClarifyChips";
+import { CrossCheck } from "@/components/ai/CrossCheck";
+import { ReceiptPhoto } from "@/components/receipt-photo";
+import { centsToInput, formatMoney, parseMoneyInput } from "@/lib/money";
+import type { SplitSession } from "@/hooks/use-split-session";
+
+const inputBase = "h-11 border-white/5 bg-surface-2 text-base";
+
+export function ReviewStep({ s }: { s: SplitSession }) {
+  const { receipt, scanInfo, symbol } = s;
+  const photoOpen = s.showPhoto && !!s.photoUrl;
+  const mine = receipt ? s.subtotal + receipt.tax : 0;
+
+  // Warnings worth interrupting for (the "items add up" note is reassurance, not a problem).
+  const problems = scanInfo?.warnings.filter((w) => !w.startsWith("Items add up")) ?? [];
+  const showWarning = !!scanInfo && (scanInfo.empty || scanInfo.confidence < 0.6 || problems.length > 0);
+
+  const rereadBlock = (() => {
+    if (!s.photo) return null;
+    const diff = scanInfo?.printedTotal != null && receipt ? scanInfo.printedTotal - mine : 0;
+    const unsure = !!scanInfo && (scanInfo.empty || scanInfo.confidence < 0.6 || Math.abs(diff) >= 1);
+    if (s.enhanced) {
+      return <p data-testid="enhanced-note" className="px-1 text-xs font-semibold text-success">✓ Re-read by Gemini — check the numbers against your receipt.</p>;
+    }
+    if (!unsure) {
+      // A scan that looks fine still gets a quiet way to get a second opinion.
+      return s.keys.gemini ? (
+        <button type="button" data-testid="reread-quiet" onClick={s.enhance} disabled={s.enhancing} className="px-1 text-left text-xs text-muted-foreground hover:text-zinc-300 disabled:opacity-50">
+          {s.enhancing ? "Reading…" : <>Doesn&apos;t look right? <span className="font-bold text-indigo-400">Re-read with Gemini</span> (sends the photo to Google with your key)</>}
+        </button>
+      ) : (
+        <p data-testid="reread-nokey" className="px-1 text-xs text-muted-foreground">
+          Want a second opinion on this scan?{" "}
+          <button type="button" onClick={() => s.setKeySheetOpen(true)} className="font-bold text-indigo-400 hover:text-indigo-300">Add a free Gemini key</button>
+        </p>
+      );
+    }
+    return s.keys.gemini ? (
+      <div data-testid="enhance-card" className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <p className="text-sm font-bold text-white">Not sure about this scan?</p>
+        <p className="text-xs text-muted-foreground">Ask Gemini to re-read the photo. This sends the photo to Google using your own key.</p>
+        <Button type="button" variant="ghost" onClick={s.enhance} disabled={s.enhancing} className="h-10 rounded-full border border-white/10 bg-white/5 px-4 text-xs font-bold text-white hover:bg-white/10 hover:text-white">
+          {s.enhancing ? <><Loader2 className="mr-2 size-3 animate-spin" /> Reading…</> : "Re-read with Gemini"}
+        </Button>
+      </div>
+    ) : (
+      <p data-testid="enhance-hint" className="px-1 text-xs text-muted-foreground">
+        Scan looks shaky.{" "}
+        <button type="button" onClick={() => s.setKeySheetOpen(true)} className="font-bold text-indigo-400 hover:text-indigo-300">Add a free Gemini key</button>{" "}
+        to get a second opinion, or fix the numbers by hand.
+      </p>
+    );
+  })();
+
+  return (
+    <div className={photoOpen ? "lg:grid lg:grid-cols-2 lg:items-start lg:gap-6" : ""}>
+      {photoOpen && s.photoUrl && (
+        <div className="mb-6 lg:sticky lg:top-6 lg:mb-0">
+          <ReceiptPhoto url={s.photoUrl} onHide={s.togglePhoto} />
+        </div>
+      )}
+      <div className="space-y-6">
+        {showWarning && scanInfo && (
+          <div data-testid="scan-warning" className="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-amber-200">
+            <TriangleAlert className="mt-0.5 size-4 shrink-0" />
+            <div className="space-y-1 text-sm">
+              <p className="font-bold">
+                {scanInfo.empty ? "We couldn't read any items from that photo." : "Please check these numbers against your receipt."}
+              </p>
+              {scanInfo.empty && <p className="opacity-80">Add the items below, or go back and try a clearer photo.</p>}
+              {problems.slice(0, 3).map((w, i) => (
+                <p key={i} className="opacity-80">{w}</p>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {rereadBlock}
+
+        {s.photoUrl && (
+          <div className="flex justify-end">
+            <Button type="button" variant="ghost" data-testid="toggle-photo" onClick={s.togglePhoto} className="h-10 rounded-full px-3 text-xs font-semibold text-muted-foreground hover:text-white">
+              <ImageIcon size={14} className="mr-1.5" /> {s.showPhoto ? "Hide photo" : "Show photo"}
+            </Button>
+          </div>
+        )}
+
+        <div className="overflow-hidden rounded-3xl border border-white/5 bg-surface shadow-2xl">
+          <div className="border-b border-white/5 bg-white/5 px-4 py-3 text-xs font-semibold text-muted-foreground">Extracted items · tap to edit</div>
+          <div className="divide-y divide-white/5">
+            {receipt?.items.map((item, i) => {
+              const unsure = (scanInfo?.itemConf[i] ?? 1) < 0.6;
+              return (
+                <div
+                  key={i}
+                  data-testid="review-row"
+                  data-unsure={unsure ? "true" : undefined}
+                  className={`flex items-center gap-2 px-4 py-3 ${unsure ? "bg-amber-500/5 ring-1 ring-inset ring-amber-500/30" : ""}`}
+                >
+                  <Input
+                    aria-label="Item name"
+                    value={item.name}
+                    placeholder="Item"
+                    onChange={(e) => s.editItem(i, { name: e.target.value })}
+                    className={`${inputBase} min-w-0 flex-1 text-zinc-200`}
+                  />
+                  <Input
+                    aria-label="Quantity"
+                    key={`q${i}-${item.quantity}`}
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    step={1}
+                    defaultValue={item.quantity}
+                    onBlur={(e) => s.editItem(i, { quantity: Math.max(1, Math.round(Number(e.target.value)) || 1) })}
+                    className={`${inputBase} w-14 px-1 text-center text-slate-400`}
+                  />
+                  <Input
+                    aria-label="Price"
+                    key={`p${i}-${item.totalPrice}`}
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step={0.01}
+                    defaultValue={centsToInput(item.totalPrice)}
+                    onBlur={(e) => s.editItem(i, { totalPrice: parseMoneyInput(e.target.value) })}
+                    className={`${inputBase} w-24 text-right font-mono tabular-nums text-white`}
+                  />
+                  <button
+                    type="button"
+                    aria-label="Remove item"
+                    onClick={() => s.removeItem(i)}
+                    className="flex size-11 shrink-0 items-center justify-center text-zinc-500 transition-colors hover:text-red-400"
+                  >
+                    <Trash2 className="size-4" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+
+          {scanInfo?.printedTotal != null && receipt && receipt.items.length > 0 && (() => {
+            const diff = scanInfo.printedTotal - mine;
+            return diff === 0 ? (
+              <p data-testid="reconcile" data-ok="true" className="px-4 pt-3 text-xs font-semibold text-success">
+                ✓ Items + tax match the receipt total ({formatMoney(scanInfo.printedTotal, symbol)})
+              </p>
+            ) : (
+              <p data-testid="reconcile" className="px-4 pt-3 text-xs font-semibold text-warning">
+                Receipt says {formatMoney(scanInfo.printedTotal, symbol)}; items + tax come to {formatMoney(mine, symbol)} ({diff > 0 ? `${formatMoney(diff, symbol)} missing` : `${formatMoney(-diff, symbol)} too much`}).
+              </p>
+            );
+          })()}
+
+          <div className="px-4 pt-3">
+            <Button type="button" variant="ghost" onClick={s.addItem} className="h-11 text-sm font-semibold text-muted-foreground hover:text-white">
+              <Plus className="mr-1 size-4" /> Add item
+            </Button>
+          </div>
+
+          <div className="space-y-4 p-5">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-surface-2 p-4">
+              <div className="space-y-1">
+                <div className="text-sm font-medium text-white/80">Apply tax &amp; service</div>
+                <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                  +{symbol}
+                  <Input
+                    aria-label="Tax and service"
+                    key={`tax-${receipt?.tax}`}
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step={0.01}
+                    defaultValue={centsToInput(receipt?.tax ?? 0)}
+                    onBlur={(e) => s.editTax(parseMoneyInput(e.target.value))}
+                    className={`${inputBase} w-24 px-2 font-mono tabular-nums text-zinc-300`}
+                  />
+                </div>
+              </div>
+              <Switch checked={s.includeTax} onCheckedChange={s.setIncludeTax} aria-label="Apply tax and service" />
+            </div>
+
+            <div className="flex items-center justify-between border-t border-white/5 px-1 pt-4">
+              <span className="text-sm font-semibold text-muted-foreground">Total to split</span>
+              <span data-testid="review-total" className="text-2xl font-bold tabular-nums tracking-tight text-white">{formatMoney(s.displayedTotal, symbol)}</span>
+            </div>
+
+            <Input
+              aria-label="How to split"
+              placeholder="Instructions (e.g. Split equally)"
+              value={s.instruction}
+              onChange={(e) => s.setInstruction(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !s.loading && s.split()}
+              enterKeyHint="go"
+              className="h-12 border-white/5 bg-surface-2 text-base text-white"
+            />
+            {s.clarify && <ClarifyChips chips={s.clarify.chips} hasPreview={!!s.clarify.preview} onAction={s.handleClarify} />}
+            {s.disagree && <CrossCheck aiName={s.disagree.tier === "groq" ? "Groq" : "Gemini"} ai={s.disagree.ai.result} rules={s.disagree.rules.result} symbol={symbol} onPick={s.pickReading} />}
+            {s.splitNote && !s.clarify && <p data-testid="split-note" className="px-1 text-xs text-muted-foreground">{s.splitNote}</p>}
+            <Button
+              type="button"
+              className="h-12 w-full rounded-xl bg-coral text-base font-bold text-coral-foreground shadow-[var(--coral-glow)] hover:bg-coral/90"
+              onClick={s.split}
+              disabled={s.loading || !receipt || receipt.items.length === 0 || s.displayedTotal <= 0}
+            >
+              {s.loading ? <Loader2 className="animate-spin" /> : "Split bill"}
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

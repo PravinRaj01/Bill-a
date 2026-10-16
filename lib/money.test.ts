@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatMoney,
-  fromCents,
-  receiptToDomain,
-  receiptToLegacy,
-  splitsToDomain,
-  splitsToLegacy,
-  toCents,
-} from "./money";
+import { centsToInput, formatMoney, fromCents, parseMoneyInput, toCents } from "./money";
 
 describe("toCents / fromCents", () => {
   it.each([
@@ -43,31 +35,22 @@ describe("toCents / fromCents", () => {
   });
 });
 
-describe("legacy <-> domain conversion", () => {
-  const legacy = {
-    items: [
-      { name: "NASI LEMAK", quantity: 1, unit_price: 10, total_price: 10 },
-      { name: "TEH TARIK", quantity: 3, unit_price: 4.33, total_price: 12.99 },
-    ],
-    tax: 2.3,
-    total: 25.29,
-    currency: "RM",
-  };
-
-  it("converts a receipt to integer cents with camelCase keys", () => {
-    const d = receiptToDomain(legacy);
-    expect(d.items[1]).toEqual({ name: "TEH TARIK", quantity: 3, unitPrice: 433, totalPrice: 1299 });
-    expect(d.tax).toBe(230);
-    expect(d.total).toBe(2529);
+describe("parseMoneyInput / centsToInput", () => {
+  it.each([
+    ["12.5", 1250],
+    ["12,5", 1250],
+    ["  3.07 ", 307],
+    ["0", 0],
+    ["1.005", 100],
+    ["", 0],
+    ["abc", 0],
+    ["-3", 0],
+    ["Infinity", 0],
+  ])("parseMoneyInput(%j) = %s", (raw, cents) => {
+    expect(parseMoneyInput(raw)).toBe(cents);
   });
 
-  it("round-trips a receipt without drift", () => {
-    expect(receiptToLegacy(receiptToDomain(legacy))).toEqual(legacy);
-  });
-
-  it("converts and round-trips splits", () => {
-    const s = [{ name: "Pravin", amount: 18.34, items: "x" }];
-    expect(splitsToDomain(s)[0].amount).toBe(1834);
-    expect(splitsToLegacy(splitsToDomain(s))).toEqual(s);
+  it("round-trips through the input text", () => {
+    for (const c of [0, 5, 29, 1999, 123456]) expect(parseMoneyInput(centsToInput(c))).toBe(c);
   });
 });

@@ -1,10 +1,8 @@
-import type { Cents, Receipt, SplitRecord } from "@/types/domain";
+import type { Cents } from "@/types/domain";
 
-// The database and the split engine speak integer cents. The current UI
-// (app/dashboard/new/page.tsx) still holds RM-as-float values from the old
-// scan/split API. This file is the ONE boundary between them, so nothing else
-// converts ad hoc. Phase 6 rewrites that page to be cents-native and this
-// legacy half can be deleted — `toCents`/`fromCents`/`formatMoney` stay.
+// The database, the split engine and (since the new-session page went cents-native) the UI
+// all speak integer cents. Floats exist only at the edges: toCents() for values that arrive
+// as RM floats (AI/OCR JSON, tests) and parseMoneyInput() for what a person types.
 
 export const toCents = (amount: number): Cents =>
   Number.isFinite(amount) ? Math.round(amount * 100) : 0;
@@ -14,56 +12,14 @@ export const fromCents = (cents: Cents): number => cents / 100;
 export const formatMoney = (cents: Cents, currency = "RM"): string =>
   `${currency}${fromCents(cents).toFixed(2)}`;
 
-// --- legacy UI shapes (floats, snake_case) ---------------------------------
+/** The text for a money <input>: "12.50" (no currency symbol). */
+export const centsToInput = (cents: Cents): string => fromCents(cents).toFixed(2);
 
-export interface LegacyReceiptItem {
-  name: string;
-  quantity: number;
-  unit_price: number;
-  total_price: number;
+/**
+ * What a person typed into a money field -> cents. Accepts "12.5" and "12,5"; anything that
+ * isn't a non-negative number becomes 0 rather than NaN, so it can never poison a total.
+ */
+export function parseMoneyInput(raw: string): Cents {
+  const n = parseFloat(raw.trim().replace(",", "."));
+  return Number.isFinite(n) && n >= 0 ? Math.round(n * 100) : 0;
 }
-export interface LegacyReceiptData {
-  items: LegacyReceiptItem[];
-  tax: number;
-  total: number;
-  currency: string;
-}
-export interface LegacySplitRecord {
-  name: string;
-  amount: number;
-  items: string;
-}
-
-export function receiptToDomain(ui: LegacyReceiptData): Receipt {
-  return {
-    items: ui.items.map((i) => ({
-      name: i.name,
-      quantity: i.quantity,
-      unitPrice: toCents(i.unit_price),
-      totalPrice: toCents(i.total_price),
-    })),
-    tax: toCents(ui.tax),
-    total: toCents(ui.total),
-    currency: ui.currency,
-  };
-}
-
-export function receiptToLegacy(r: Receipt): LegacyReceiptData {
-  return {
-    items: r.items.map((i) => ({
-      name: i.name,
-      quantity: i.quantity,
-      unit_price: fromCents(i.unitPrice),
-      total_price: fromCents(i.totalPrice),
-    })),
-    tax: fromCents(r.tax),
-    total: fromCents(r.total),
-    currency: r.currency,
-  };
-}
-
-export const splitsToDomain = (splits: LegacySplitRecord[]): SplitRecord[] =>
-  splits.map((s) => ({ name: s.name, amount: toCents(s.amount), items: s.items }));
-
-export const splitsToLegacy = (splits: SplitRecord[]): LegacySplitRecord[] =>
-  splits.map((s) => ({ name: s.name, amount: fromCents(s.amount), items: s.items }));
