@@ -12,7 +12,9 @@ import { useShareEditor } from "@/hooks/use-share-editor";
 import type { SplitSession } from "@/hooks/use-split-session";
 import { formatMoney } from "@/lib/money";
 
-type Mode = "equal" | "custom" | "describe";
+export type Mode = "equal" | "custom" | "describe";
+
+const MODE_LABELS: Record<Mode, string> = { equal: "Equal", custom: "Custom", describe: "Describe" };
 
 /** Tappable examples under the instruction box, using the actual people (so they work as typed). */
 function exampleInstructions(people: string[]): string[] {
@@ -27,8 +29,9 @@ function exampleInstructions(people: string[]): string[] {
 //   Custom   a slider per person, exact to the cent. Works offline.
 //   Describe say it in words ("Pravin pays the drinks"): the on-device rules, or an AI if you set a key.
 // Key this component by the people list so a different group starts fresh (equal, unlocked).
-export function SplitPanel({ s }: { s: SplitSession }) {
-  const [mode, setMode] = useState<Mode>("describe");
+export function SplitPanel({ s, modes = ["equal", "custom", "describe"] }: { s: SplitSession; modes?: Mode[] }) {
+  // Describe is the default where it is offered (the scan flow); otherwise the first mode (Equal: one tap).
+  const [mode, setMode] = useState<Mode>(modes.includes("describe") ? "describe" : modes[0]);
   const custom = useShareEditor(s.people, s.displayedTotal);
   const equal = useShareEditor(s.people, s.displayedTotal); // never edited: always the equal preview
 
@@ -52,11 +55,7 @@ export function SplitPanel({ s }: { s: SplitSession }) {
         label="How to split"
         value={mode}
         onValueChange={setMode}
-        options={[
-          { value: "equal", label: "Equal" },
-          { value: "custom", label: "Custom" },
-          { value: "describe", label: "Describe" },
-        ]}
+        options={modes.map((m) => ({ value: m, label: MODE_LABELS[m] }))}
       />
 
       <div className="mt-4 space-y-4">

@@ -6,7 +6,9 @@ import { ChevronLeft, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
+import { AmountStep } from "@/components/split/steps/AmountStep";
 import { NamesStep } from "@/components/split/steps/NamesStep";
+import { QuickSplitStep } from "@/components/split/steps/QuickSplitStep";
 import { ScanStep } from "@/components/split/steps/ScanStep";
 import { ReviewStep } from "@/components/split/steps/ReviewStep";
 import { SummaryStep } from "@/components/split/steps/SummaryStep";
@@ -29,14 +31,15 @@ function BillSplitterContent() {
 
   return (
     <main className={`mx-auto mb-20 flex w-full max-w-xl flex-1 flex-col gap-6 p-6 ${s.step === "REVIEW" ? "lg:max-w-5xl" : ""} ${wide ? "2xl:max-w-7xl" : ""}`}>
-      {s.step !== "NAMES" && (
+      {s.step !== s.firstStep && (
         <div className="flex items-center justify-between">
-          <Button variant="ghost" className="h-11 w-fit px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-white" onClick={() => s.setStep("NAMES")}>
+          <Button variant="ghost" className="h-11 w-fit px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-white" onClick={s.back}>
             <ChevronLeft size={16} className="mr-1" /> Back
           </Button>
-          <Button variant="ghost" data-testid="open-ai-settings" className="h-11 px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-white" onClick={() => s.setKeySheetOpen(true)}>
+          {/* AI keys only matter for scanning and describing a split; quick split is plain arithmetic. */}
+          {!s.quick && <Button variant="ghost" data-testid="open-ai-settings" className="h-11 px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-white" onClick={() => s.setKeySheetOpen(true)}>
             <Sparkles size={14} className="mr-1.5 text-amber-400" /> AI settings{s.keys.groq || s.keys.gemini ? " ✓" : ""}
-          </Button>
+          </Button>}
         </div>
       )}
 
@@ -59,9 +62,11 @@ function BillSplitterContent() {
           animate={{ opacity: 1, x: 0, transition: { duration: 0.22, ease: "easeOut" } }}
           exit={{ opacity: 0, x: dir * -24, transition: { duration: 0.12, ease: "easeIn" } }}
         >
+          {s.step === "AMOUNT" && <AmountStep s={s} />}
           {s.step === "NAMES" && <NamesStep s={s} />}
           {s.step === "SCAN" && <ScanStep s={s} />}
           {s.step === "REVIEW" && <ReviewStep s={s} />}
+          {s.step === "SPLIT" && <QuickSplitStep s={s} />}
           {s.step === "SUMMARY" && <SummaryStep s={s} />}
         </m.div>
       </AnimatePresence>
