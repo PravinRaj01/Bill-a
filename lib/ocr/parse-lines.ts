@@ -145,6 +145,9 @@ function toRow(line: OcrLine): Row {
   return { text, line, amounts, trailing, kind: classify(text), right: line.box.x + line.box.w };
 }
 
+/** Longest rounding adjustment we believe (RM1): anything bigger is a misread, not a rounding line. */
+const MAX_ROUNDING = 100;
+
 const median = (xs: number[]) => {
   const s = [...xs].sort((a, b) => a - b);
   return s.length ? s[Math.floor(s.length / 2)] : 0;
@@ -242,6 +245,17 @@ export function parseReceiptLines(ocr: Pick<OcrOutput, "lines" | "text" | "width
 
   // --- totals --------------------------------------------------------------
   const cents = (i: number) => (i >= 0 ? amountFor(i)?.cents ?? null : null);
+  /** "-0.02", "0.02-" and "(0.02)" are deductions; a bare "0.02" is an addition. */
+  const signedAt = (i: number): number | null => {
+    const row = rows[i];
+    const own = row.amounts[row.amounts.length - 1];
+    // The amount may be followed by a closing bracket, which toRow() doesn't count as trailing.
+    if (own && /^\)?\s*$/.test(row.text.slice(own.end))) {
+      const wrapped = row.text[own.index - 1] === "(" && row.text[own.end] === ")";
+      return wrapped ? -Math.abs(own.cents) : own.cents;
+    }
+    return amountFor(i)?.cents ?? null; // price alone on the next line
+  };
   const subtotal = cents(subtotalAt);
 
   let tax = 0;
@@ -256,6 +270,16 @@ export function parseReceiptLines(ocr: Pick<OcrOutput, "lines" | "text" | "width
     }
   });
 
+  // Cash rounding ("Rounding Adj -0.02"): part of the printed total, but neither an item nor tax.
+  let rounding = 0;
+  rows.forEach((r, i) => {
+    if (r.kind !== "rounding" || i < (subtotalAt >= 0 ? subtotalAt : endOfItems - 1)) return;
+    const c = signedAt(i);
+    if (c === null || c === 0) return;
+    if (Math.abs(c) > MAX_ROUNDING) warnings.push(`Ignored an unusually large rounding line: "${r.text}"`);
+    else rounding += c;
+  });
+
   const itemSum = items.reduce((s, it) => s + it.totalPrice, 0);
   let total: number;
   let totalSource: ParsedReceipt["totalSource"];
@@ -264,7 +288,7 @@ export function parseReceiptLines(ocr: Pick<OcrOutput, "lines" | "text" | "width
     total = keywordTotal;
     totalSource = "keyword";
   } else if (items.length > 0) {
-    total = (subtotal ?? itemSum) + tax;
+    total = (subtotal ?? itemSum) + tax + rounding;
     totalSource = "computed";
     warnings.push("No total line found; computed it from the items and tax — please check.");
   } else {
@@ -281,7 +305,7 @@ export function parseReceiptLines(ocr: Pick<OcrOutput, "lines" | "text" | "width
   if (totalSource !== "keyword") confidence -= 0.3;
   if (items.length === 0) confidence -= 0.4;
 
-  const expectedSubtotal = subtotal ?? (keywordTotal !== null ? keywordTotal - tax : null);
+  const expectedSubtotal = subtotal ?? (keywordTotal !== null ? keywordTotal - tax - rounding : null);
   if (expectedSubtotal !== null && items.length > 0) {
     const gap = Math.abs(itemSum - expectedSubtotal);
     if (gap > Math.max(2, expectedSubtotal * 0.01)) {
@@ -291,8 +315,8 @@ export function parseReceiptLines(ocr: Pick<OcrOutput, "lines" | "text" | "width
       );
     }
   }
-  if (!sawTax && keywordTotal !== null && subtotal !== null && keywordTotal > subtotal) {
-    tax = keywordTotal - subtotal; // tax/service not itemised: it's the gap
+  if (!sawTax && keywordTotal !== null && subtotal !== null && keywordTotal - rounding > subtotal) {
+    tax = keywordTotal - rounding - subtotal; // tax/service not itemised: it's the gap (rounding aside)
   }
 
   return {
@@ -300,6 +324,7 @@ export function parseReceiptLines(ocr: Pick<OcrOutput, "lines" | "text" | "width
       items: items.map(({ name, quantity, unitPrice, totalPrice }) => ({ name, quantity, unitPrice, totalPrice })),
       tax,
       total,
+      ...(rounding !== 0 ? { rounding } : {}),
       currency: detectedCurrency ?? DEFAULT_CURRENCY,
     },
     items,

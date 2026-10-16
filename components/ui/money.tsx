@@ -26,6 +26,7 @@ export function Money({
       locales="en-US"
       className={className}
       style={{ fontVariantNumeric: "tabular-nums" }}
+      data-cents={cents}
     />
   );
 }

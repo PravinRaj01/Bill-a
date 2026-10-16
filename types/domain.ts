@@ -23,6 +23,11 @@ export interface Receipt {
   tax: Cents;
   /** Grand total as printed on the receipt. This is the number every split must reconcile to. */
   total: Cents;
+  /**
+   * Signed cash-rounding adjustment printed on the receipt ("Rounding Adj -0.02"). Already
+   * included in `total`. Absent on receipts without one and on bills saved before it existed.
+   */
+  rounding?: Cents;
   currency: string;
 }
 
@@ -83,6 +88,10 @@ export interface BillData {
   items: Receipt;
   people: string[];
   reasoning: string;
+  /** Cash rounding applied to `split`: `unit` in cents (5 = nearest 5 sen), `absorber` takes the difference. Absent = exact. */
+  cashRounding?: { unit: number; absorber: string };
+  /** The exact shares before cash rounding, kept so the rounding can be changed or undone after a restore. */
+  exactSplit?: SplitRecord[];
 }
 
 export class SplitReconciliationError extends Error {

@@ -1,8 +1,10 @@
 "use client";
+import { useState } from "react";
 import { Image as ImageIcon, Loader2, Plus, Trash2, TriangleAlert } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Segmented } from "@/components/ui/segmented";
 import { Switch } from "@/components/ui/switch";
 import { ClarifyChips } from "@/components/ai/ClarifyChips";
 import { CrossCheck } from "@/components/ai/CrossCheck";
@@ -15,7 +17,14 @@ const inputBase = "h-11 border-white/5 bg-surface-2 text-base";
 export function ReviewStep({ s }: { s: SplitSession }) {
   const { receipt, scanInfo, symbol } = s;
   const photoOpen = s.showPhoto && !!s.photoUrl;
-  const mine = receipt ? s.subtotal + receipt.tax : 0;
+  const rounding = receipt?.rounding ?? 0;
+  const mine = receipt ? s.subtotal + receipt.tax + rounding : 0;
+
+  // The rounding row shows when the receipt had one (or the Gemini re-read found one), or on request.
+  const [forceRounding, setForceRounding] = useState(false);
+  const [negativeDraft, setNegativeDraft] = useState(true);
+  const showRounding = rounding !== 0 || forceRounding;
+  const roundingNegative = rounding !== 0 ? rounding < 0 : negativeDraft;
 
   // Warnings worth interrupting for (the "items add up" note is reassurance, not a problem).
   const problems = scanInfo?.warnings.filter((w) => !w.startsWith("Items add up")) ?? [];
@@ -149,11 +158,11 @@ export function ReviewStep({ s }: { s: SplitSession }) {
             const diff = scanInfo.printedTotal - mine;
             return diff === 0 ? (
               <p data-testid="reconcile" data-ok="true" className="px-4 pt-3 text-xs font-semibold text-success">
-                ✓ Items + tax match the receipt total ({formatMoney(scanInfo.printedTotal, symbol)})
+                ✓ Items + tax{rounding !== 0 ? " + rounding" : ""} match the receipt total ({formatMoney(scanInfo.printedTotal, symbol)})
               </p>
             ) : (
               <p data-testid="reconcile" className="px-4 pt-3 text-xs font-semibold text-warning">
-                Receipt says {formatMoney(scanInfo.printedTotal, symbol)}; items + tax come to {formatMoney(mine, symbol)} ({diff > 0 ? `${formatMoney(diff, symbol)} missing` : `${formatMoney(-diff, symbol)} too much`}).
+                Receipt says {formatMoney(scanInfo.printedTotal, symbol)}; items + tax{rounding !== 0 ? " + rounding" : ""} come to {formatMoney(mine, symbol)} ({diff > 0 ? `${formatMoney(diff, symbol)} missing` : `${formatMoney(-diff, symbol)} too much`}).
               </p>
             );
           })()}
@@ -185,6 +194,48 @@ export function ReviewStep({ s }: { s: SplitSession }) {
               </div>
               <Switch checked={s.includeTax} onCheckedChange={s.setIncludeTax} aria-label="Apply tax and service" />
             </div>
+
+            {showRounding ? (
+              <div data-testid="rounding-row" className="flex flex-col gap-3 rounded-xl border border-white/5 bg-surface-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <div className="text-sm font-medium text-white/80">Rounding adjustment</div>
+                  <p className="text-xs text-muted-foreground">Printed on some receipts. Follows the switch above.</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Segmented
+                    label="Rounding direction"
+                    className="w-28"
+                    value={roundingNegative ? "neg" : "pos"}
+                    onValueChange={(v) => {
+                      setNegativeDraft(v === "neg");
+                      if (rounding !== 0) s.editRounding(v === "neg" ? -Math.abs(rounding) : Math.abs(rounding));
+                    }}
+                    options={[
+                      { value: "neg", label: "−" },
+                      { value: "pos", label: "+" },
+                    ]}
+                  />
+                  <Input
+                    aria-label="Rounding amount"
+                    key={`rounding-${rounding}`}
+                    type="number"
+                    inputMode="decimal"
+                    min={0}
+                    step={0.01}
+                    defaultValue={centsToInput(Math.abs(rounding))}
+                    onBlur={(e) => {
+                      const abs = parseMoneyInput(e.target.value);
+                      s.editRounding(roundingNegative ? -abs : abs);
+                    }}
+                    className={`${inputBase} w-full min-w-0 px-2 font-mono tabular-nums text-zinc-300 sm:w-24`}
+                  />
+                </div>
+              </div>
+            ) : (
+              <Button type="button" variant="ghost" onClick={() => setForceRounding(true)} className="h-11 text-sm font-semibold text-muted-foreground hover:text-white">
+                <Plus className="mr-1 size-4" /> Add rounding adjustment
+              </Button>
+            )}
 
             <div className="flex items-center justify-between border-t border-white/5 px-1 pt-4">
               <span className="text-sm font-semibold text-muted-foreground">Total to split</span>
