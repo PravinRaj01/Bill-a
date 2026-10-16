@@ -129,12 +129,15 @@ export function computeSplit(
     );
   });
 
-  // Derive the surcharge from the receipt's own numbers (total - subtotal) rather than
-  // trusting receipt.tax in isolation. This matters for receipts (e.g. Malaysian ones)
+  // Derive the surcharge from the receipt's own numbers (total - rounding - subtotal) rather
+  // than trusting receipt.tax in isolation. This matters for receipts (e.g. Malaysian ones)
   // where SST and service charge are separate line items and `tax` only captures one of them.
+  // The printed cash rounding ("Rounding Adj -0.02") is part of the total but is neither an
+  // item nor tax, so it is taken out of the surcharge and spread on its own.
   const subtotal = receipt.items.reduce((s, it) => s + it.totalPrice, 0);
   const coveredSubtotal = subtotal - excludedSubtotal;
-  const fullSurcharge = Math.max(0, receipt.total - subtotal);
+  const rounding = receipt.rounding ?? 0;
+  const fullSurcharge = Math.max(0, receipt.total - rounding - subtotal);
 
   if (excludedSubtotal > 0) {
     trace.push(
@@ -143,22 +146,21 @@ export function computeSplit(
     );
   }
 
-  // The surcharge is scaled down by the same fraction as the excluded items, so someone
-  // covering 40% of the order's food cost pays 40% of the tax/service charge too. Computed
-  // ONCE and reused for the target below, so `expected` is built from the exact same number.
-  const surchargeForCovered =
-    applyTax && subtotal > 0 && coveredSubtotal > 0 ? Math.round((fullSurcharge * coveredSubtotal) / subtotal) : 0;
+  // The surcharge and the rounding are scaled down by the same fraction as the excluded
+  // items, so someone covering 40% of the order's food cost pays 40% of the tax/service charge
+  // too. Each is computed ONCE and reused for the target below, so `expected` is built from
+  // the exact same numbers.
+  const scaleToCovered = (amount: number) =>
+    applyTax && subtotal > 0 && coveredSubtotal > 0 ? Math.round((amount * coveredSubtotal) / subtotal) : 0;
+  const surchargeForCovered = scaleToCovered(fullSurcharge);
+  const roundingForCovered = scaleToCovered(rounding);
 
   // Who pays the tax/service charge: the people the instruction named, or — by default —
   // everyone in proportion to what they ordered.
   const taxPayers = Array.from(new Set((plan.taxPayers ?? []).filter((p) => peopleIndex.has(p))));
   const pct = subtotal > 0 ? ((fullSurcharge / subtotal) * 100).toFixed(2) : "0.00";
-  if (surchargeForCovered > 0 && taxPayers.length > 0) {
-    groups.push({
-      price: BigInt(surchargeForCovered),
-      targets: taxPayers.map((p) => peopleIndex.get(p)!),
-      weights: taxPayers.map(() => 1n),
-    });
+  const payersGetSurcharge = surchargeForCovered > 0 && taxPayers.length > 0;
+  if (payersGetSurcharge) {
     trace.push(
       `Tax/service ${pct}% = ${fmt(surchargeForCovered)}, paid by ${taxPayers.join(", ")}` +
         (taxPayers.length > 1 ? ` (shared equally, ÷${taxPayers.length})` : "") +
@@ -168,9 +170,10 @@ export function computeSplit(
   }
 
   // ---- exact per-person totals as fractions N[j] / D --------------------------------
+  // First each person's exact FOOD share F_j = N_j/D, from the item groups alone.
   let D = 1n;
   for (const g of groups) D = lcm(D, g.weights.reduce((a, b) => a + b, 0n));
-  const N: bigint[] = people.map(() => 0n);
+  let N: bigint[] = people.map(() => 0n);
   for (const g of groups) {
     const unit = D / g.weights.reduce((a, b) => a + b, 0n);
     g.targets.forEach((t, k) => {
@@ -178,21 +181,36 @@ export function computeSplit(
     });
   }
 
-  if (surchargeForCovered > 0 && taxPayers.length === 0) {
-    // Everyone's exact food total F_j = N_j/D grows by the same factor:
-    //   total_j = F_j * (covered + surcharge) / covered
-    const cov = BigInt(coveredSubtotal);
-    const factor = cov + BigInt(surchargeForCovered);
-    for (let j = 0; j < N.length; j++) N[j] *= factor;
-    D *= cov;
+  // Then the extras. What is spread in proportion to the food (the surcharge unless named
+  // payers cover it, plus any rounding) grows every F_j by the same factor:
+  //   total_j = F_j * (covered + spread) / covered
+  // and a tax payer additionally takes surcharge/|payers|. Over one common denominator:
+  //   total_j = [ N_j * (covered + spread) * |T| + (j in T ? S * D * covered : 0) ] / (D * covered * |T|)
+  const spread = (payersGetSurcharge ? 0 : surchargeForCovered) + roundingForCovered;
+  const cov = BigInt(coveredSubtotal);
+  const spreading = spread !== 0 && coveredSubtotal > 0;
+  const factor = spreading ? cov + BigInt(spread) : 1n;
+  const den = spreading ? cov : 1n;
+  const T = payersGetSurcharge ? BigInt(taxPayers.length) : 1n;
+  const payerSet = new Set(payersGetSurcharge ? taxPayers.map((p) => peopleIndex.get(p)!) : []);
+  N = N.map((n, j) => n * factor * T + (payerSet.has(j) ? BigInt(surchargeForCovered) * D * den : 0n));
+  D = D * den * T;
+
+  if (surchargeForCovered > 0 && !payersGetSurcharge) {
     trace.push(
       `Tax/service ${pct}% applied to the covered ${fmt(coveredSubtotal)} subtotal = ${fmt(surchargeForCovered)}, ` +
         `shared in proportion to what each person ordered.`,
     );
   }
+  if (roundingForCovered !== 0) {
+    trace.push(
+      `Rounding adjustment ${roundingForCovered < 0 ? "-" : "+"}${fmt(Math.abs(roundingForCovered))} ` +
+        `from the receipt, shared in proportion to what each person ordered.`,
+    );
+  }
 
   // ---- round ONCE, at the end -------------------------------------------------------
-  const expected = coveredSubtotal + surchargeForCovered;
+  const expected = coveredSubtotal + surchargeForCovered + roundingForCovered;
   const floors = N.map((n) => floorDiv(n, D));
   const remainders = N.map((n, i) => n - floors[i] * D);
   const floorSum = floors.reduce((a, b) => a + b, 0n);
@@ -214,6 +232,13 @@ export function computeSplit(
     // Unreachable by the algebra above (see SplitReconciliationError's message). If this
     // ever throws, the bug is in this function, not in the model output or the input data.
     throw new SplitReconciliationError(expected, actual);
+  }
+
+  if (residue > 0) {
+    trace.push(
+      `${residue} leftover cent${residue > 1 ? "s" : ""} from rounding went to ` +
+        `${order.slice(0, residue).map((o) => people[o.i]).join(", ")} (largest remainder; ties go to whoever is listed first).`,
+    );
   }
 
   trace.push(
