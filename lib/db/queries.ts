@@ -63,6 +63,35 @@ export async function updateGroupNames(db: Db, userId: string, id: string, names
   return row ?? null;
 }
 
+export type UpdateGroupResult = { ok: true; group: typeof savedGroups.$inferSelect } | { ok: false; reason: "not-found" | "name-taken" };
+
+/**
+ * Renames a group and/or replaces its members, for the signed-in user's own group only. The new name may
+ * differ from the old one only in case or spacing (same group), but not match ANOTHER of the user's groups:
+ * the (user_id, group_key) unique constraint decides that, and it is reported as "name-taken" rather than
+ * thrown, so the screen can say so.
+ */
+export async function updateGroup(
+  db: Db,
+  userId: string,
+  id: string,
+  input: { groupName: string; names: string[] },
+): Promise<UpdateGroupResult> {
+  try {
+    const [row] = await db
+      .update(savedGroups)
+      .set({ groupName: input.groupName, names: input.names })
+      .where(and(eq(savedGroups.id, id), eq(savedGroups.userId, userId)))
+      .returning();
+    return row ? { ok: true, group: row } : { ok: false, reason: "not-found" };
+  } catch (e) {
+    const err = e as { code?: string; cause?: { code?: string }; message?: string };
+    const code = err.code ?? err.cause?.code;
+    if (code === "23505" || /duplicate key|unique constraint/i.test(err.message ?? "")) return { ok: false, reason: "name-taken" };
+    throw e;
+  }
+}
+
 /** True if a row was deleted; false if it didn't exist OR belongs to someone else. */
 export async function deleteGroup(db: Db, userId: string, id: string) {
   const rows = await db

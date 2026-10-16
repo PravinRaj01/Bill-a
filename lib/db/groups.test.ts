@@ -3,7 +3,7 @@ import { config } from "dotenv";
 import { eq, inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import { savedGroups, users } from "./schema";
-import { createGroup, listGroups } from "./queries";
+import { createGroup, listGroups, updateGroup } from "./queries";
 
 // "Best Couple" x2: saving a group name the user already has must UPDATE that group,
 // never create a lookalike. Real Neon DB (the guarantee is a unique constraint, so
@@ -76,6 +76,35 @@ describe.skipIf(!hasDb)("saving a group never duplicates it (real Neon DB)", { t
     expect(theirs.id).not.toBe(mine.id);
     expect((await listGroups(db, A)).find((g) => g.groupName === "Best Couple")!.names).toEqual(["X", "Y"]);
     expect((await listGroups(db, B)).map((g) => g.names)).toEqual([["B-only"]]);
+  });
+
+  it("edits a group's name and members", async () => {
+    const g = await createGroup(db, A, { groupName: "Edit Me", names: ["A", "B"] });
+    const r = await updateGroup(db, A, g.id, { groupName: "Edited", names: ["A", "B", "C"] });
+    expect(r.ok && r.group.groupName).toBe("Edited");
+    expect(r.ok && r.group.names).toEqual(["A", "B", "C"]);
+    expect(r.ok && r.group.id).toBe(g.id);
+  });
+
+  it("renaming to a different spelling of its own name is fine", async () => {
+    const g = (await listGroups(db, A)).find((x) => x.groupName === "Edited")!;
+    const r = await updateGroup(db, A, g.id, { groupName: "  EDITED ", names: g.names });
+    expect(r.ok).toBe(true);
+  });
+
+  it("renaming onto another of your groups says the name is taken and changes nothing", async () => {
+    const edited = (await listGroups(db, A)).find((x) => x.groupName.trim().toLowerCase() === "edited")!;
+    const r = await updateGroup(db, A, edited.id, { groupName: "best couple", names: ["Q"] });
+    expect(r).toEqual({ ok: false, reason: "name-taken" });
+    const after = (await listGroups(db, A)).find((x) => x.id === edited.id)!;
+    expect(after.names).toEqual(["A", "B", "C"]);
+  });
+
+  it("another user's group can't be edited through your id", async () => {
+    const theirs = (await listGroups(db, B))[0];
+    const r = await updateGroup(db, A, theirs.id, { groupName: "Hijacked", names: ["Z"] });
+    expect(r).toEqual({ ok: false, reason: "not-found" });
+    expect((await listGroups(db, B)).find((x) => x.id === theirs.id)!.groupName).toBe(theirs.groupName);
   });
 
   it("the database itself refuses a lookalike, even if the app code were bypassed", async () => {

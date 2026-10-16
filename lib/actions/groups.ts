@@ -38,6 +38,18 @@ export async function updateGroupNames(id: string, names: string[]) {
   return q.updateGroupNames(getDb(), userId, idSchema.parse(id), namesSchema.parse(names));
 }
 
+export type SaveGroupEdit = { ok: true; group: Awaited<ReturnType<typeof q.getGroup>> & object } | { ok: false; error: string };
+
+/** Rename a group and/or change who is in it. Only the signed-in user's own group can be edited. */
+export async function updateGroup(id: string, input: { groupName: string; names: string[] }): Promise<SaveGroupEdit> {
+  const userId = await requireUserId();
+  const parsed = z.object({ groupName: groupNameSchema, names: namesSchema }).safeParse(input);
+  if (!parsed.success || !idSchema.safeParse(id).success) return { ok: false, error: "Check the name and the people, then try again." };
+  const r = await q.updateGroup(getDb(), userId, id, parsed.data);
+  if (r.ok) return { ok: true, group: r.group };
+  return { ok: false, error: r.reason === "name-taken" ? "You already have a group with that name." : "That group no longer exists." };
+}
+
 export async function deleteGroup(id: string) {
   const userId = await requireUserId();
   return q.deleteGroup(getDb(), userId, idSchema.parse(id));
