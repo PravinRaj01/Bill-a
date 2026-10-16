@@ -14,6 +14,14 @@ import type { SplitSession } from "@/hooks/use-split-session";
 
 const inputBase = "h-11 border-white/5 bg-surface-2 text-base";
 
+/** Tappable examples under the instruction box, using the actual people (so they work as typed). */
+function exampleInstructions(people: string[]): string[] {
+  const out = ["Split equally"];
+  if (people.length >= 2) out.push(`${people[0]} 70%, ${people[1]} 30%`);
+  if (people.length >= 3) out.push(`${people[0]} pays RM20, the rest equally`);
+  return out;
+}
+
 export function ReviewStep({ s }: { s: SplitSession }) {
   const { receipt, scanInfo, symbol } = s;
   const photoOpen = s.showPhoto && !!s.photoUrl;
@@ -244,13 +252,25 @@ export function ReviewStep({ s }: { s: SplitSession }) {
 
             <Input
               aria-label="How to split"
-              placeholder="Instructions (e.g. Split equally)"
+              placeholder={`How to split (e.g. ${s.people[0] ?? "Sam"} pays the drinks)`}
               value={s.instruction}
               onChange={(e) => s.setInstruction(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !s.loading && s.split()}
               enterKeyHint="go"
               className="h-12 border-white/5 bg-surface-2 text-base text-white"
             />
+            <div className="-mt-2 flex flex-wrap gap-2" aria-label="Examples">
+              {exampleInstructions(s.people).map((ex) => (
+                <button
+                  key={ex}
+                  type="button"
+                  onClick={() => s.setInstruction(ex)}
+                  className="min-h-9 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+                >
+                  {ex}
+                </button>
+              ))}
+            </div>
             {s.clarify && <ClarifyChips chips={s.clarify.chips} hasPreview={!!s.clarify.preview} onAction={s.handleClarify} />}
             {s.disagree && <CrossCheck aiName={s.disagree.tier === "groq" ? "Groq" : "Gemini"} ai={s.disagree.ai.result} rules={s.disagree.rules.result} symbol={symbol} onPick={s.pickReading} />}
             {s.splitNote && !s.clarify && <p data-testid="split-note" className="px-1 text-xs text-muted-foreground">{s.splitNote}</p>}

@@ -124,7 +124,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
               value={modifyText}
               onChange={(e) => setModifyText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !s.loading && apply()}
-              placeholder="e.g. Aisha didn't have the rice"
+              placeholder={`e.g. ${s.people[0] ?? "Sam"} didn't have the rice`}
               disabled={s.loading}
               enterKeyHint="go"
               className="h-12 border-white/5 bg-surface-2 text-base text-white"
