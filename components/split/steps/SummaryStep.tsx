@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClarifyChips } from "@/components/ai/ClarifyChips";
 import { CrossCheck } from "@/components/ai/CrossCheck";
-import { PersonAvatar } from "@/components/person-avatar";
+import { ReceiptTicket, type TicketRow } from "@/components/receipt/ReceiptTicket";
 import { AdjustShares } from "@/components/split/AdjustShares";
 import { SettleUp } from "@/components/split/SettleUp";
-import { localDate, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
+import { usePaymentShare } from "@/hooks/use-payment-share";
+import { allOwedToMe, localDate, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
 import { shareMessage, shareText } from "@/lib/ui/share";
 import { toast } from "sonner";
-import { Money } from "@/components/ui/money";
 import { Segmented } from "@/components/ui/segmented";
 import { CASH_UNITS } from "@/lib/split/cashRound";
 import { formatMoney } from "@/lib/money";
@@ -22,6 +22,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
   const [showReasoning, setShowReasoning] = useState(false);
   const [modifyText, setModifyText] = useState("");
   const { symbol } = s;
+  const payment = usePaymentShare();
 
   const apply = () => {
     const text = modifyText.trim();
@@ -37,7 +38,14 @@ export function SummaryStep({ s }: { s: SplitSession }) {
   );
 
   const share = () => {
-    const text = summaryText({ currency: symbol, shares: s.finalSplit, settlement: s.settlement, view: settleNow });
+    // "Pay me" only goes out when what is still owed is owed to the user.
+    const text = summaryText({
+      currency: symbol,
+      shares: s.finalSplit,
+      settlement: s.settlement,
+      view: settleNow,
+      payment: allOwedToMe(settleNow, s.settlement?.me) ? payment.block : undefined,
+    });
     void shareText(text).then((o) => {
       const msg = shareMessage(o);
       if (msg) toast(msg);
@@ -52,41 +60,46 @@ export function SummaryStep({ s }: { s: SplitSession }) {
     </>
   );
 
+  const rows: TicketRow[] = s.finalSplit.map((row, i) => {
+    const delta = s.cashDeltas[i];
+    const pos = positionOf.get(row.name);
+    const posText = pos ? positionNote(pos, symbol) : "";
+    return {
+      name: row.name,
+      amount: row.amount,
+      items: row.items,
+      note: (
+        <>
+          {posText && (
+            <span data-testid="position-note" className="block text-xs text-muted-foreground">
+              {posText}
+            </span>
+          )}
+          {s.cashRoundingActive && delta !== 0 && (
+            <span data-testid="cash-delta" className="block text-xs text-muted-foreground">
+              {delta > 0 ? "+" : "−"}{formatMoney(Math.abs(delta), symbol)} rounding
+              {i === s.absorberIndex ? " · covers the difference" : ""}
+            </span>
+          )}
+        </>
+      ),
+    };
+  });
+
   return (
     <div className="space-y-6">
-      <div className="overflow-hidden rounded-3xl border border-white/5 bg-surface shadow-2xl ring-1 ring-white/10">
-        <div className="border-b border-white/5 bg-white/[0.02] py-4 text-center text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-          Final settlement
-        </div>
-
-        <ul className="divide-y divide-white/5">
-          {s.finalSplit.map((row, i) => {
-            const delta = s.cashDeltas[i];
-            return (
-              <li key={row.name} className="flex items-center gap-3 px-6 py-4">
-                <PersonAvatar name={row.name} />
-                <div className="min-w-0 flex-1">
-                  <span className="block truncate text-base font-bold text-white">{row.name}</span>
-                  {positionOf.get(row.name) && positionNote(positionOf.get(row.name)!, symbol) && (
-                    <span data-testid="position-note" className="block text-xs text-muted-foreground">
-                      {positionNote(positionOf.get(row.name)!, symbol)}
-                    </span>
-                  )}
-                  {s.cashRoundingActive && delta !== 0 && (
-                    <span data-testid="cash-delta" className="block text-xs text-muted-foreground">
-                      {delta > 0 ? "+" : "−"}{formatMoney(Math.abs(delta), symbol)} rounding
-                      {i === s.absorberIndex ? " · covers the difference" : ""}
-                    </span>
-                  )}
-                </div>
-                <Money cents={row.amount} currency={symbol} className="text-xl font-bold text-white" />
-              </li>
-            );
-          })}
-        </ul>
-
+      <ReceiptTicket title={s.billTitle} date={new Date()} symbol={symbol} rows={rows}>
         <SettleUp
-          model={{ shares: s.finalSplit, settlement: s.settlement, symbol, billTitle: s.billTitle, tracked: s.settleTracked, change: s.changeSettlement, stop: s.stopTracking }}
+          model={{
+            shares: s.finalSplit,
+            settlement: s.settlement,
+            symbol,
+            billTitle: s.billTitle,
+            tracked: s.settleTracked,
+            change: s.changeSettlement,
+            stop: s.stopTracking,
+            payment,
+          }}
         />
 
         {s.finalSplit.length > 1 && (
@@ -178,7 +191,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
             Finish session
           </Button>
         </div>
-      </div>
+      </ReceiptTicket>
     </div>
   );
 }

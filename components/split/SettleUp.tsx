@@ -5,7 +5,9 @@ import { ArrowRight, Check, Send } from "lucide-react";
 import { toast } from "sonner";
 
 import { PayerPicker } from "@/components/split/PayerPicker";
+import { PaymentToggle } from "@/components/payment/PaymentToggle";
 import { PersonAvatar } from "@/components/person-avatar";
+import type { PaymentShare } from "@/hooks/use-payment-share";
 import { Money } from "@/components/ui/money";
 import { formatMoney } from "@/lib/money";
 import {
@@ -54,6 +56,8 @@ export interface SettleModel {
   tracked: boolean;
   change: (edit: (s: Settlement) => Settlement) => void | Promise<void>;
   stop: () => void | Promise<void>;
+  /** The user's payment details for messages; added only when what is owed is owed to the user. */
+  payment?: PaymentShare;
 }
 
 export function SettleUp({ model }: { model: SettleModel }) {
@@ -93,6 +97,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
         currency: symbol,
         owes: open.map((t) => ({ to: payTo(t.to), amount: t.amount })),
         items: wholeShare ? share?.items : undefined,
+        payment: open.every((t) => payTo(t.to) === "me") ? model.payment?.block : undefined,
       }),
     );
   };
@@ -110,6 +115,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
         currency: symbol,
         payTo: single ? payTo(open[0].to) : undefined,
         lines: open.map((t) => ({ debtor: t.from, to: t.to, amount: t.amount })),
+        payment: open.every((t) => payTo(t.to) === "me") ? model.payment?.block : undefined,
       }),
     );
   };
@@ -270,6 +276,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
                   <Send className="size-4" /> Nudge everyone who owes
                 </button>
               )}
+              {model.payment && view.status !== "settled" && <PaymentToggle payment={model.payment} />}
             </>
           )}
 
