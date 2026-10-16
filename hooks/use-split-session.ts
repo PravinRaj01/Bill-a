@@ -15,6 +15,8 @@ import { ProviderError } from "@/lib/ai/providers/types";
 import { getKeys, onKeysChanged, type Keys } from "@/lib/ai/keyStore";
 import { formatMoney } from "@/lib/money";
 import { roundSplit } from "@/lib/split/cashRound";
+import { computeShareSplit } from "@/lib/split/shares";
+import { percentOf } from "@/lib/split/sliders";
 import type { Chip } from "@/lib/split/fallback-parser";
 import { track, trackError } from "@/lib/telemetry/client";
 import { primeOfflinePack } from "@/lib/ocr/prime";
@@ -476,6 +478,29 @@ export function useSplitSession() {
     if (t) void runPlan([...instructions, t]);
   };
 
+  /**
+   * Shares set directly (the sliders, or Equal): cents per person, in `people` order, adding up to
+   * the bill. Pure arithmetic on the device, same path as a typed "Pravin 70%, Lakx 30%".
+   */
+  const applyShares = async (amounts: Cents[]) => {
+    if (!receipt || amounts.length !== people.length) return;
+    const total = amounts.reduce((a, b) => a + b, 0); // what is being shared: the bill, or what the split covers
+    const pct = (a: Cents) => `${percentOf(a, total)}%`;
+    try {
+      const result = computeShareSplit(
+        people,
+        amounts,
+        amounts.map((a) => `${pct(a)} of the bill`),
+        total,
+        [`Shares set with the sliders: ${people.map((p, i) => `${p} ${pct(amounts[i])} (${formatMoney(amounts[i], symbol)})`).join(", ")}.`],
+      );
+      await applySplit(result, "Split by the shares you set, worked out on your device.", []);
+    } catch (err) {
+      console.error("Share split error:", err);
+      toast.error("Those shares don't add up to the bill. Reset them and try again.");
+    }
+  };
+
   const pickReading = async (which: Reading) => {
     if (!disagree) return;
     const { tier, ai, rules, pending } = disagree;
@@ -569,7 +594,7 @@ export function useSplitSession() {
     editItem, removeItem, addItem, editTax, editRounding,
     // split
     instruction, setInstruction, split, modify, splitNote, clarify, handleClarify,
-    disagree, pickReading, structuredSplit, splitResult,
+    disagree, pickReading, applyShares, structuredSplit, splitResult,
     // cash rounding of the final shares
     finalSplit: rounded.splits, cashDeltas: rounded.deltas, absorberIndex: rounded.absorber,
     cashUnit, absorberName, chooseCashRounding, cashRoundingActive: rounded.changed,
