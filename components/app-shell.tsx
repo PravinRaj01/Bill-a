@@ -32,7 +32,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
   return (
     <div className="flex min-h-screen bg-black text-white flex-col">
       {/* RESTORED HEADER */}
-      <header className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-50">
+      <header style={{ viewTransitionName: "app-header" }} className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <div className="bg-white p-0.5 rounded shadow-sm">
             <img src="/icon.png" alt="logo" className="w-4 h-4 object-contain" />

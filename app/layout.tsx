@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { SwRegister } from "@/components/sw-register";
+import { MotionProvider } from "@/components/motion-provider";
+import { Toaster } from "@/components/ui/sonner";
 
-const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"], display: "swap" });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
@@ -28,18 +30,17 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#09090b",
+  themeColor: "#0e0f12",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false, // Prevents accidental zooming on input focus
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark" style={{ colorScheme: 'dark' }}>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#09090b] text-slate-50`}>
-        {children}
+      <body className={`${jakarta.variable} ${geistMono.variable} antialiased bg-background text-slate-50`}>
+        <MotionProvider>{children}</MotionProvider>
+        <Toaster />
         <SwRegister />
       </body>
     </html>
