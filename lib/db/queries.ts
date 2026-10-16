@@ -242,6 +242,14 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
   return row;
 }
 
+// --- profile ---------------------------------------------------------------
+
+/** The user's display name (null clears it). Keyed by the session's user id only. */
+export async function setUserName(db: Db, userId: string, name: string | null): Promise<string | null> {
+  await db.update(users).set({ name }).where(eq(users.id, userId));
+  return name;
+}
+
 // --- payment details (how friends pay this user back) -----------------------
 // Lives on the user row; both functions are keyed by the session's userId only.
 // `details` must already have been through parsePaymentDetails (lib/validation/payment.ts).

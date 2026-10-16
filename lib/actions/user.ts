@@ -1,6 +1,7 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { z } from "zod";
+import { auth, unstable_update } from "@/lib/auth";
 import { getUserIdOrNull, requireUserId } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import * as q from "@/lib/db/queries";
@@ -12,6 +13,18 @@ export async function getCurrentUser() {
   const u = (await auth())?.user;
   if (!u?.id) return null;
   return { id: u.id, name: u.name ?? null, email: u.email ?? null, image: u.image ?? null };
+}
+
+const nameSchema = z.string().trim().max(80);
+
+/** Saves the signed-in user's display name (empty clears it) and refreshes the current session with it. */
+export async function updateProfileName(input: string): Promise<{ ok: true; name: string | null } | { ok: false; error: string }> {
+  const userId = await requireUserId();
+  const parsed = nameSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "That name is too long." };
+  const name = await q.setUserName(getDb(), userId, parsed.data || null);
+  await unstable_update({ user: { name } });
+  return { ok: true, name };
 }
 
 /** The signed-in user's payment details, or null (guests keep theirs on the device, see lib/payment/store.ts). */
