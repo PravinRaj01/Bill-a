@@ -4,12 +4,14 @@ import { useState, useEffect } from "react"
 import Link from "next/link"
 import { ArrowUpRight, Calculator, Camera, ChevronRight, LogIn, Users } from "lucide-react"
 
+import { Intro, useIntro } from "@/components/onboarding/Intro"
+import { SetupChecklist } from "@/components/onboarding/SetupChecklist"
 import { AvatarStack } from "@/components/person-avatar"
 import { PageTransition } from "@/components/page-transition"
 import { MeshHero } from "@/components/ui/mesh-hero"
 import { listGroups } from "@/lib/actions/groups"
 import { getBalances, listBills, type BillListEntry } from "@/lib/actions/history"
-import { getCurrentUser } from "@/lib/actions/user"
+import { getCurrentUser, getPaymentDetails } from "@/lib/actions/user"
 import type { SavedGroup } from "@/lib/db/schema"
 import { formatMoney } from "@/lib/money"
 import { localDate, shortDate } from "@/lib/split/settle"
@@ -31,6 +33,9 @@ export default function DashboardPage() {
   // null = still loading, false = guest, true = signed in
   const [signedIn, setSignedIn] = useState<boolean | null>(null)
   const [firstName, setFirstName] = useState<string | null>(null)
+  const [hasName, setHasName] = useState(false)
+  const [hasPayment, setHasPayment] = useState(false)
+  const intro = useIntro()
   const [groups, setGroups] = useState<SavedGroup[]>([])
   const [latest, setLatest] = useState<BillListEntry | null>(null)
   // What people owe you / you owe, per currency, from tracked bills (empty for guests and when all square).
@@ -45,8 +50,10 @@ export default function DashboardPage() {
       .then((u) => {
         setSignedIn(!!u)
         setFirstName(u?.name?.trim().split(/\s+/)[0] || null)
+        setHasName(!!u?.name?.trim())
       })
       .catch(() => setSignedIn(false))
+    getPaymentDetails().then((d) => setHasPayment(!!d)).catch(() => setHasPayment(false))
     // Resolved on the server from the session: guests simply get empty results.
     listGroups().then(setGroups).catch(() => setGroups([]))
     listBills().then((b) => setLatest(b[0] ?? null)).catch(() => setLatest(null))
@@ -68,6 +75,7 @@ export default function DashboardPage() {
 
   return (
     <PageTransition>
+      {intro.show && <Intro onDone={intro.finish} />}
       <div className="mx-auto min-h-screen max-w-6xl space-y-8 bg-background p-6 pb-24 text-white md:p-10">
         <header className="space-y-1">
           <h1 data-testid="greeting" className="text-3xl font-black tracking-tight">
@@ -111,6 +119,18 @@ export default function DashboardPage() {
             </div>
           </Link>
         </section>
+
+        {signedIn === true && (
+          <SetupChecklist
+            hasName={hasName}
+            hasPayment={hasPayment}
+            hasGroup={groups.length > 0}
+            onNameSaved={(name) => {
+              setHasName(!!name)
+              setFirstName(name?.trim().split(/\s+/)[0] || null)
+            }}
+          />
+        )}
 
         {owed.length > 0 && (
           <Link href="/dashboard/balances" transitionTypes={["nav-forward"]} data-testid="home-owed" className="flex min-h-16 items-center justify-between gap-4 rounded-3xl border border-white/5 bg-surface p-5 transition-colors hover:border-white/20">

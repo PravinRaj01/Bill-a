@@ -6,8 +6,9 @@ import SplashScreen from "@/components/SplashScreen"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { login, signup, loginWithGoogle } from "@/app/auth/actions"
+
+const field = "h-12 rounded-xl border-white/10 bg-surface-2 text-base text-white md:text-base"
 
 export default function AuthPage() {
   const [showSplash, setShowSplash] = useState(true)
@@ -28,10 +29,12 @@ export default function AuthPage() {
   useEffect(() => {
     const code = new URLSearchParams(window.location.search).get("error")
     if (!code) return
-    setError(
-      code === "OAuthAccountNotLinked"
-        ? "That email is already registered with a password. Log in with your email and password instead."
-        : "Sign-in failed. Please try again.",
+    queueMicrotask(() =>
+      setError(
+        code === "OAuthAccountNotLinked"
+          ? "That email is already registered with a password. Log in with your email and password instead."
+          : "Sign-in failed. Please try again.",
+      ),
     )
   }, [])
 
@@ -51,94 +54,87 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-black p-4 animate-in fade-in duration-700">
-      <Card className="w-full max-w-md border-zinc-800 bg-zinc-950 text-white shadow-2xl rounded-3xl overflow-hidden ring-1 ring-white/5">
-        <CardHeader className="text-center space-y-2 pt-8">
-          <CardTitle className="text-3xl font-black tracking-tighter italic">
-            {isLogin ? "Welcome back" : "Join Bill.a"}
-          </CardTitle>
-          <CardDescription className="text-zinc-500 font-medium tracking-tight">
-            {isLogin 
-              ? "Login to sync your split history" 
-              : "Create an account to save your groups"}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-6 pb-8">
-          
-          {/* Google Authentication */}
-          <form action={loginWithGoogle} className="w-full">
-            <Button variant="outline" className="w-full border-zinc-800 bg-zinc-900 text-white hover:bg-zinc-800 rounded-xl h-12 font-bold transition-all">
-              <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
-                <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" fill="currentColor" />
-              </svg>
-              Continue with Google
-            </Button>
-          </form>
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 animate-in fade-in duration-700">
+      <div className="w-full max-w-md space-y-6 overflow-hidden rounded-3xl border border-white/5 bg-surface p-8 text-white shadow-2xl ring-1 ring-white/5">
+        <header className="space-y-2 text-center">
+          <h1 className="text-3xl font-black tracking-tighter italic">{isLogin ? "Welcome back" : "Join Bill.a"}</h1>
+          <p className="text-sm font-medium tracking-tight text-muted-foreground">
+            {isLogin ? "Login to sync your split history" : "Create an account to save your groups"}
+          </p>
+        </header>
 
-          <div className="relative">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-white/5" />
-            </div>
-            <div className="relative flex justify-center text-[10px] uppercase tracking-[0.2em]">
-              <span className="bg-zinc-950 px-4 text-zinc-600 font-bold">Or use email</span>
-            </div>
+        {/* Google Authentication */}
+        <form action={loginWithGoogle} className="w-full">
+          <Button variant="outline" className="h-12 w-full rounded-xl border-white/10 bg-surface-2 font-bold text-white transition-all hover:bg-white/10">
+            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+              <path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z" fill="currentColor" />
+            </svg>
+            Continue with Google
+          </Button>
+        </form>
+
+        <div className="relative">
+          <div className="absolute inset-0 flex items-center">
+            <span className="w-full border-t border-white/5" />
           </div>
+          <div className="relative flex justify-center text-xs tracking-[0.2em] uppercase">
+            <span className="bg-surface px-4 font-bold text-muted-foreground">Or use email</span>
+          </div>
+        </div>
 
-          {/* Credentials Form */}
-          <form action={handleSubmit} className="grid gap-4">
+        {/* Credentials Form */}
+        <form action={handleSubmit} className="grid gap-4">
+          {!isLogin && (
             <div className="grid gap-2">
-              <Label htmlFor="email" className="text-zinc-400 ml-1">Email</Label>
-              <Input 
-                id="email" 
-                name="email" 
-                type="email" 
-                placeholder="m@example.com" 
-                required 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="bg-zinc-900 border-zinc-800 h-11 focus:ring-1 ring-white/20 transition-all" 
-              />
+              <Label htmlFor="name" className="ml-1 text-muted-foreground">
+                Your name <span className="text-xs">(optional)</span>
+              </Label>
+              <Input id="name" name="name" type="text" autoComplete="name" maxLength={80} placeholder="What should we call you?" className={field} />
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password" title="password" className="text-zinc-400 ml-1">Password</Label>
-              <Input 
-                id="password" 
-                name="password" 
-                type="password" 
-                required 
-                className="bg-zinc-900 border-zinc-800 h-11 focus:ring-1 ring-white/20 transition-all" 
-              />
-            </div>
-            {error && <p className="text-sm text-red-500 text-center font-medium animate-bounce">{error}</p>}
-            <Button type="submit" className="w-full bg-white text-black hover:bg-zinc-200 h-12 font-black uppercase tracking-tighter rounded-xl" disabled={loading}>
-              {loading ? "Processing..." : (isLogin ? "Login" : "Create Account")}
-            </Button>
-          </form>
-
-          <div className="text-center">
-            <button 
-              type="button"
-              onClick={() => setIsLogin(!isLogin)} 
-              className="text-xs text-zinc-500 hover:text-white transition-colors font-medium underline underline-offset-4"
-            >
-              {isLogin ? "Need an account? Sign up" : "Already have an account? Login"}
-            </button>
+          )}
+          <div className="grid gap-2">
+            <Label htmlFor="email" className="ml-1 text-muted-foreground">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="m@example.com"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={field}
+            />
           </div>
-
-          <div className="relative pt-2">
-             <div className="relative flex justify-center text-[10px] uppercase tracking-[0.2em]">
-               <span className="bg-zinc-950 px-4 text-zinc-700 font-bold">Incognito</span>
-             </div>
+          <div className="grid gap-2">
+            <Label htmlFor="password" title="password" className="ml-1 text-muted-foreground">Password</Label>
+            <Input id="password" name="password" type="password" required className={field} />
           </div>
+          {error && <p role="alert" className="text-center text-sm font-medium text-coral">{error}</p>}
+          <Button type="submit" className="h-12 w-full rounded-xl bg-coral text-base font-bold text-coral-foreground hover:bg-coral/90" disabled={loading}>
+            {loading ? "Processing..." : (isLogin ? "Login" : "Create Account")}
+          </Button>
+        </form>
 
-          {/* --- FIXED GUEST LINK --- */}
-          <Link href="/dashboard" className="w-full">
-            <Button type="button" variant="ghost" className="w-full text-zinc-500 hover:text-white hover:bg-white/5 h-12 font-bold uppercase tracking-widest text-[10px]">
-              Continue as Guest
-            </Button>
-          </Link>
-        </CardContent>
-      </Card>
+        <div className="text-center">
+          <button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
+            className="min-h-11 text-sm font-medium text-muted-foreground underline underline-offset-4 transition-colors hover:text-white"
+          >
+            {isLogin ? "Need an account? Sign up" : "Already have an account? Login"}
+          </button>
+        </div>
+
+        <div className="relative flex justify-center text-xs tracking-[0.2em] uppercase">
+          <span className="bg-surface px-4 font-bold text-muted-foreground/70">Incognito</span>
+        </div>
+
+        <Link href="/dashboard" className="block w-full">
+          <Button type="button" variant="ghost" className="h-12 w-full text-xs font-bold tracking-widest text-muted-foreground uppercase hover:bg-white/5 hover:text-white">
+            Continue as Guest
+          </Button>
+        </Link>
+      </div>
     </div>
   )
 }

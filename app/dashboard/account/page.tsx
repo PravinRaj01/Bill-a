@@ -28,6 +28,9 @@ export default function AccountPage() {
   const [tab, setTab] = useState<Tab>("overview");
 
   useEffect(() => {
+    // Linked from the Home checklist (?tab=pay): open straight on that tab. After mount, so the server render agrees.
+    const want = new URLSearchParams(window.location.search).get("tab")
+    if (want === "pay" || want === "ai") queueMicrotask(() => setTab(want))
     Promise.all([getCurrentUser(), getAccountStats()]).then(([u, s]) => {
       setUser(u);
       setStats(s);
