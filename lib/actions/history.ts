@@ -16,7 +16,12 @@ export async function listBills() {
   const userId = await getUserIdOrNull();
   if (!userId) return [];
   const rows = await q.listBills(getDb(), userId);
-  return rows.map(({ split, settlement, ...rest }) => ({ ...rest, settle: summarizeSettlement(split, settlement) }));
+  return rows.map(({ split, settlement, ...rest }) => ({
+    ...rest,
+    // Who was in it (names only), for avatars on Home and History.
+    people: (split ?? []).map((x) => x.name),
+    settle: summarizeSettlement(split, settlement),
+  }));
 }
 
 export type BillListEntry = Awaited<ReturnType<typeof listBills>>[number];
