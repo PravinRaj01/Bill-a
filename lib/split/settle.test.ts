@@ -19,6 +19,7 @@ import {
   localDate,
   markAllPaid,
   markPaid,
+  markPersonPaid,
   minimalTransfers,
   nudgeText,
   paidMatches,
@@ -499,3 +500,46 @@ describe("settleStatus / summarizeSettlement (the History list)", () => {
     expect(summarizeSettlement(shares3, all)).toMatchObject({ outstanding: 0, collected: 8240, paidCount: 2 });
   });
 });
+
+describe("markPersonPaid (Mark all paid with one person)", () => {
+  const today = "2026-10-16";
+
+  it("marks what they owe you, leaving other people's transfers alone", () => {
+    // Alexis fronted it; Riley and Casey owe her. Marking Riley paid leaves Casey open.
+    const next = markPersonPaid(settle({ me: "Alexis", paidBy: singlePayer("Alexis", 9000) }), shares3Generic, "Riley", today);
+    expect(Object.keys(next.paid)).toEqual(["Riley->Alexis"]);
+    expect(settleView(shares3Generic, next, today)).toMatchObject({ outstanding: 3000, paidCount: 1 });
+  });
+
+  it("works when YOU owe them (you paid them back)", () => {
+    const next = markPersonPaid(settle({ me: "Alexis", paidBy: singlePayer("Riley", 9000) }), shares3Generic, "Riley", today);
+    expect(Object.keys(next.paid)).toEqual(["Alexis->Riley"]);
+  });
+
+  it("matches the name ignoring case and spaces, and does both directions at once", () => {
+    // several payers: Alexis owes Riley, and Riley owes Alexis nothing; Casey owes both
+    const s = settle({ me: "Alexis", paidBy: [{ name: "Riley", amount: 5000 }, { name: "Casey", amount: 4000 }] });
+    const next = markPersonPaid(s, shares3Generic, "  RILEY ", today);
+    expect(Object.keys(next.paid)).toEqual(["Alexis->Riley"]);
+  });
+
+  it("is a no-op without 'me', with a mismatch, or when nothing is open with that person", () => {
+    const s = settle({ me: undefined, paidBy: singlePayer("Alexis", 9000) });
+    expect(markPersonPaid(s, shares3Generic, "Riley", today)).toBe(s);
+    const bad = settle({ me: "Alexis", paidBy: singlePayer("Alexis", 100) });
+    expect(markPersonPaid(bad, shares3Generic, "Riley", today)).toBe(bad);
+    const done = markPersonPaid(settle({ me: "Alexis", paidBy: singlePayer("Alexis", 9000) }), shares3Generic, "Riley", today);
+    expect(Object.keys(markPersonPaid(done, shares3Generic, "Riley", today).paid)).toEqual(["Riley->Alexis"]); // idempotent
+  });
+
+  it("drops a stale mark instead of carrying it along", () => {
+    const stale = settle({ me: "Alexis", paidBy: singlePayer("Alexis", 9000), paid: { "Ghost->Alexis": { at: today, amount: 1 } } });
+    expect(Object.keys(markPersonPaid(stale, shares3Generic, "Riley", today).paid)).toEqual(["Riley->Alexis"]);
+  });
+});
+
+const shares3Generic: Share[] = [
+  { name: "Alexis", amount: 3000 },
+  { name: "Riley", amount: 3000 },
+  { name: "Casey", amount: 3000 },
+];

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { SettleModel } from "@/components/split/SettleUp";
 import type { BillHistoryRow } from "@/lib/db/schema";
+import { payloadWithSettlement } from "@/lib/sync/billPayload";
 import { enqueueBill } from "@/lib/sync/outbox";
 import { defaultSettlement, guessMe, localDate, normalizeSettlement, settleView } from "@/lib/split/settle";
 import type { Settlement } from "@/types/domain";
@@ -26,18 +27,7 @@ export function useBillSettlement(bill: BillHistoryRow | null, user: { id: strin
 
   const save = async (next: Settlement | null) => {
     if (!bill || !user) return;
-    const data = { ...bill.data };
-    delete data.settlement;
-    const tier = bill.providerTier === "groq" || bill.providerTier === "gemini" || bill.providerTier === "fallback" ? bill.providerTier : null;
-    await enqueueBill(user.id, {
-      clientId: bill.clientId,
-      billTitle: bill.billTitle,
-      merchantCategory: bill.merchantCategory,
-      totalAmount: bill.totalAmount,
-      currency: bill.currency,
-      providerTier: tier,
-      data: next ? { ...data, settlement: next } : data,
-    });
+    await enqueueBill(user.id, payloadWithSettlement(bill, next));
   };
 
   const changeNow = async (edit: (s: Settlement) => Settlement) => {

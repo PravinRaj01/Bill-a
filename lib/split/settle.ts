@@ -463,3 +463,22 @@ export function summarizeSettlement(shares: Share[] | null | undefined, settleme
     mismatch: false,
   };
 }
+
+// ---- settling up with one person across bills ----------------------------------------------
+
+/**
+ * Marks paid every still-open transfer in this bill between YOU (`settlement.me`) and `person`, in either
+ * direction (they paid you, or you paid them). Transfers between other people are left alone. Returns the
+ * same settlement when there is nothing to mark.
+ */
+export function markPersonPaid(settlement: Settlement, shares: Share[], person: string, today: string): Settlement {
+  const me = settlement.me ? norm(settlement.me) : null;
+  const view = settleView(shares, settlement, today);
+  if (!me || !view || !view.ok) return settlement;
+  const p = norm(person);
+  const theirs = view.transfers.filter(
+    (t) => !t.paid && ((norm(t.from) === p && norm(t.to) === me) || (norm(t.to) === p && norm(t.from) === me)),
+  );
+  // Start from the pruned settlement so a stale mark can't ride along.
+  return theirs.reduce((acc, t) => markPaid(acc, t, today), view.settlement);
+}
