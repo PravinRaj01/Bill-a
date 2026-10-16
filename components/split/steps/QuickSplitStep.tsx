@@ -5,7 +5,7 @@ import { formatMoney } from "@/lib/money";
 
 // Quick split, step 3: Equal (one tap) or Custom (sliders). There are no items for an instruction to
 // refer to, so Describe isn't offered; the "describe it" follow-up on the result page still accepts
-// "Pravin 70%, Lakx 30%".
+// "Alexis 70%, Riley 30%".
 export function QuickSplitStep({ s }: { s: SplitSession }) {
   const item = s.receipt?.items[0]?.name;
   return (

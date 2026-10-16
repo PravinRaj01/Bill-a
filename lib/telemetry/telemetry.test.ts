@@ -50,10 +50,10 @@ describe("event schema is a strict allowlist", () => {
 
   it.each([
     ["an API key", { ...split, apiKey: "gsk_x" }],
-    ["people's names", { ...split, people: ["Pravin"] }],
+    ["people's names", { ...split, people: ["Alexis"] }],
     ["item names", { ...split, items: ["NASI"] }],
     ["a price", { ...split, total: 1234 }],
-    ["the instruction text", { ...split, instruction: "Pravin pays" }],
+    ["the instruction text", { ...split, instruction: "Alexis pays" }],
     ["a user id", { ...split, userId: "abc" }],
     ["an unknown event type", { type: "keylog", data: "x" }],
     ["a nested extra field", { ...split, attempts: [{ tier: "groq", kind: "auth", key: "gsk_x" }] }],

@@ -11,7 +11,7 @@ describe("computeSplit with a printed rounding adjustment", () => {
   it("reconciles to the printed total when there is rounding and no tax line (the dropped-line bug)", () => {
     // 10.00 + 10.00 = 20.00, receipt rounds it down to 19.98
     const r = receipt({ items: [item("A", 1000), item("B", 1000)], total: 1998, rounding: -2 });
-    const out = computeSplit(r, ["Pravin", "Lakx"], plan(), true);
+    const out = computeSplit(r, ["Alexis", "Riley"], plan(), true);
     expect(sum(out.splits)).toBe(1998);
     expect(out.splits.map((s) => s.amount)).toEqual([999, 999]);
     expect(out.reasoning).toMatch(/Rounding adjustment -0\.02/);

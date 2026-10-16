@@ -18,7 +18,7 @@ const real = receipt({
 
 describe("computeSplit: sum, divide, then round ONCE (no per-item cent bias)", () => {
   it("splits RM37.00 between two people as 18.50 / 18.50, not 18.51 / 18.49", () => {
-    const r = computeSplit(real, ["Pravin", "Wifey"], plan(), true);
+    const r = computeSplit(real, ["Alexis", "Wifey"], plan(), true);
     expect(r.splits.map((s) => s.amount)).toEqual([1850, 1850]);
   });
 
@@ -63,9 +63,9 @@ describe("computeSplit: sum, divide, then round ONCE (no per-item cent bias)", (
   });
 
   it("the reasoning log explains that it rounds once, at the end", () => {
-    const r = computeSplit(real, ["Pravin", "Wifey"], plan(), true);
+    const r = computeSplit(real, ["Alexis", "Wifey"], plan(), true);
     expect(r.reasoning).toMatch(/rounded once, at the end/);
-    expect(r.reasoning).toMatch(/Pravin 18\.50, Wifey 18\.50/);
+    expect(r.reasoning).toMatch(/Alexis 18\.50, Wifey 18\.50/);
     expect(r.reasoning).toMatch(/Reconciled: 37\.00 === receipt 37\.00/);
   });
 
@@ -100,38 +100,38 @@ describe("computeSplit: sum, divide, then round ONCE (no per-item cent bias)", (
 });
 
 describe("computeSplit: who pays the tax / service charge", () => {
-  const allToPravin = plan({ assignments: [{ itemIndex: 0, people: ["Pravin"] }, { itemIndex: 1, people: ["Pravin"] }] });
+  const allToAlexis = plan({ assignments: [{ itemIndex: 0, people: ["Alexis"] }, { itemIndex: 1, people: ["Alexis"] }] });
 
-  it("'Pravin pays the food, Wifey pays the tax': 34.91 / 2.09", () => {
-    const r = computeSplit(real, ["Pravin", "Wifey"], { ...allToPravin, taxPayers: ["Wifey"] }, true);
+  it("'Alexis pays the food, Wifey pays the tax': 34.91 / 2.09", () => {
+    const r = computeSplit(real, ["Alexis", "Wifey"], { ...allToAlexis, taxPayers: ["Wifey"] }, true);
     expect(r.splits.map((s) => s.amount)).toEqual([3491, 209]);
     expect(r.reasoning).toMatch(/paid by Wifey as instructed/);
     expect(r.splits[1].items).toBe("tax/service");
   });
 
-  it("without a tax instruction the tax follows the food (the default): all on Pravin", () => {
-    const r = computeSplit(real, ["Pravin", "Wifey"], allToPravin, true);
+  it("without a tax instruction the tax follows the food (the default): all on Alexis", () => {
+    const r = computeSplit(real, ["Alexis", "Wifey"], allToAlexis, true);
     expect(r.splits.map((s) => s.amount)).toEqual([3700, 0]);
   });
 
   it("several tax payers share it equally", () => {
-    const r = computeSplit(real, ["Pravin", "Wifey", "Sam"], { ...allToPravin, taxPayers: ["Wifey", "Sam"] }, true);
+    const r = computeSplit(real, ["Alexis", "Wifey", "Sam"], { ...allToAlexis, taxPayers: ["Wifey", "Sam"] }, true);
     expect(r.splits.map((s) => s.amount)).toEqual([3491, 105, 104]); // 2.09 / 2, the odd cent to the first payer
     expect(totalOf(r.splits)).toBe(3700);
   });
 
   it("is ignored when tax is switched off", () => {
-    const r = computeSplit(real, ["Pravin", "Wifey"], { ...allToPravin, taxPayers: ["Wifey"] }, false);
+    const r = computeSplit(real, ["Alexis", "Wifey"], { ...allToAlexis, taxPayers: ["Wifey"] }, false);
     expect(r.splits.map((s) => s.amount)).toEqual([3491, 0]);
   });
 
   it("ignores names that aren't in the bill, and falls back to the default if none remain", () => {
-    const r = computeSplit(real, ["Pravin", "Wifey"], { ...allToPravin, taxPayers: ["Mallory"] }, true);
+    const r = computeSplit(real, ["Alexis", "Wifey"], { ...allToAlexis, taxPayers: ["Mallory"] }, true);
     expect(r.splits.map((s) => s.amount)).toEqual([3700, 0]);
   });
 
   it("a tax payer who also ate pays their food plus the whole tax", () => {
-    const r = computeSplit(real, ["Pravin", "Wifey"], { ...plan(), taxPayers: ["Wifey"] }, true);
+    const r = computeSplit(real, ["Alexis", "Wifey"], { ...plan(), taxPayers: ["Wifey"] }, true);
     expect(totalOf(r.splits)).toBe(3700);
     // food is 34.91 shared equally (17.455 each); Wifey adds all 2.09 => exactly 17.455 vs 19.545.
     // Both have a half-cent remainder (a tie), so the one leftover cent goes to the first person.
@@ -141,8 +141,8 @@ describe("computeSplit: who pays the tax / service charge", () => {
   it("with excluded items, the tax payer pays only the tax on the covered portion", () => {
     const r = computeSplit(
       real,
-      ["Pravin", "Wifey"],
-      { assignments: [{ itemIndex: 0, people: ["Pravin"] }], defaultRule: "exclude", notes: "", taxPayers: ["Wifey"] },
+      ["Alexis", "Wifey"],
+      { assignments: [{ itemIndex: 0, people: ["Alexis"] }], defaultRule: "exclude", notes: "", taxPayers: ["Wifey"] },
       true,
     );
     expect(r.splits[0].amount).toBe(1887);

@@ -35,7 +35,7 @@ function parseNewNames(instruction: string, people: string[]): { fresh: string[]
   const names = rest
     .split(/\s*(?:,|&|\band\b)\s*/i)
     .map((n) => n.trim())
-    // a name is one to three plain words: rejects sentences like "the pizza to Pravin"
+    // a name is one to three plain words: rejects sentences like "the pizza to Alexis"
     .filter((n) => /^[A-Za-z][A-Za-z'.-]*(?:\s+[A-Za-z][A-Za-z'.-]*){0,2}$/.test(n))
     .filter((n) => n.length <= 30);
   if (names.length === 0) return null;

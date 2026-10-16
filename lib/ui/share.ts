@@ -1,4 +1,4 @@
-// Sharing a message ("Lakx owes RM41.20", a nudge): the phone's own share sheet first, so the person
+// Sharing a message ("Riley owes RM41.20", a nudge): the phone's own share sheet first, so the person
 // picks WhatsApp, Telegram, SMS, whatever they use. The old `whatsapp://` link only worked on phones
 // with WhatsApp installed and did nothing on a desktop.
 //

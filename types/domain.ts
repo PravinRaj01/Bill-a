@@ -98,7 +98,7 @@ export interface BillData {
 
 /**
  * Who fronted a bill and who has paid them back. Optional on a saved bill (older bills have none).
- * Transfers ("Lakx -> Pravin RM41.20") are DERIVED from the shares and `paidBy`, never stored: only
+ * Transfers ("Riley -> Alexis RM41.20") are DERIVED from the shares and `paidBy`, never stored: only
  * the facts people entered are. See lib/split/settle.ts.
  */
 export interface Settlement {

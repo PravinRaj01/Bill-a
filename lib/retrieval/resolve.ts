@@ -160,7 +160,7 @@ export function resolveItemReference(
   const catId = matchCategoryPhrase(needle);
   if (catId) {
     // "the food" (and "the meal") in everyday speech means everything that isn't a drink —
-    // NOT just the mains: "Pravin pays for the food, Wifey pays the tax" must include the
+    // NOT just the mains: "Alexis pays for the food, Wifey pays the tax" must include the
     // dumplings and the dessert. Unclassified items count as food.
     const meansAllFood = catId === "mains" && /(?:^|[^a-z])(?:food|meals?)(?:[^a-z]|$)/.test(needle);
     const hits: number[] = [];
@@ -256,7 +256,7 @@ export function resolveInstruction(
     }
   }
 
-  // Item names mentioned directly ("Pravin had the teh tarik").
+  // Item names mentioned directly ("Alexis had the teh tarik").
   items.forEach((item, i) => {
     const name = normalise(item.name);
     if (text.includes(name) && !seen.has(name)) {

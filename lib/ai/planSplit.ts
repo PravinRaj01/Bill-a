@@ -42,7 +42,7 @@ export interface PlanSplitInput {
 export type PlanOutcome =
   | { kind: "add-members"; names: string[] }
   | {
-      /** "Pravin 70%, Lakx 30%": worked out on the device from the numbers given; no model was asked. */
+      /** "Alexis 70%, Riley 30%": worked out on the device from the numbers given; no model was asked. */
       kind: "shares";
       result: SplitResult;
       summary: string;
@@ -94,7 +94,7 @@ export async function planSplit(input: PlanSplitInput): Promise<PlanOutcome> {
     if (ambiguities.length > 0) return { kind: "needs-clarification", chips: ambiguities };
   }
 
-  // 3. Whole-bill shares ("Pravin 70%, Lakx 30%", "Lakx pays RM30, the rest equally") are arithmetic on
+  // 3. Whole-bill shares ("Alexis 70%, Riley 30%", "Riley pays RM30, the rest equally") are arithmetic on
   //    numbers the user typed, not language to interpret: read them here, never ask a model, and ask
   //    a question (rather than guess) when they don't add up.
   const subtotal = receipt.items.reduce((s, it) => s + it.totalPrice, 0);

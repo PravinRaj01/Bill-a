@@ -64,8 +64,8 @@ describe("defaultAbsorber", () => {
 
 describe("roundSplit", () => {
   const exact = [
-    { name: "Pravin", amount: 5475, items: "a" },
-    { name: "Lakx", amount: 5474, items: "b" },
+    { name: "Alexis", amount: 5475, items: "a" },
+    { name: "Riley", amount: 5474, items: "b" },
   ];
   it("is a no-op (changed=false) for the exact unit", () => {
     const r = roundSplit(exact, 1, null);
@@ -73,8 +73,8 @@ describe("roundSplit", () => {
     expect(r.changed).toBe(false);
   });
   it("rounds by name, keeping items, and reports the absorber's index", () => {
-    const r = roundSplit(exact, 100, "Lakx");
-    expect(r.splits.map((s) => [s.name, s.amount, s.items])).toEqual([["Pravin", 5500, "a"], ["Lakx", 5449, "b"]]);
+    const r = roundSplit(exact, 100, "Riley");
+    expect(r.splits.map((s) => [s.name, s.amount, s.items])).toEqual([["Alexis", 5500, "a"], ["Riley", 5449, "b"]]);
     expect(r.absorber).toBe(1);
     expect(r.changed).toBe(true);
   });

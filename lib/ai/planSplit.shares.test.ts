@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { planSplit } from "./planSplit";
 import type { Receipt } from "@/types/domain";
 
-// "Pravin 70%, Lakx 30%" is arithmetic on typed numbers: it must be answered on the device,
+// "Alexis 70%, Riley 30%" is arithmetic on typed numbers: it must be answered on the device,
 // with no model call and no cross-check, even when a key is set.
 
 const receipt: Receipt = {
@@ -15,16 +15,16 @@ const receipt: Receipt = {
     { name: "TEH TARIK", quantity: 2, unitPrice: 1000, totalPrice: 2000 },
   ],
 };
-const people = ["Pravin", "Lakx"];
+const people = ["Alexis", "Riley"];
 const base = { receipt, people, applyTax: true, keys: { groq: "gsk_x" } as Record<string, string> };
 
 describe("planSplit: whole-bill shares", () => {
-  it("'sum up everything and pravin pays 70%, lakx pay 30%' -> exact 70/30 of the bill, no network", async () => {
+  it("'sum up everything and alexis pays 70%, riley pay 30%' -> exact 70/30 of the bill, no network", async () => {
     const f = vi.fn();
-    const out = await planSplit({ ...base, instructions: ["sum up everything and pravin pays 70%, lakx pay 30%"], fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["sum up everything and alexis pays 70%, riley pay 30%"], fetchImpl: f as never });
     expect(out.kind).toBe("shares");
     if (out.kind !== "shares") return;
-    expect(out.result.splits.map((s) => [s.name, s.amount])).toEqual([["Pravin", 7770], ["Lakx", 3330]]);
+    expect(out.result.splits.map((s) => [s.name, s.amount])).toEqual([["Alexis", 7770], ["Riley", 3330]]);
     expect(out.result.verified).toBe(true);
     expect(out.result.reasoning).toMatch(/Reconciled: 111\.00/);
     expect(f).not.toHaveBeenCalled();
@@ -32,7 +32,7 @@ describe("planSplit: whole-bill shares", () => {
 
   it("uses the subtotal when tax & service is switched off", async () => {
     const f = vi.fn();
-    const out = await planSplit({ ...base, applyTax: false, instructions: ["Pravin 50%, Lakx 50%"], fetchImpl: f as never });
+    const out = await planSplit({ ...base, applyTax: false, instructions: ["Alexis 50%, Riley 50%"], fetchImpl: f as never });
     expect(out.kind === "shares" && out.result.splits.reduce((s, r) => s + r.amount, 0)).toBe(10000);
     expect(f).not.toHaveBeenCalled();
   });
@@ -42,7 +42,7 @@ describe("planSplit: whole-bill shares", () => {
     const out = await planSplit({
       ...base,
       receipt: { ...receipt, total: 11098, rounding: -2 },
-      instructions: ["Pravin 70%, Lakx 30%"],
+      instructions: ["Alexis 70%, Riley 30%"],
       fetchImpl: f as never,
     });
     expect(out.kind === "shares" && out.result.splits.reduce((s, r) => s + r.amount, 0)).toBe(11098);
@@ -50,14 +50,14 @@ describe("planSplit: whole-bill shares", () => {
 
   it("a follow-up on the final page replaces the whole split", async () => {
     const f = vi.fn();
-    const out = await planSplit({ ...base, instructions: ["split equally", "actually Pravin 70%, Lakx 30%"], fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["split equally", "actually Alexis 70%, Riley 30%"], fetchImpl: f as never });
     expect(out.kind === "shares" && out.result.splits.map((s) => s.amount)).toEqual([7770, 3330]);
     expect(f).not.toHaveBeenCalled();
   });
 
   it("asks (no model call) when the percentages don't add up", async () => {
     const f = vi.fn();
-    const out = await planSplit({ ...base, instructions: ["Pravin 70%, Lakx 50%"], fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["Alexis 70%, Riley 50%"], fetchImpl: f as never });
     expect(out.kind).toBe("needs-clarification");
     expect(out.kind === "needs-clarification" && out.chips[0]).toMatchObject({ kind: "shares" });
     expect(f).not.toHaveBeenCalled();
@@ -65,18 +65,18 @@ describe("planSplit: whole-bill shares", () => {
 
   it("still catches a typo or a stranger BEFORE reading the shares", async () => {
     const f = vi.fn();
-    const typo = await planSplit({ ...base, instructions: ["Pravn 70%, Lakx 30%"], fetchImpl: f as never });
-    expect(typo.kind === "needs-clarification" && typo.chips).toContainEqual({ kind: "possible-typo", token: "Pravn", suggestion: "Pravin" });
-    const stranger = await planSplit({ ...base, instructions: ["Pravin 50%, Wei 50%"], fetchImpl: f as never });
+    const typo = await planSplit({ ...base, instructions: ["Alexs 70%, Riley 30%"], fetchImpl: f as never });
+    expect(typo.kind === "needs-clarification" && typo.chips).toContainEqual({ kind: "possible-typo", token: "Alexs", suggestion: "Alexis" });
+    const stranger = await planSplit({ ...base, instructions: ["Alexis 50%, Wei 50%"], fetchImpl: f as never });
     expect(stranger.kind === "needs-clarification" && stranger.chips).toContainEqual({ kind: "unknown-person", token: "Wei" });
     expect(f).not.toHaveBeenCalled();
   });
 
   it("an item instruction with a percentage is NOT treated as whole-bill shares", async () => {
     const f = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ assignments: [{ itemIndex: 0, people: ["Pravin"] }], defaultRule: "equal", notes: "" }) }, finish_reason: "stop" }] })),
+      new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ assignments: [{ itemIndex: 0, people: ["Alexis"] }], defaultRule: "equal", notes: "" }) }, finish_reason: "stop" }] })),
     );
-    const out = await planSplit({ ...base, instructions: ["Pravin pays 50% of the fried rice"], fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["Alexis pays 50% of the fried rice"], fetchImpl: f as never });
     expect(out.kind).not.toBe("shares");
     expect(f).toHaveBeenCalled();
   });

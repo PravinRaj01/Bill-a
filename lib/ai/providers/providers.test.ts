@@ -12,9 +12,9 @@ const items = [
   { name: "TEH TARIK", quantity: 2, unitPrice: 400, totalPrice: 800 },
   { name: "ROTI CANAI", quantity: 1, unitPrice: 300, totalPrice: 300 },
 ];
-const req: PlanRequest = { people: ["Pravin", "Aisha"], items, instructions: ["Pravin pays for the teh tarik"] };
+const req: PlanRequest = { people: ["Alexis", "Aisha"], items, instructions: ["Alexis pays for the teh tarik"] };
 
-const goodPlan = { assignments: [{ itemIndex: 1, people: ["Pravin"] }], defaultRule: "equal", notes: "" };
+const goodPlan = { assignments: [{ itemIndex: 1, people: ["Alexis"] }], defaultRule: "equal", notes: "" };
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -24,7 +24,7 @@ const geminiOk = (plan: unknown = goodPlan) =>
 
 describe("schemas per provider", () => {
   const idx = [0, 1, 2];
-  const people = ["Pravin", "Aisha"];
+  const people = ["Alexis", "Aisha"];
 
   it("groq strict: closed objects, every property required, integer enum", () => {
     const s = buildAssignmentPlanSchema(idx, people, "groq") as any;
@@ -274,7 +274,7 @@ describe("runCascade", () => {
     const f = routes(async () => groqOk(), async () => geminiOk());
     const r = await runCascade(req, { keys, fetchImpl: f as never });
     expect(r.tier).toBe("groq");
-    expect(r.plan.assignments).toEqual([{ itemIndex: 1, people: ["Pravin"] }]);
+    expect(r.plan.assignments).toEqual([{ itemIndex: 1, people: ["Alexis"] }]);
     expect(f).toHaveBeenCalledTimes(1);
   });
 
@@ -302,7 +302,7 @@ describe("runCascade", () => {
   });
 
   it("an out-of-range item index is rejected", async () => {
-    const bad = { assignments: [{ itemIndex: 9, people: ["Pravin"] }], defaultRule: "equal", notes: "" };
+    const bad = { assignments: [{ itemIndex: 9, people: ["Alexis"] }], defaultRule: "equal", notes: "" };
     const f = routes(async () => groqOk(bad), async () => geminiOk(bad));
     const r = await runCascade(req, { keys, fetchImpl: f as never });
     expect(r.tier).toBe("fallback");
@@ -322,7 +322,7 @@ describe("runCascade", () => {
     const r = await runCascade(req, { keys, fetchImpl: f as never });
     expect(r.tier).toBe("fallback");
     expect(r.attempts.map((a) => a.kind)).toEqual(["network", "network", "network", "network"]); // groq x2 models, gemini x2 models
-    expect(r.plan.assignments).toEqual([{ itemIndex: 1, people: ["Pravin"] }]); // "Pravin pays for the teh tarik"
+    expect(r.plan.assignments).toEqual([{ itemIndex: 1, people: ["Alexis"] }]); // "Alexis pays for the teh tarik"
   });
 
   it("no keys at all: straight to the fallback, zero network calls", async () => {

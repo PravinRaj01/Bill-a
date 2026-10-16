@@ -2,7 +2,7 @@ import { CATEGORIES, normalise } from "./lexicon";
 
 // Person-name matching shared by the intent router and the fallback parser.
 // Exact matches are trusted; near misses are only ever SUGGESTED (a chip asks
-// "did you mean Pravin?") — a typo is never silently resolved to a person,
+// "did you mean Alexis?") — a typo is never silently resolved to a person,
 // because assigning money to the wrong person is the one error that matters.
 
 export function levenshtein(a: string, b: string): number {
@@ -60,7 +60,7 @@ export interface PersonMention {
 
 /**
  * People named in `text` (exact, case-insensitive, whole-word; a possessive or
- * contraction like "Pravin's" counts), in order of appearance. A person matches
+ * contraction like "Alexis's" counts), in order of appearance. A person matches
  * on their full name, or on their first name when that first name is unique in
  * the group.
  */
@@ -78,7 +78,7 @@ export function findPersonMentions(text: string, people: string[]): PersonMentio
       const at = hay.indexOf(` ${cand} `);
       if (at >= 0 && (best < 0 || at < best)) best = at;
     }
-    // normalise() turns "Pravin's" into "pravin s", so the name is followed by a
+    // normalise() turns "Alexis's" into "alexis s", so the name is followed by a
     // space and matches above; nothing extra is needed for possessives.
     if (best >= 0) out.push({ person, index: best });
   });

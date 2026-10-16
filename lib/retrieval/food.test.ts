@@ -8,7 +8,7 @@ describe('"the food" means everything that is not a drink', () => {
   const items = [it_("MUSH NOODLES DRY"), it_("STEAM DUMPLINGS"), it_("TEH TARIK"), it_("TIGER BEER"), it_("CHOCOLATE CAKE")];
 
   it("includes mains, sides, desserts and unclassified items; excludes drinks and alcohol", () => {
-    const food = resolveInstruction("Pravin pays for the food", items).references.find((r) => /food/.test(r.phrase));
+    const food = resolveInstruction("Alexis pays for the food", items).references.find((r) => /food/.test(r.phrase));
     expect(food?.itemIndices).toEqual([0, 1, 4]);
   });
 
@@ -23,12 +23,12 @@ describe('"the food" means everything that is not a drink', () => {
   });
 
   it("other categories are unchanged: 'the drinks' is still just the drinks", () => {
-    const drinks = resolveInstruction("Pravin pays for the drinks", items).references.find((r) => /drink/.test(r.phrase));
+    const drinks = resolveInstruction("Alexis pays for the drinks", items).references.find((r) => /drink/.test(r.phrase));
     expect(drinks?.itemIndices).toEqual([2]);
   });
 
   it("'the mains' is still the mains only", () => {
-    const mains = resolveInstruction("Pravin pays for the mains", items).references.find((r) => /mains/.test(r.phrase));
+    const mains = resolveInstruction("Alexis pays for the mains", items).references.find((r) => /mains/.test(r.phrase));
     expect(mains?.itemIndices).toEqual([0]);
   });
 });

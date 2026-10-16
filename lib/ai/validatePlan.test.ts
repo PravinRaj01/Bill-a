@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { validatePlan } from "./validatePlan";
 
-const ctx = { itemCount: 3, people: ["Pravin", "Aisha", "Sarah"] };
+const ctx = { itemCount: 3, people: ["Alexis", "Aisha", "Sarah"] };
 const plan = (assignments: unknown[], defaultRule = "equal") => ({ assignments, defaultRule, notes: "" });
 
 describe("validatePlan", () => {
   it("accepts a clean plan unchanged", () => {
-    const r = validatePlan(plan([{ itemIndex: 1, people: ["Pravin"] }]), ctx);
+    const r = validatePlan(plan([{ itemIndex: 1, people: ["Alexis"] }]), ctx);
     expect(r).toEqual({
       ok: true,
       repairs: [],
-      plan: { assignments: [{ itemIndex: 1, people: ["Pravin"] }], defaultRule: "equal", notes: "" },
+      plan: { assignments: [{ itemIndex: 1, people: ["Alexis"] }], defaultRule: "equal", notes: "" },
     });
   });
 
@@ -24,19 +24,19 @@ describe("validatePlan", () => {
     ["missing defaultRule", { assignments: [] }],
     ["bad defaultRule", plan([], "sometimes")],
     ["assignments not an array", { assignments: "x", defaultRule: "equal" }],
-    ["non-integer itemIndex", plan([{ itemIndex: 1.5, people: ["Pravin"] }])],
+    ["non-integer itemIndex", plan([{ itemIndex: 1.5, people: ["Alexis"] }])],
   ])("rejects %s", (_n, raw) => {
     expect(validatePlan(raw, ctx).ok).toBe(false);
   });
 
   it("rejects an out-of-range item index (both ends)", () => {
-    expect(validatePlan(plan([{ itemIndex: 3, people: ["Pravin"] }]), ctx).ok).toBe(false);
-    expect(validatePlan(plan([{ itemIndex: -1, people: ["Pravin"] }]), ctx).ok).toBe(false);
+    expect(validatePlan(plan([{ itemIndex: 3, people: ["Alexis"] }]), ctx).ok).toBe(false);
+    expect(validatePlan(plan([{ itemIndex: -1, people: ["Alexis"] }]), ctx).ok).toBe(false);
   });
 
   it("drops unknown names but keeps the rest, and canonicalises case", () => {
-    const r = validatePlan(plan([{ itemIndex: 0, people: ["pravin", "Mallory"] }]), ctx);
-    expect(r).toMatchObject({ ok: true, plan: { assignments: [{ itemIndex: 0, people: ["Pravin"] }] } });
+    const r = validatePlan(plan([{ itemIndex: 0, people: ["alexis", "Mallory"] }]), ctx);
+    expect(r).toMatchObject({ ok: true, plan: { assignments: [{ itemIndex: 0, people: ["Alexis"] }] } });
   });
 
   it("rejects an assignment whose names are all unknown (would silently change who pays)", () => {
@@ -51,15 +51,15 @@ describe("validatePlan", () => {
 
   it("dedupes itemIndex across assignments — last one wins, like computeSplit", () => {
     const r = validatePlan(
-      plan([{ itemIndex: 2, people: ["Pravin"] }, { itemIndex: 2, people: ["Sarah"] }]),
+      plan([{ itemIndex: 2, people: ["Alexis"] }, { itemIndex: 2, people: ["Sarah"] }]),
       ctx,
     );
     expect(r).toMatchObject({ ok: true, plan: { assignments: [{ itemIndex: 2, people: ["Sarah"] }] } });
   });
 
   it("drops weights that no longer line up with the surviving names", () => {
-    const r = validatePlan(plan([{ itemIndex: 0, people: ["Pravin", "Mallory"], weights: [1, 2] }]), ctx);
-    expect(r).toMatchObject({ ok: true, plan: { assignments: [{ itemIndex: 0, people: ["Pravin"] }] } });
+    const r = validatePlan(plan([{ itemIndex: 0, people: ["Alexis", "Mallory"], weights: [1, 2] }]), ctx);
+    expect(r).toMatchObject({ ok: true, plan: { assignments: [{ itemIndex: 0, people: ["Alexis"] }] } });
     expect((r as { plan: { assignments: object[] } }).plan.assignments[0]).not.toHaveProperty("weights");
   });
 });

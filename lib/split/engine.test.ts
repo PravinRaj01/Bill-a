@@ -48,14 +48,14 @@ describe("computeSplit", () => {
       total: 1500,
     });
     const p = plan({
-      assignments: [{ itemIndex: 0, people: ["Pravin"] }],
+      assignments: [{ itemIndex: 0, people: ["Alexis"] }],
       defaultRule: "equal",
     });
-    const result = computeSplit(r, ["Pravin", "Aisha"], p, false);
-    const pravin = result.splits.find((s) => s.name === "Pravin")!;
+    const result = computeSplit(r, ["Alexis", "Aisha"], p, false);
+    const alexis = result.splits.find((s) => s.name === "Alexis")!;
     const aisha = result.splits.find((s) => s.name === "Aisha")!;
-    // Pravin: full drink (500) + half the rice (500) = 1000
-    expect(pravin.amount).toBe(1000);
+    // Alexis: full drink (500) + half the rice (500) = 1000
+    expect(alexis.amount).toBe(1000);
     // Aisha: just half the rice = 500
     expect(aisha.amount).toBe(500);
     expect(totalOf(result.splits)).toBe(1500);

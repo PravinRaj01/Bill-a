@@ -9,8 +9,8 @@ import { cn } from "@/lib/utils";
 // person's slider can wear their colour: style={{ "--slider-color": personColor(name) }}.
 //
 // Radix puts role="slider" on the THUMB, so the accessible name and the spoken value have to
-// go there: `aria-label` names it ("Pravin's share") and `valueText` is what a screen reader
-// says ("Pravin, 70 percent, RM77.70") instead of a bare number of cents.
+// go there: `aria-label` names it ("Alexis's share") and `valueText` is what a screen reader
+// says ("Alexis, 70 percent, RM77.70") instead of a bare number of cents.
 function Slider({
   className,
   valueText,

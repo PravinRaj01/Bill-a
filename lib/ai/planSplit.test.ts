@@ -12,7 +12,7 @@ const receipt: Receipt = {
     { name: "TEH TARIK", quantity: 2, unitPrice: 400, totalPrice: 800 },
   ],
 };
-const people = ["Pravin", "Aisha", "Sarah"];
+const people = ["Alexis", "Aisha", "Sarah"];
 const base = { receipt, people, applyTax: false, keys: {} as Record<string, string> };
 
 const json = (b: unknown, status = 200) => new Response(JSON.stringify(b), { status });
@@ -29,44 +29,44 @@ describe("planSplit", () => {
 
   it("asks about a typo BEFORE spending an LLM call", async () => {
     const f = vi.fn();
-    const out = await planSplit({ ...base, instructions: ["Pravn had the fried rice"], keys: { groq: "gsk_x" }, fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["Alexs had the fried rice"], keys: { groq: "gsk_x" }, fetchImpl: f as never });
     expect(out.kind).toBe("needs-clarification");
-    expect(out.kind === "needs-clarification" && out.chips).toContainEqual({ kind: "possible-typo", token: "Pravn", suggestion: "Pravin" });
+    expect(out.kind === "needs-clarification" && out.chips).toContainEqual({ kind: "possible-typo", token: "Alexs", suggestion: "Alexis" });
     expect(f).not.toHaveBeenCalled();
   });
 
   it("'continue anyway' skips the gate", async () => {
     const f = groqReturns({ assignments: [], defaultRule: "equal", notes: "" });
-    const out = await planSplit({ ...base, instructions: ["Pravn had the fried rice"], keys: { groq: "gsk_x" }, ignoreAmbiguities: true, fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["Alexs had the fried rice"], keys: { groq: "gsk_x" }, ignoreAmbiguities: true, fetchImpl: f as never });
     expect(out.kind).toBe("split");
     expect(f).toHaveBeenCalledTimes(1);
   });
 
   it("with a working Groq key: the model's plan is computed by the ENGINE, to the cent", async () => {
-    const f = groqReturns({ assignments: [{ itemIndex: 1, people: ["Pravin"] }], defaultRule: "equal", notes: "" });
-    const out = await planSplit({ ...base, instructions: ["Pravin pays for the chicken"], keys: { groq: "gsk_x" }, fetchImpl: f as never });
+    const f = groqReturns({ assignments: [{ itemIndex: 1, people: ["Alexis"] }], defaultRule: "equal", notes: "" });
+    const out = await planSplit({ ...base, instructions: ["Alexis pays for the chicken"], keys: { groq: "gsk_x" }, fetchImpl: f as never });
     expect(out.kind).toBe("split");
     if (out.kind !== "split") return;
     expect(out.tier).toBe("groq");
-    // 900 + 800 shared three ways (566.67 each -> 567/567/566), chicken 1300 all Pravin
+    // 900 + 800 shared three ways (566.67 each -> 567/567/566), chicken 1300 all Alexis
     const by = Object.fromEntries(out.result.splits.map((s) => [s.name, s.amount]));
-    expect(by.Pravin + by.Aisha + by.Sarah).toBe(3000);
-    expect(by.Pravin).toBe(1300 + 567);
+    expect(by.Alexis + by.Aisha + by.Sarah).toBe(3000);
+    expect(by.Alexis).toBe(1300 + 567);
     expect(out.result.verified).toBe(true);
   });
 
   it("the model can't change the arithmetic: an answer with wrong-looking prices is irrelevant (prices aren't in the schema)", async () => {
-    const f = groqReturns({ assignments: [{ itemIndex: 1, people: ["Pravin"] }], defaultRule: "equal", notes: "Pravin owes 9999.00" });
-    const out = await planSplit({ ...base, instructions: ["Pravin pays for the chicken"], keys: { groq: "gsk_x" }, fetchImpl: f as never });
+    const f = groqReturns({ assignments: [{ itemIndex: 1, people: ["Alexis"] }], defaultRule: "equal", notes: "Alexis owes 9999.00" });
+    const out = await planSplit({ ...base, instructions: ["Alexis pays for the chicken"], keys: { groq: "gsk_x" }, fetchImpl: f as never });
     expect(out.kind === "split" && out.result.splits.reduce((s, r) => s + r.amount, 0)).toBe(3000);
   });
 
   it("no key: the deterministic parser handles a clear instruction end to end", async () => {
-    const out = await planSplit({ ...base, instructions: ["Pravin pays for the chicken, split the rest equally"] });
+    const out = await planSplit({ ...base, instructions: ["Alexis pays for the chicken, split the rest equally"] });
     expect(out.kind).toBe("split");
     if (out.kind !== "split") return;
     expect(out.tier).toBe("fallback");
-    expect(out.result.splits.find((s) => s.name === "Pravin")!.amount).toBe(1300 + 567);
+    expect(out.result.splits.find((s) => s.name === "Alexis")!.amount).toBe(1300 + 567);
   });
 
   it("no key + something it can't resolve: a question with a preview, not a silent guess", async () => {
@@ -80,12 +80,12 @@ describe("planSplit", () => {
   it("a chat follow-up modifies the split: instructions accumulate, later wins", async () => {
     const out = await planSplit({
       ...base,
-      instructions: ["Pravin pays for the chicken", "actually Aisha pays for the chicken"],
+      instructions: ["Alexis pays for the chicken", "actually Aisha pays for the chicken"],
     });
     expect(out.kind).toBe("split");
     if (out.kind !== "split") return;
     expect(out.result.splits.find((s) => s.name === "Aisha")!.amount).toBeGreaterThanOrEqual(1300);
-    expect(out.result.splits.find((s) => s.name === "Pravin")!.amount).toBeLessThan(1300);
+    expect(out.result.splits.find((s) => s.name === "Alexis")!.amount).toBeLessThan(1300);
   });
 
   it("an empty instruction means split equally", async () => {
@@ -105,7 +105,7 @@ describe("planSplit", () => {
 
   it("offline with keys: falls back, and says which cloud tiers failed", async () => {
     const f = vi.fn().mockRejectedValue(new TypeError("Failed to fetch"));
-    const out = await planSplit({ ...base, instructions: ["Pravin pays for the chicken"], keys: { groq: "gsk_x", gemini: "AIza_x" }, fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["Alexis pays for the chicken"], keys: { groq: "gsk_x", gemini: "AIza_x" }, fetchImpl: f as never });
     expect(out.kind).toBe("split");
     if (out.kind !== "split") return;
     expect(out.tier).toBe("fallback");

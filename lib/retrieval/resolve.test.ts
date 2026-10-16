@@ -75,17 +75,17 @@ describe("lexicon — user phrase matching", () => {
   });
 
   it("returns null for a phrase that names no category", () => {
-    expect(matchCategoryPhrase("pravin")).toBeNull();
+    expect(matchCategoryPhrase("alexis")).toBeNull();
   });
 });
 
 describe("detectDefaultRule", () => {
   it.each([
-    ["Pravin pays for the drinks, split the rest equally", "equal"],
+    ["Alexis pays for the drinks, split the rest equally", "equal"],
     ["Split everything equally", "equal"],
     ["Everyone splits equally except the milkshake, which is just for Sarah", "equal"],
-    ["Pravin had the teh tarik, split the rest between everyone", "equal"],
-    ["Just split the burger between Pravin and Sarah, forget about the rest of the table's order", "exclude"],
+    ["Alexis had the teh tarik, split the rest between everyone", "equal"],
+    ["Just split the burger between Alexis and Sarah, forget about the rest of the table's order", "exclude"],
     ["Only split the pizza, ignore the rest", "exclude"],
     ["Split the starters, nothing else", "exclude"],
   ])("%s -> %s", (instruction, expected) => {
@@ -101,7 +101,7 @@ describe("detectDefaultRule", () => {
   });
 
   it("defaults to equal when no marker is present, and says so", () => {
-    const r = detectDefaultRule("Pravin and Aisha had the pizza");
+    const r = detectDefaultRule("Alexis and Aisha had the pizza");
     expect(r.defaultRule).toBe("equal");
     expect(r.reason).toContain("defaulting");
   });
@@ -171,7 +171,7 @@ describe("complement", () => {
 describe("resolveInstruction — the five cases that failed on every model", () => {
   it("drinks-payer: resolves the drinks AND computes the rest", () => {
     const r = resolveInstruction(
-      "Pravin pays for the drinks, split the rest equally",
+      "Alexis pays for the drinks, split the rest equally",
       DRINKS_CASE,
     );
     const drinks = r.references.find((x) => x.via === "category");
@@ -200,7 +200,7 @@ describe("resolveInstruction — the five cases that failed on every model", () 
   it("exclude-unmentioned-items: detects the exclude rule that every model got wrong", () => {
     const items = [item("BURGER DELUXE"), item("FISH AND CHIPS"), item("MILKSHAKE")];
     const r = resolveInstruction(
-      "Just split the burger between Pravin and Sarah, forget about the rest of the table's order",
+      "Just split the burger between Alexis and Sarah, forget about the rest of the table's order",
       items,
     );
     expect(r.defaultRule).toBe("exclude");
@@ -208,7 +208,7 @@ describe("resolveInstruction — the five cases that failed on every model", () 
 
   it("informal-item-reference: resolves a lowercase mention to the right item", () => {
     const r = resolveInstruction(
-      "Pravin had the teh tarik, split the rest between everyone",
+      "Alexis had the teh tarik, split the rest between everyone",
       DRINKS_CASE,
     );
     const tt = r.references.find((x) => x.itemIndices.length === 1 && x.itemIndices[0] === 2);
@@ -247,7 +247,7 @@ describe("resolveInstruction — fails open, and stays silent when it has nothin
 
   it("omits low-confidence references, and stays silent when the default rule isn't informative either", () => {
     const items = [item("CHICKEN RICE"), item("CHICKEN CURRY")];
-    const r = resolveInstruction("Pravin had the chicken", items);
+    const r = resolveInstruction("Alexis had the chicken", items);
     // Ambiguous between the two -> must not be asserted to the model as fact.
     expect(r.promptBlock).not.toContain("items [");
     expect(r.promptBlock).toBe("");
@@ -256,7 +256,7 @@ describe("resolveInstruction — fails open, and stays silent when it has nothin
   it("still surfaces DEFAULT RULE: exclude — the one case proven to need it", () => {
     const items = [item("BURGER DELUXE"), item("FISH AND CHIPS"), item("MILKSHAKE")];
     const r = resolveInstruction(
-      "Just split the burger between Pravin and Sarah, forget about the rest of the table's order",
+      "Just split the burger between Alexis and Sarah, forget about the rest of the table's order",
       items,
     );
     expect(r.promptBlock).toContain("DEFAULT RULE: exclude");
@@ -264,7 +264,7 @@ describe("resolveInstruction — fails open, and stays silent when it has nothin
 
   it("still surfaces an EXPLICIT equal marker, distinct from the uninformative fallback", () => {
     const r = resolveInstruction(
-      "Pravin pays for the drinks, split the rest equally",
+      "Alexis pays for the drinks, split the rest equally",
       DRINKS_CASE,
     );
     expect(r.defaultRuleReason).not.toBe(FALLBACK_DEFAULT_REASON);
@@ -289,7 +289,7 @@ describe("resolveInstruction — plain partial item mentions", () => {
     // The exact bug that cost two-way-item-split and exclude-unmentioned-items
     // their resolution entirely: "the pizza" vs the full name "PIZZA MARGHERITA".
     const items = [item("PIZZA MARGHERITA"), item("CAESAR SALAD"), item("GARLIC BREAD")];
-    const r = resolveInstruction("Split the pizza between Pravin and Aisha", items);
+    const r = resolveInstruction("Split the pizza between Alexis and Aisha", items);
     const pizza = r.references.find((x) => x.itemIndices.includes(0));
     expect(pizza).toBeDefined();
     expect(pizza!.itemIndices).toEqual([0]);
@@ -302,7 +302,7 @@ describe("resolveInstruction — plain partial item mentions", () => {
     // empty. Both are fixed now.
     const items = [item("BURGER DELUXE"), item("FISH AND CHIPS"), item("MILKSHAKE")];
     const r = resolveInstruction(
-      "Just split the burger between Pravin and Sarah, forget about the rest of the table's order",
+      "Just split the burger between Alexis and Sarah, forget about the rest of the table's order",
       items,
     );
     const burger = r.references.find((x) => x.itemIndices.includes(0));
@@ -316,7 +316,7 @@ describe("resolveInstruction — plain partial item mentions", () => {
     // also try "teh" and "teh tarik" as candidates; both resolve to the
     // same item the exact-name pass already found. Only one entry should
     // survive for item 2.
-    const r = resolveInstruction("Pravin had the teh tarik, split the rest between everyone", DRINKS_CASE);
+    const r = resolveInstruction("Alexis had the teh tarik, split the rest between everyone", DRINKS_CASE);
     const pointingAtTehTarik = r.references.filter((x) => x.itemIndices.length === 1 && x.itemIndices[0] === 2);
     expect(pointingAtTehTarik.length).toBe(1);
   });
