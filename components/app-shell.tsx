@@ -30,7 +30,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
   }
 
   return (
-    <div className="flex min-h-screen bg-black text-white flex-col">
+    <div className="flex min-h-screen bg-background text-white flex-col">
       {/* RESTORED HEADER */}
       <header style={{ viewTransitionName: "app-header" }} className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-50">
         <div className="flex items-center gap-2">
@@ -46,7 +46,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
 
       <div className="flex flex-1">
         {/* Desktop Sidebar (Stayed for Desktop users) */}
-        <aside className="hidden md:flex w-64 flex-col border-r border-white/5 bg-zinc-950 p-6">
+        <aside className="hidden md:flex w-64 flex-col border-r border-white/5 bg-surface p-6">
           <nav className="flex-1 space-y-2">
             {navItems.map((item) => (
               <Link
