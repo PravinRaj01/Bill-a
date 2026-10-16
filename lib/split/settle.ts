@@ -262,7 +262,9 @@ export function nudgeText(o: {
   currency: string;
   items?: string;
 }): string {
-  const what = o.items && o.items !== "(nothing assigned)" ? ` (${clip(o.items)})` : "";
+  // Only real item names help the reader; "33.3% of the bill" / "(nothing assigned)" are just noise here.
+  const useful = !!o.items && o.items !== "(nothing assigned)" && !/of the bill$|the remaining|amount you gave|parts$/.test(o.items);
+  const what = useful ? ` (${clip(o.items!)})` : "";
   return (
     `Hi ${o.debtor}! Your share for *${o.title}* (${shortDate(o.date)}) is *${formatMoney(o.amount, o.currency)}*${what}. ` +
     `Please pay ${o.payTo} when you can. Thanks! — via Bill.a`
@@ -291,4 +293,31 @@ export function balanceNudgeText(o: {
   const list = o.lines.map((l) => `• ${l.title} (${shortDate(l.date)}): ${formatMoney(l.amount, o.currency)}`).join("\n");
   const total = sum(o.lines.map((l) => l.amount));
   return `Hi ${o.name}! A reminder of what's still open:\n${list}\nTotal *${formatMoney(total, o.currency)}* to ${o.payTo}. Thanks! — via Bill.a`;
+}
+
+// ---- defaults and keeping a settlement in step with the shares -------------------------------
+
+/** Nobody has been asked yet: the user (if we can tell who that is), else the first person, fronted it all. */
+export function defaultSettlement(shares: Share[], me?: string): Settlement {
+  const total = sum(shares.map((s) => s.amount));
+  const payer = me && shares.some((s) => s.name === me) ? me : shares[0]?.name ?? "";
+  return { ...(me ? { me } : {}), paidBy: singlePayer(payer, total), paid: {} };
+}
+
+/**
+ * The shares changed (adjusted, cash-rounded, someone added or removed): a single payer always fronted
+ * the whole bill, so follow it; if they left the group, the first person takes over. Several payers are
+ * left as entered (a mismatch is shown, not silently fixed). Stale paid marks are the view's job.
+ */
+export function normalizeSettlement(s: Settlement, shares: Share[]): Settlement {
+  if (shares.length === 0) return s;
+  const total = sum(shares.map((x) => x.amount));
+  const names = new Set(shares.map((x) => x.name));
+  const me = s.me && names.has(s.me) ? s.me : undefined;
+  const base = { ...s, me };
+  if (s.paidBy.length === 1) {
+    const payer = names.has(s.paidBy[0].name) ? s.paidBy[0].name : shares[0].name;
+    return { ...base, paidBy: singlePayer(payer, total) };
+  }
+  return base;
 }
