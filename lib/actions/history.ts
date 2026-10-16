@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getDb } from "@/lib/db/client";
 import * as q from "@/lib/db/queries";
 import { getUserIdOrNull, requireUserId } from "@/lib/auth/session";
-import { summarizeSettlement } from "@/lib/split/settle";
+import { aggregateBalances, localDate, summarizeSettlement, type PersonBalance } from "@/lib/split/settle";
 
 const idSchema = z.uuid();
 
@@ -20,6 +20,27 @@ export async function listBills() {
 }
 
 export type BillListEntry = Awaited<ReturnType<typeof listBills>>[number];
+
+export interface BalancesResult {
+  /** What each person owes you (or you them) across tracked bills, biggest first. */
+  people: PersonBalance[];
+  /** How many bills are tracked at all. */
+  tracked: number;
+  /** Tracked bills that don't say which person is you: they can't count towards your balances. */
+  withoutMe: number;
+}
+
+/** Net balances across the signed-in user's tracked bills. Guests have none. */
+export async function getBalances(): Promise<BalancesResult> {
+  const userId = await getUserIdOrNull();
+  if (!userId) return { people: [], tracked: 0, withoutMe: 0 };
+  const rows = await q.listTrackedBills(getDb(), userId);
+  const people = aggregateBalances(
+    rows.map((r) => ({ id: r.id, title: r.billTitle, createdAt: r.createdAt, currency: r.currency, split: r.split ?? [], settlement: r.settlement ?? undefined })),
+    localDate(),
+  );
+  return { people, tracked: rows.length, withoutMe: rows.filter((r) => !r.settlement?.me).length };
+}
 
 export async function getBill(id: string) {
   const userId = await getUserIdOrNull();

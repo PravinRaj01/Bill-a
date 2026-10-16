@@ -97,6 +97,24 @@ export const listBills = (db: Db, userId: string) =>
 
 export type BillListItem = Awaited<ReturnType<typeof listBills>>[number];
 
+/**
+ * Only the bills whose settle-up is being tracked, with just what balances need (title, currency, when,
+ * the split and the settlement), newest first. Never the whole bill.
+ */
+export const listTrackedBills = (db: Db, userId: string) =>
+  db
+    .select({
+      id: billHistory.id,
+      billTitle: billHistory.billTitle,
+      currency: billHistory.currency,
+      createdAt: billHistory.createdAt,
+      split: sql<SplitRecord[] | null>`${billHistory.data} -> 'split'`,
+      settlement: sql<Settlement | null>`${billHistory.data} -> 'settlement'`,
+    })
+    .from(billHistory)
+    .where(and(eq(billHistory.userId, userId), sql`${billHistory.data} -> 'settlement' is not null`))
+    .orderBy(desc(billHistory.createdAt));
+
 export async function getBill(db: Db, userId: string, id: string) {
   const [row] = await db
     .select()
