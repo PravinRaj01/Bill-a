@@ -11,6 +11,7 @@ import type { Chip } from "@/lib/split/fallback-parser";
 export type ClarifyAction =
   | { type: "replace"; from: string; to: string }
   | { type: "add-person"; name: string }
+  | { type: "append"; text: string }
   | { type: "continue-anyway" }
   | { type: "use-preview" }
   | { type: "edit" };
@@ -80,6 +81,20 @@ export function ClarifyChips({
               {chip.reason}: <span className="italic">“{chip.clause}”</span>. Try naming the item as it appears on the receipt.
             </p>
           )}
+          {chip.kind === "shares" && (
+            <>
+              <p>{chip.message}</p>
+              {chip.fixes.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {chip.fixes.map((f) => (
+                    <Button key={f.label} type="button" variant="ghost" className={pill} onClick={() => onAction({ type: "append", text: f.append })}>
+                      {f.label}
+                    </Button>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
           {chip.kind === "exception-unassigned" && (
             <p>
               Who pays for {chip.options.map((o) => o.name).join(" / ")}? Say it like “…, which is just for Sarah”.
@@ -92,7 +107,8 @@ export function ClarifyChips({
         <Button type="button" variant="ghost" className={pill} onClick={() => onAction({ type: "edit" })}>
           Edit my instruction
         </Button>
-        {hasPreview ? (
+        {/* A shares question has no "best guess" to go ahead with: answering it is the only way on. */}
+        {chips.every((c) => c.kind === "shares") ? null : hasPreview ? (
           <Button type="button" variant="ghost" className={pill} onClick={() => onAction({ type: "use-preview" })}>
             Split anyway (unclear parts shared equally)
           </Button>
