@@ -1,27 +1,35 @@
 'use client'
 
+import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, History, Scale, User, LogOut, LogIn } from "lucide-react"
+import { m } from "motion/react"
+import { Home, History, Scale, User, LogOut, LogIn, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
+import { StartSheet } from "@/components/nav/StartSheet"
 import { signOutAction } from "@/app/auth/actions"
+
+type NavItem = { name: string; href: string; icon: typeof Home }
 
 export function AppShell({ children, signedIn }: { children: React.ReactNode; signedIn: boolean }) {
   const pathname = usePathname()
+  const [startOpen, setStartOpen] = useState(false)
 
-  // History and Account require a login (see lib/auth.config.ts), so guests
+  // History, Balances and Account require a login (see lib/auth.config.ts), so guests
   // don't get links that would just bounce them to the login page.
-  const navItems = [
-    { name: 'Home', href: '/dashboard', icon: Home },
-    ...(signedIn
-      ? [
-          { name: 'History', href: '/dashboard/history', icon: History },
-          { name: 'Balances', href: '/dashboard/balances', icon: Scale },
-          { name: 'Account', href: '/dashboard/account', icon: User },
-        ]
-      : []),
-  ]
+  const home: NavItem = { name: 'Home', href: '/dashboard', icon: Home }
+  const left: NavItem[] = signedIn ? [home, { name: 'History', href: '/dashboard/history', icon: History }] : [home]
+  const right: NavItem[] = signedIn
+    ? [
+        { name: 'Balances', href: '/dashboard/balances', icon: Scale },
+        { name: 'Account', href: '/dashboard/account', icon: User },
+      ]
+    : []
+  const navItems = [...left, ...right]
+
+  // /dashboard/history/abc keeps History lit; Home only lights on the exact page.
+  const isActive = (href: string) => (href === '/dashboard' ? pathname === href : pathname === href || pathname.startsWith(href + '/'))
 
   const handleLogout = () => {
     // Wipe the offline copies of the app pages before signing out, so nothing tied to this
@@ -30,10 +38,29 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
     return signOutAction()
   }
 
+  const tab = (item: NavItem) => {
+    const active = isActive(item.href)
+    return (
+      <Link
+        key={item.name}
+        href={item.href}
+        prefetch={true} // FOR SPEED
+        aria-current={active ? "page" : undefined}
+        className={cn(
+          "relative flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-2xl outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/30",
+          active ? "text-white" : "text-muted-foreground hover:text-white"
+        )}
+      >
+        {active && <m.span layoutId="nav-pill" className="absolute inset-x-2 inset-y-1 -z-10 rounded-2xl bg-white/10" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
+        <item.icon className="size-5" />
+        <span className="text-[10px] font-bold tracking-tight">{item.name}</span>
+      </Link>
+    )
+  }
+
   return (
     <div className="flex min-h-screen bg-background text-white flex-col">
-      {/* RESTORED HEADER */}
-      <header style={{ viewTransitionName: "app-header" }} className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5 bg-zinc-950/50 backdrop-blur-md sticky top-0 z-50">
+      <header style={{ viewTransitionName: "app-header" }} className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5 bg-background/70 backdrop-blur-md sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <div className="bg-white p-0.5 rounded shadow-sm">
             <img src="/icon.png" alt="logo" className="w-4 h-4 object-contain" />
@@ -46,17 +73,26 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
       </header>
 
       <div className="flex flex-1">
-        {/* Desktop Sidebar (Stayed for Desktop users) */}
+        {/* Desktop sidebar */}
         <aside className="hidden md:flex w-64 flex-col border-r border-white/5 bg-surface p-6">
+          <button
+            type="button"
+            data-testid="new-split"
+            onClick={() => setStartOpen(true)}
+            className="mb-6 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-coral font-bold text-coral-foreground shadow-[var(--coral-glow)] transition-transform active:scale-[0.98]"
+          >
+            <Plus className="size-5" strokeWidth={3} /> New split
+          </button>
           <nav className="flex-1 space-y-2">
             {navItems.map((item) => (
               <Link
                 key={item.name}
                 href={item.href}
                 prefetch={true} // FOR SPEED
+                aria-current={isActive(item.href) ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 rounded-xl transition-all",
-                  pathname === item.href ? "bg-white text-black font-bold" : "text-zinc-400 hover:text-white"
+                  isActive(item.href) ? "bg-white text-black font-bold" : "text-zinc-400 hover:text-white"
                 )}
               >
                 <item.icon className="w-5 h-5" />
@@ -75,39 +111,41 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
           )}
         </aside>
 
-        {/* Main Content */}
-        <main className="min-w-0 flex-1 pb-20 md:pb-0">
+        <main className="min-w-0 flex-1 pb-24 md:pb-0">
           {children}
         </main>
       </div>
 
-      {/* Optimized Mobile Bottom Nav */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-white/5 bg-zinc-950/80 backdrop-blur-lg px-8 py-3 flex justify-between items-center z-50">
-        {navItems.map((item) => (
-          <Link
-            key={item.name}
-            href={item.href}
-            prefetch={true} // FOR SPEED
-            className={cn(
-              "flex flex-col items-center gap-1 transition-all",
-              pathname === item.href ? "text-white scale-110" : "text-zinc-500 opacity-50"
-            )}
-          >
-            <item.icon className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-tighter">{item.name}</span>
-          </Link>
-        ))}
-        {signedIn ? (
-          <button onClick={handleLogout} className="text-zinc-500 opacity-50">
-            <LogOut className="w-6 h-6" />
-          </button>
-        ) : (
-          <Link href="/" className="flex flex-col items-center gap-1 text-zinc-500 opacity-50">
-            <LogIn className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-tighter">Log in</span>
-          </Link>
-        )}
+      {/* Phone bottom nav: two tabs, the raised + in the middle, two tabs. Guests get Home, +, Log in. */}
+      <nav
+        aria-label="Main"
+        className="md:hidden fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-background/85 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-lg"
+      >
+        <div className={cn("grid items-center", signedIn ? "grid-cols-5" : "grid-cols-3")}>
+          {left.map(tab)}
+          <div className="flex justify-center">
+            <button
+              type="button"
+              data-testid="nav-plus"
+              aria-label="Start a split"
+              onClick={() => setStartOpen(true)}
+              className="-mt-7 flex size-14 items-center justify-center rounded-full bg-coral text-coral-foreground shadow-[var(--coral-glow)] outline-none ring-4 ring-background transition-transform focus-visible:ring-white/40 active:scale-95"
+            >
+              <Plus className="size-7" strokeWidth={3} />
+            </button>
+          </div>
+          {signedIn ? (
+            right.map(tab)
+          ) : (
+            <Link href="/" className="flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-2xl text-muted-foreground hover:text-white">
+              <LogIn className="size-5" />
+              <span className="text-[10px] font-bold tracking-tight">Log in</span>
+            </Link>
+          )}
+        </div>
       </nav>
+
+      <StartSheet open={startOpen} onOpenChange={setStartOpen} signedIn={signedIn} />
     </div>
   )
 }
