@@ -8,6 +8,9 @@ import { ClarifyChips } from "@/components/ai/ClarifyChips";
 import { CrossCheck } from "@/components/ai/CrossCheck";
 import { PersonAvatar } from "@/components/person-avatar";
 import { AdjustShares } from "@/components/split/AdjustShares";
+import { SettleUp } from "@/components/split/SettleUp";
+import { shareMessage, shareText } from "@/lib/ui/share";
+import { toast } from "sonner";
 import { Money } from "@/components/ui/money";
 import { Segmented } from "@/components/ui/segmented";
 import { CASH_UNITS } from "@/lib/split/cashRound";
@@ -29,7 +32,12 @@ export function SummaryStep({ s }: { s: SplitSession }) {
   const share = () => {
     let text = `*Bill-a Summary (${symbol})*\n\n`;
     s.finalSplit.forEach((r) => (text += `👤 *${r.name}*: ${formatMoney(r.amount, symbol)}\n`));
-    window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
+    const payer = s.settlement && s.settlement.paidBy.length === 1 ? s.settlement.paidBy[0].name : null;
+    if (payer) text += `\nPaid by ${payer}.`;
+    void shareText(text).then((o) => {
+      const msg = shareMessage(o);
+      if (msg) toast(msg);
+    });
   };
 
   const notes = (
@@ -67,6 +75,8 @@ export function SummaryStep({ s }: { s: SplitSession }) {
             );
           })}
         </ul>
+
+        <SettleUp s={s} />
 
         {s.finalSplit.length > 1 && (
           <div className="border-t border-white/5 p-5">
@@ -151,7 +161,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
 
         <div className="space-y-3 p-5 pt-0">
           <Button type="button" className="h-12 w-full rounded-xl bg-[#25D366] text-base font-bold text-black hover:bg-[#25D366]/90" onClick={share}>
-            <Share2 className="mr-2 size-4" /> Share via WhatsApp
+            <Share2 className="mr-2 size-4" /> Share summary
           </Button>
           <Button type="button" variant="outline" className="h-12 w-full rounded-xl border-white/10 text-sm font-semibold text-zinc-300" onClick={s.finish}>
             Finish session
