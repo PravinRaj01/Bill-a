@@ -30,8 +30,11 @@ export const authConfig = {
     },
     // Copy the user id into the token, then onto the session, so server code
     // can scope every query with session.user.id (plan §3.1).
-    jwt({ token, user }) {
+    jwt({ token, user, trigger, session }) {
       if (user?.id) token.sub = user.id;
+      // The signed-in user changed their own name (lib/actions/user.ts updateProfileName): the token is
+      // made at sign-in, so without this the old name would stay in the session until the next login.
+      if (trigger === "update" && session?.user && "name" in session.user) token.name = session.user.name ?? null;
       return token;
     },
     session({ session, token }) {

@@ -17,7 +17,7 @@ const credentialsSchema = z.object({
 // Passed as a FUNCTION so getDb() runs per request rather than at import
 // time — the same "never build a DB client at module scope" rule as
 // lib/db/client.ts.
-export const { handlers, auth, signIn, signOut } = NextAuth(() => {
+export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth(() => {
   const db = getDb();
 
   return {
