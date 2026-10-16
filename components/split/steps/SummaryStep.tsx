@@ -85,7 +85,9 @@ export function SummaryStep({ s }: { s: SplitSession }) {
           })}
         </ul>
 
-        <SettleUp s={s} />
+        <SettleUp
+          model={{ shares: s.finalSplit, settlement: s.settlement, symbol, billTitle: s.billTitle, tracked: s.settleTracked, change: s.changeSettlement, stop: s.stopTracking }}
+        />
 
         {s.finalSplit.length > 1 && (
           <div className="border-t border-white/5 p-5">

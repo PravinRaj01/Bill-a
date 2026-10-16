@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { PayerPicker } from "@/components/split/PayerPicker";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Money } from "@/components/ui/money";
-import type { SplitSession } from "@/hooks/use-split-session";
 import { formatMoney } from "@/lib/money";
 import {
   addDays,
@@ -26,6 +25,7 @@ import {
 import { haptic } from "@/lib/ui/haptics";
 import { shareMessage, shareText } from "@/lib/ui/share";
 import { cn } from "@/lib/utils";
+import type { Settlement, SplitRecord } from "@/types/domain";
 
 const norm = (s: string) => s.trim().toLowerCase();
 const chip = "min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/30";
@@ -42,11 +42,25 @@ function dueLabel(due: string, dueIn: number): { text: string; tone: string } {
 // worked out from the shares (lib/split/settle.ts); nothing is SAVED with the bill until the first
 // real interaction (Mark paid, a different payer, a due date), so just looking never turns a dinner
 // everyone paid for in cash into an open debt in History.
-export function SettleUp({ s }: { s: SplitSession }) {
+/**
+ * What the card needs, so it works on the Summary (live session) and on a saved bill in History alike.
+ * `change` applies an edit to the settlement and saves it; `stop` removes tracking.
+ */
+export interface SettleModel {
+  shares: SplitRecord[];
+  settlement: Settlement | null;
+  symbol: string;
+  billTitle: string;
+  tracked: boolean;
+  change: (edit: (s: Settlement) => Settlement) => void | Promise<void>;
+  stop: () => void | Promise<void>;
+}
+
+export function SettleUp({ model }: { model: SettleModel }) {
   const [custom, setCustom] = useState(false);
   // Showing the one-person chips even though several people paid ("One person paid it all").
   const [choosing, setChoosing] = useState(false);
-  const { settlement, symbol, finalSplit: shares } = s;
+  const { settlement, symbol, shares } = model;
   if (!settlement || shares.length < 2) return null;
 
   const today = localDate();
@@ -74,7 +88,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
     void send(
       nudgeText({
         debtor,
-        title: s.billTitle,
+        title: model.billTitle,
         date: new Date(),
         currency: symbol,
         owes: open.map((t) => ({ to: payTo(t.to), amount: t.amount })),
@@ -91,7 +105,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
     const single = new Set(open.map((t) => norm(t.to))).size === 1;
     void send(
       groupNudgeText({
-        title: s.billTitle,
+        title: model.billTitle,
         date: new Date(),
         currency: symbol,
         payTo: single ? payTo(open[0].to) : undefined,
@@ -102,16 +116,16 @@ export function SettleUp({ s }: { s: SplitSession }) {
 
   const toggle = (t: Transfer) => {
     if (t.paid) {
-      void s.changeSettlement((x) => unmarkPaid(x, t.key));
+      void model.change((x) => unmarkPaid(x, t.key));
       return;
     }
-    void s.changeSettlement((x) => markPaid(x, t, today));
+    void model.change((x) => markPaid(x, t, today));
     haptic("success");
-    toast(`${t.from} marked as paid`, { action: { label: "Undo", onClick: () => void s.changeSettlement((x) => unmarkPaid(x, t.key)) } });
+    toast(`${t.from} marked as paid`, { action: { label: "Undo", onClick: () => void model.change((x) => unmarkPaid(x, t.key)) } });
   };
 
   const setDue = (date: string | null) =>
-    void s.changeSettlement((x) => {
+    void model.change((x) => {
       const next = { ...x };
       if (date) next.dueDate = date;
       else delete next.dueDate;
@@ -122,7 +136,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
     <section aria-label="Settle up" data-testid="settle-up" className="space-y-5 border-t border-white/5 p-5">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-base font-bold text-white">Settle up</h3>
-        {s.settleTracked && <span className="text-xs font-semibold text-success">Tracked in History</span>}
+        {model.tracked && <span className="text-xs font-semibold text-success">Tracked in History</span>}
       </div>
 
       <PayerPicker
@@ -130,9 +144,9 @@ export function SettleUp({ s }: { s: SplitSession }) {
         paidBy={settlement.paidBy}
         total={total}
         symbol={symbol}
-        onSingle={(name) => void s.changeSettlement((x) => withPayers(x, singlePayer(name, total)))}
-        onMulti={(paidBy) => void s.changeSettlement((x) => withPayers(x, paidBy))}
-        onEveryoneOwn={() => void s.changeSettlement((x) => withPayers(x, everyonePaidOwn(shares)))}
+        onSingle={(name) => void model.change((x) => withPayers(x, singlePayer(name, total)))}
+        onMulti={(paidBy) => void model.change((x) => withPayers(x, paidBy))}
+        onEveryoneOwn={() => void model.change((x) => withPayers(x, everyonePaidOwn(shares)))}
         choosing={choosing}
         setChoosing={setChoosing}
       />
@@ -142,7 +156,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
         <select
           data-testid="me-select"
           value={settlement.me ?? ""}
-          onChange={(e) => void s.changeSettlement((x) => ({ ...x, me: e.target.value || undefined }))}
+          onChange={(e) => void model.change((x) => ({ ...x, me: e.target.value || undefined }))}
           className="h-11 rounded-xl border border-white/10 bg-surface-2 px-3 text-base text-white"
         >
           {!settlement.me && <option value="">Choose…</option>}
@@ -161,7 +175,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
             <button
               type="button"
               data-testid="scale-paid"
-              onClick={() => void s.changeSettlement((x) => withPayers(x, scalePaidBy(x.paidBy, view.owed)))}
+              onClick={() => void model.change((x) => withPayers(x, scalePaidBy(x.paidBy, view.owed)))}
               className="min-h-11 rounded-full border border-amber-400/40 bg-amber-400/10 px-4 text-sm font-semibold text-amber-100 hover:bg-amber-400/20"
             >
               Scale what each paid to {formatMoney(view.owed, symbol)}
@@ -306,8 +320,8 @@ export function SettleUp({ s }: { s: SplitSession }) {
         </>
       )}
 
-      {s.settleTracked && (
-        <button type="button" onClick={() => void s.stopTracking()} className="min-h-11 px-1 text-sm text-muted-foreground underline-offset-4 hover:text-white hover:underline">
+      {model.tracked && (
+        <button type="button" onClick={() => void model.stop()} className="min-h-11 px-1 text-sm text-muted-foreground underline-offset-4 hover:text-white hover:underline">
           Stop tracking this bill
         </button>
       )}
