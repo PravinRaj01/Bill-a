@@ -103,7 +103,7 @@ export function BalanceCard({
             {person.bills.map((b) => (
               <li key={b.id}>
                 <Link
-                  href={`/dashboard/history/${b.id}`}
+                  href={`/dashboard/history/${b.id}?from=balances`}
                   transitionTypes={["nav-forward"]}
                   className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-surface-2/60 px-3 py-2 transition-colors hover:bg-white/5"
                 >

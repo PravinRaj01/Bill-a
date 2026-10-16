@@ -50,6 +50,12 @@ export default function BillDetailPage() {
     fetchBill();
   }, [id, router]);
 
+  // Back slides to where the bill was opened from (Balances links here with ?from=balances), else History.
+  const goBack = () => {
+    const from = new URLSearchParams(window.location.search).get("from");
+    router.push(from === "balances" ? "/dashboard/balances" : "/dashboard/history", { transitionTypes: ["nav-back"] });
+  };
+
   const handleDelete = async () => {
     await deleteBills([id]);
     router.push("/dashboard/history", { transitionTypes: ["nav-back"] });
@@ -111,7 +117,7 @@ export default function BillDetailPage() {
         <div className="flex items-center justify-between">
           <button
             type="button"
-            onClick={() => router.back()}
+            onClick={goBack}
             className="flex min-h-11 items-center pr-3 text-sm font-semibold text-muted-foreground transition-colors hover:text-white"
           >
             <ChevronLeft className="mr-1 size-4" /> Back
