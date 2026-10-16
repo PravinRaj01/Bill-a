@@ -24,9 +24,11 @@ import type { BillData } from "@/types/domain";
 // mocking the DB here would prove nothing). It creates two throwaway users,
 // gives user B data, then tries to read / change / delete it AS user A through
 // every query function. Each attack must fail or be a no-op, and B's data must
-// be byte-for-byte unchanged afterwards. Skipped when DATABASE_URL isn't set.
+// be byte-for-byte unchanged afterwards. Skipped when no test database is configured.
 
-config({ path: ".env.local" });
+// These tests WRITE to a real database (throwaway users, cleaned up after). They read .env.test.local only,
+// the Neon test branch, never .env.local (production). Without that file they are skipped.
+config({ path: ".env.test.local", quiet: true });
 const hasDb = !!process.env.DATABASE_URL;
 
 const data: BillData = {
