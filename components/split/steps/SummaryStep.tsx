@@ -8,6 +8,8 @@ import { ClarifyChips } from "@/components/ai/ClarifyChips";
 import { CrossCheck } from "@/components/ai/CrossCheck";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Money } from "@/components/ui/money";
+import { Segmented } from "@/components/ui/segmented";
+import { CASH_UNITS } from "@/lib/split/cashRound";
 import { formatMoney } from "@/lib/money";
 import type { SplitSession } from "@/hooks/use-split-session";
 
@@ -25,7 +27,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
 
   const share = () => {
     let text = `*Bill-a Summary (${symbol})*\n\n`;
-    s.structuredSplit.forEach((r) => (text += `👤 *${r.name}*: ${formatMoney(r.amount, symbol)}\n`));
+    s.finalSplit.forEach((r) => (text += `👤 *${r.name}*: ${formatMoney(r.amount, symbol)}\n`));
     window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
   };
 
@@ -45,14 +47,52 @@ export function SummaryStep({ s }: { s: SplitSession }) {
         </div>
 
         <ul className="divide-y divide-white/5">
-          {s.structuredSplit.map((row) => (
-            <li key={row.name} className="flex items-center gap-3 px-6 py-4">
-              <PersonAvatar name={row.name} />
-              <span className="flex-1 truncate text-base font-bold text-white">{row.name}</span>
-              <Money cents={row.amount} currency={symbol} className="text-xl font-bold text-white" />
-            </li>
-          ))}
+          {s.finalSplit.map((row, i) => {
+            const delta = s.cashDeltas[i];
+            return (
+              <li key={row.name} className="flex items-center gap-3 px-6 py-4">
+                <PersonAvatar name={row.name} />
+                <div className="min-w-0 flex-1">
+                  <span className="block truncate text-base font-bold text-white">{row.name}</span>
+                  {s.cashRoundingActive && delta !== 0 && (
+                    <span data-testid="cash-delta" className="block text-xs text-muted-foreground">
+                      {delta > 0 ? "+" : "−"}{formatMoney(Math.abs(delta), symbol)} rounding
+                      {i === s.absorberIndex ? " · covers the difference" : ""}
+                    </span>
+                  )}
+                </div>
+                <Money cents={row.amount} currency={symbol} className="text-xl font-bold text-white" />
+              </li>
+            );
+          })}
         </ul>
+
+        {s.finalSplit.length > 1 && (
+          <div className="space-y-3 border-t border-white/5 p-5">
+            <div className="text-xs font-semibold text-muted-foreground">Round shares for cash</div>
+            <Segmented
+              label="Cash rounding"
+              value={String(s.cashUnit)}
+              onValueChange={(v) => void s.chooseCashRounding(Number(v))}
+              options={CASH_UNITS.map((u) => ({ value: String(u), label: u === 1 ? "Exact" : formatMoney(u, symbol) }))}
+            />
+            {s.cashRoundingActive && (
+              <label className="flex min-h-11 items-center justify-between gap-3 text-sm">
+                <span className="text-muted-foreground">Covers the difference</span>
+                <select
+                  data-testid="absorber"
+                  value={s.finalSplit[s.absorberIndex]?.name}
+                  onChange={(e) => void s.chooseCashRounding(s.cashUnit, e.target.value)}
+                  className="h-11 rounded-xl border border-white/10 bg-surface-2 px-3 text-base text-white"
+                >
+                  {s.finalSplit.map((r) => (
+                    <option key={r.name} value={r.name}>{r.name}</option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+        )}
 
         <div className="border-t border-white/5">
           <button

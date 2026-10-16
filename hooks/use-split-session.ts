@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -13,6 +13,8 @@ import { explainAttempts } from "@/lib/ai/providers/cascade";
 import { enhanceReceipt } from "@/lib/ai/providers/enhance";
 import { ProviderError } from "@/lib/ai/providers/types";
 import { getKeys, onKeysChanged, type Keys } from "@/lib/ai/keyStore";
+import { formatMoney } from "@/lib/money";
+import { roundSplit } from "@/lib/split/cashRound";
 import type { Chip } from "@/lib/split/fallback-parser";
 import { track, trackError } from "@/lib/telemetry/client";
 import { primeOfflinePack } from "@/lib/ocr/prime";
@@ -47,10 +49,15 @@ type CurrentUser = Awaited<ReturnType<typeof getCurrentUser>>;
 
 const escapeRe = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** The receipt's total follows its items + tax, so a corrected price never leaves a stale total. */
+// The saved reasoning log gets the cash-rounding note appended after this marker; it is cut
+// off again on restore so the note is never doubled up when the bill is re-saved.
+const ROUNDING_NOTE_MARK = "\n\nCash rounding";
+const stripRoundingNote = (reasoning: string) => reasoning.split(ROUNDING_NOTE_MARK)[0];
+
+/** The receipt's total follows its items + tax + printed rounding, so an edit never leaves a stale total. */
 export const withTotal = (r: Receipt): Receipt => ({
   ...r,
-  total: r.items.reduce((sum, it) => sum + it.totalPrice, 0) + r.tax,
+  total: r.items.reduce((sum, it) => sum + it.totalPrice, 0) + r.tax + (r.rounding ?? 0),
 });
 
 export function useSplitSession() {
@@ -86,6 +93,9 @@ export function useSplitSession() {
   const photoUrl = useObjectUrl(photo);
   const [showPhoto, setShowPhoto] = useState(false);
   const [scanInfo, setScanInfo] = useState<ScanInfo | null>(null);
+  // Cash rounding of the final shares: 1 = exact. `absorberName` covers the difference (null = the biggest payer).
+  const [cashUnit, setCashUnit] = useState(1);
+  const [absorberName, setAbsorberName] = useState<string | null>(null);
 
   // Group saving
   const [saveThisGroup, setSaveThisGroup] = useState(false);
@@ -165,8 +175,15 @@ export function useSplitSession() {
         }
         setReceipt(bill.data.items);
         setPeople(bill.data.people);
-        setStructuredSplit(bill.data.split);
-        setSplitResult(bill.data.reasoning || "Restored from history.");
+        if (bill.data.exactSplit && bill.data.cashRounding) {
+          // Keep the exact shares so the rounding can still be changed or undone.
+          setStructuredSplit(bill.data.exactSplit);
+          setCashUnit(bill.data.cashRounding.unit);
+          setAbsorberName(bill.data.cashRounding.absorber);
+        } else {
+          setStructuredSplit(bill.data.split);
+        }
+        setSplitResult(stripRoundingNote(bill.data.reasoning) || "Restored from history.");
         setSessionClientId(bill.clientId);
         setSessionName(bill.billTitle);
         setStep("SUMMARY");
@@ -319,6 +336,14 @@ export function useSplitSession() {
     setScanInfo((si) => (si ? { ...si, itemConf: [...si.itemConf, 1] } : si));
   };
   const editTax = (tax: Cents) => setReceipt((prev) => (prev ? withTotal({ ...prev, tax }) : prev));
+  /** Signed cash-rounding adjustment from the receipt; 0 removes it. */
+  const editRounding = (rounding: Cents) =>
+    setReceipt((prev) => {
+      if (!prev) return prev;
+      const next: Receipt = { ...prev, rounding };
+      if (rounding === 0) delete next.rounding;
+      return withTotal(next);
+    });
 
   // ---- splitting: route -> ambiguity check -> Groq -> Gemini -> on-device rules -> engine
   const describeTier = (o: Extract<PlanOutcome, { kind: "split" }>) => {
@@ -330,8 +355,19 @@ export function useSplitSession() {
       : "Split with on-device rules. Add a free Groq key for smarter splits.";
   };
 
-  const attemptSave = async (splits: SplitRecord[], log: string) => {
+  /** The plain-words note for a cash rounding: who moved by how much, and who covers the difference. */
+  const roundingNote = (rounded: ReturnType<typeof roundSplit>, unit: number) => {
+    const moves = rounded.splits
+      .map((s, i) => ({ name: s.name, d: rounded.deltas[i] }))
+      .filter((m) => m.d !== 0)
+      .map((m) => `${m.name} ${m.d > 0 ? "+" : "-"}${formatMoney(Math.abs(m.d), symbol)}`);
+    return `${ROUNDING_NOTE_MARK} to ${formatMoney(unit, symbol)}: ${moves.join(", ")}. ${rounded.splits[rounded.absorber].name} covers the difference so the total stays exact.`;
+  };
+
+  /** Saves the bill (exact shares in, cash rounding applied on top). `exact` is the engine's result. */
+  const attemptSave = async (exact: SplitRecord[], log: string, unit = cashUnit, absorber = absorberName) => {
     if (!receipt) return;
+    const rounded = roundSplit(exact, unit, absorber);
     // "Session N" needs the server's count; offline we fall back to a date.
     const finalTitle =
       sessionName.trim() || (await nextSessionTitle().catch(() => `Session ${new Date().toLocaleDateString()}`));
@@ -343,7 +379,13 @@ export function useSplitSession() {
         merchantCategory: inferMerchantCategory(null, receipt.items),
         totalAmount: displayedTotal,
         currency: symbol,
-        data: { split: splits, items: receipt, people, reasoning: log },
+        data: {
+          split: rounded.splits,
+          items: receipt,
+          people,
+          reasoning: rounded.changed ? log + roundingNote(rounded, unit) : log,
+          ...(rounded.changed ? { exactSplit: exact, cashRounding: { unit, absorber: exact[rounded.absorber].name } } : {}),
+        },
       });
     } catch (e) {
       console.error("Save error:", e);
@@ -360,6 +402,16 @@ export function useSplitSession() {
     setDisagree(null);
     await attemptSave(result.splits, result.reasoning);
     setStep("SUMMARY");
+  };
+
+  // The shares people actually pay: the engine's exact result, cash-rounded if asked.
+  const rounded = useMemo(() => roundSplit(structuredSplit, cashUnit, absorberName), [structuredSplit, cashUnit, absorberName]);
+
+  /** Change the cash rounding (1 = exact) and, optionally, who covers the difference; re-saves the bill. */
+  const chooseCashRounding = async (unit: number, absorber: string | null = absorberName) => {
+    setCashUnit(unit);
+    setAbsorberName(absorber);
+    await attemptSave(structuredSplit, splitResult, unit, absorber);
   };
 
   const runPlan = async (next: string[], opts: { ignoreAmbiguities?: boolean; peopleOverride?: string[] } = {}) => {
@@ -506,10 +558,13 @@ export function useSplitSession() {
     photo, photoUrl, showPhoto, togglePhoto, enhance, enhancing, enhanced, scanInfo,
     // review
     receipt, symbol, subtotal, displayedTotal, includeTax, setIncludeTax,
-    editItem, removeItem, addItem, editTax,
+    editItem, removeItem, addItem, editTax, editRounding,
     // split
     instruction, setInstruction, split, modify, splitNote, clarify, handleClarify,
     disagree, pickReading, structuredSplit, splitResult,
+    // cash rounding of the final shares
+    finalSplit: rounded.splits, cashDeltas: rounded.deltas, absorberIndex: rounded.absorber,
+    cashUnit, absorberName, chooseCashRounding, cashRoundingActive: rounded.changed,
     // AI keys
     keys, keySheetOpen, setKeySheetOpen,
   };

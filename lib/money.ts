@@ -15,6 +15,14 @@ export const formatMoney = (cents: Cents, currency = "RM"): string =>
 /** The text for a money <input>: "12.50" (no currency symbol). */
 export const centsToInput = (cents: Cents): string => fromCents(cents).toFixed(2);
 
+/** Like parseMoneyInput but keeps a leading minus: for signed amounts such as a rounding adjustment. */
+export function parseSignedMoneyInput(raw: string): Cents {
+  const t = raw.trim();
+  const negative = t.startsWith("-") || t.startsWith("−");
+  const cents = parseMoneyInput(negative ? t.slice(1) : t);
+  return negative ? -cents : cents;
+}
+
 /**
  * What a person typed into a money field -> cents. Accepts "12.5" and "12,5"; anything that
  * isn't a non-negative number becomes 0 rather than NaN, so it can never poison a total.
