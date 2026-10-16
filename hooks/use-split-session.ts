@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
 
@@ -26,7 +26,8 @@ import { useObjectUrl } from "@/components/receipt-photo";
 import type { ClarifyAction } from "@/components/ai/ClarifyChips";
 import type { Reading } from "@/components/ai/CrossCheck";
 import type { SavedGroup } from "@/lib/db/schema";
-import type { Cents, Receipt, ReceiptItem, SplitRecord } from "@/types/domain";
+import { defaultSettlement, guessMe, localDate, normalizeSettlement, settleView } from "@/lib/split/settle";
+import type { Cents, Receipt, ReceiptItem, Settlement, SplitRecord } from "@/types/domain";
 
 // All of the new-session flow's state and behaviour, in one place, so each step is a plain
 // view over it. Money is integer cents the whole way through: the only floats are what a
@@ -102,6 +103,9 @@ export function useSplitSession() {
   // Cash rounding of the final shares: 1 = exact. `absorberName` covers the difference (null = the biggest payer).
   const [cashUnit, setCashUnit] = useState(1);
   const [absorberName, setAbsorberName] = useState<string | null>(null);
+  // Settle-up that has been SAVED with the bill. null until the user interacts with the card: just
+  // looking at who owes whom must not turn a dinner everyone paid for in cash into an open debt.
+  const [savedSettlement, setSavedSettlement] = useState<Settlement | null>(null);
 
   // Group saving
   const [saveThisGroup, setSaveThisGroup] = useState(false);
@@ -190,6 +194,7 @@ export function useSplitSession() {
         } else {
           setStructuredSplit(bill.data.split);
         }
+        setSavedSettlement(bill.data.settlement ?? null);
         setSplitResult(stripRoundingNote(bill.data.reasoning) || "Restored from history.");
         setSessionClientId(bill.clientId);
         setSessionName(bill.billTitle);
@@ -396,7 +401,13 @@ export function useSplitSession() {
   };
 
   /** Saves the bill (exact shares in, cash rounding applied on top). `exact` is the engine's result. */
-  const attemptSave = async (exact: SplitRecord[], log: string, unit = cashUnit, absorber = absorberName) => {
+  const attemptSave = async (
+    exact: SplitRecord[],
+    log: string,
+    unit = cashUnit,
+    absorber = absorberName,
+    settle: Settlement | null = savedSettlement,
+  ) => {
     if (!receipt) return;
     const rounded = roundSplit(exact, unit, absorber);
     // "Session N" needs the server's count; offline we fall back to a date.
@@ -416,6 +427,7 @@ export function useSplitSession() {
           people,
           reasoning: rounded.changed ? log + roundingNote(rounded, unit) : log,
           ...(rounded.changed ? { exactSplit: exact, cashRounding: { unit, absorber: exact[rounded.absorber].name } } : {}),
+          ...(settle ? { settlement: settle } : {}),
         },
       });
     } catch (e) {
@@ -431,12 +443,47 @@ export function useSplitSession() {
     setSplitNote(note);
     setClarify(null);
     setDisagree(null);
-    await attemptSave(result.splits, result.reasoning);
+    // A saved settlement follows the new shares (its single payer fronted the whole new total).
+    const settle = savedSettlement ? normalizeSettlement(savedSettlement, result.splits) : null;
+    setSavedSettlement(settle);
+    await attemptSave(result.splits, result.reasoning, cashUnit, absorberName, settle);
     setStep("SUMMARY");
   };
 
   // The shares people actually pay: the engine's exact result, cash-rounded if asked.
   const rounded = useMemo(() => roundSplit(structuredSplit, cashUnit, absorberName), [structuredSplit, cashUnit, absorberName]);
+
+  // ---- settle-up: who paid, who owes whom ---------------------------------------------------
+  // The settlement shown is the saved one, or (until the user touches the card) a default: the user,
+  // if we can tell who that is, fronted it. Transfers are derived from the shares people actually pay.
+  const settlement = useMemo(() => {
+    if (rounded.splits.length === 0) return null;
+    const me = guessMe(rounded.splits.map((s) => s.name), user?.name);
+    return normalizeSettlement(savedSettlement ?? defaultSettlement(rounded.splits, me), rounded.splits);
+  }, [savedSettlement, rounded.splits, user?.name]);
+
+  /** Change the settlement and save it with the bill. The first change is what starts tracking it. */
+  const changeSettlementNow = async (change: (s: Settlement) => Settlement) => {
+    if (!settlement) return;
+    let next = change(settlement);
+    const view = settleView(rounded.splits, next, localDate());
+    if (view && view.ok) next = view.settlement; // drop paid marks that no longer match
+    setSavedSettlement(next);
+    await attemptSave(structuredSplit, splitResult, cashUnit, absorberName, next);
+  };
+
+  // The identity of this function never changes and it always runs the latest version above, so an
+  // Undo toast created a minute ago can't act on (and overwrite) a stale copy of the settlement.
+  const changeRef = useRef(changeSettlementNow);
+  useEffect(() => {
+    changeRef.current = changeSettlementNow;
+  });
+  const changeSettlement = useCallback((change: (s: Settlement) => Settlement) => changeRef.current(change), []);
+
+  const stopTracking = async () => {
+    setSavedSettlement(null);
+    await attemptSave(structuredSplit, splitResult, cashUnit, absorberName, null);
+  };
 
   /** Change the cash rounding (1 = exact) and, optionally, who covers the difference; re-saves the bill. */
   const chooseCashRounding = async (unit: number, absorber: string | null = absorberName) => {
@@ -627,6 +674,9 @@ export function useSplitSession() {
     // cash rounding of the final shares
     finalSplit: rounded.splits, cashDeltas: rounded.deltas, absorberIndex: rounded.absorber,
     cashUnit, absorberName, chooseCashRounding, cashRoundingActive: rounded.changed,
+    // settle-up
+    settlement, settleTracked: savedSettlement !== null, changeSettlement, stopTracking,
+    billTitle: sessionName.trim() || "the bill",
     // AI keys
     keys, keySheetOpen, setKeySheetOpen,
   };
