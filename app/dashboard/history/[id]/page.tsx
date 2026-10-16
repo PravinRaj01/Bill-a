@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronDown, ChevronLeft, ChevronUp, Loader2, Play, ScrollText, Share2, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronUp, ImageIcon, Loader2, Play, ScrollText, Share2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageTransition } from "@/components/page-transition";
 import { ReceiptTicket, type TicketRow } from "@/components/receipt/ReceiptTicket";
+import { ShareSheet } from "@/components/receipt/ShareSheet";
 import { SettleUp } from "@/components/split/SettleUp";
 import { ConfirmSheet } from "@/components/ui/confirm-sheet";
 import { useBillSettlement } from "@/hooks/use-bill-settlement";
@@ -26,6 +27,7 @@ export default function BillDetailPage() {
   const [user, setUser] = useState<{ id: string; name: string | null } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
+  const [imageOpen, setImageOpen] = useState(false);
   const router = useRouter();
   const payment = usePaymentShare();
 
@@ -139,6 +141,14 @@ export default function BillDetailPage() {
             </button>
             <button
               type="button"
+              data-testid="share-image-open"
+              onClick={() => setImageOpen(true)}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-base font-semibold text-zinc-200 transition-colors hover:bg-white/5"
+            >
+              <ImageIcon className="size-4" /> Share as image
+            </button>
+            <button
+              type="button"
               onClick={handleContinue}
               className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/5"
             >
@@ -167,6 +177,13 @@ export default function BillDetailPage() {
             )}
           </div>
         </ReceiptTicket>
+
+        <ShareSheet
+          open={imageOpen}
+          onOpenChange={setImageOpen}
+          data={{ title: bill.billTitle, date: bill.createdAt, symbol, shares, settlement: settle?.settlement ?? null, view }}
+          payment={payment}
+        />
 
         <ConfirmSheet
           open={confirmDelete}

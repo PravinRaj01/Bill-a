@@ -11,6 +11,8 @@ import type { PaymentDetails } from "@/types/domain";
 // nothing to add, so callers can pass it straight through.
 
 export interface PaymentShare {
+  /** undefined until we know; false for guests. */
+  signedIn: boolean | undefined;
   details: PaymentDetails | null;
   include: boolean;
   setInclude: (on: boolean) => void;
@@ -47,5 +49,5 @@ export function usePaymentShare(): PaymentShare {
   }, []);
 
   const saved = details && hasPaymentDetails(details) ? details : null;
-  return { details: saved, include, setInclude, block: saved && include ? paymentBlock(saved) : "" };
+  return { signedIn, details: saved, include, setInclude, block: saved && include ? paymentBlock(saved) : "" };
 }

@@ -1,12 +1,13 @@
 "use client";
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, ScrollText, Share2, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronUp, ImageIcon, Loader2, ScrollText, Share2, Sparkles } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ClarifyChips } from "@/components/ai/ClarifyChips";
 import { CrossCheck } from "@/components/ai/CrossCheck";
 import { ReceiptTicket, type TicketRow } from "@/components/receipt/ReceiptTicket";
+import { ShareSheet } from "@/components/receipt/ShareSheet";
 import { AdjustShares } from "@/components/split/AdjustShares";
 import { SettleUp } from "@/components/split/SettleUp";
 import { usePaymentShare } from "@/hooks/use-payment-share";
@@ -23,6 +24,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
   const [modifyText, setModifyText] = useState("");
   const { symbol } = s;
   const payment = usePaymentShare();
+  const [imageOpen, setImageOpen] = useState(false);
 
   const apply = () => {
     const text = modifyText.trim();
@@ -187,11 +189,26 @@ export function SummaryStep({ s }: { s: SplitSession }) {
           <Button type="button" className="h-12 w-full rounded-xl bg-[#25D366] text-base font-bold text-black hover:bg-[#25D366]/90" onClick={share}>
             <Share2 className="mr-2 size-4" /> Share summary
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            data-testid="share-image-open"
+            className="h-12 w-full rounded-xl border-white/10 text-base font-semibold text-zinc-200"
+            onClick={() => setImageOpen(true)}
+          >
+            <ImageIcon className="mr-2 size-4" /> Share as image
+          </Button>
           <Button type="button" variant="outline" className="h-12 w-full rounded-xl border-white/10 text-sm font-semibold text-zinc-300" onClick={s.finish}>
             Finish session
           </Button>
         </div>
       </ReceiptTicket>
+      <ShareSheet
+        open={imageOpen}
+        onOpenChange={setImageOpen}
+        data={{ title: s.billTitle, date: localDate(), symbol, shares: s.finalSplit, settlement: s.settlement, view: settleNow }}
+        payment={payment}
+      />
     </div>
   );
 }
