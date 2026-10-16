@@ -92,6 +92,27 @@ export interface BillData {
   cashRounding?: { unit: number; absorber: string };
   /** The exact shares before cash rounding, kept so the rounding can be changed or undone after a restore. */
   exactSplit?: SplitRecord[];
+  /** Who paid and who has paid back (batch 2). */
+  settlement?: Settlement;
+}
+
+/**
+ * Who fronted a bill and who has paid them back. Optional on a saved bill (older bills have none).
+ * Transfers ("Lakx -> Pravin RM41.20") are DERIVED from the shares and `paidBy`, never stored: only
+ * the facts people entered are. See lib/split/settle.ts.
+ */
+export interface Settlement {
+  /** Which person is the app's user on this bill (used for "you're owed" and balances). */
+  me?: string;
+  /** Who paid the bill and how much each fronted. One entry = a single payer (amount = the bill). */
+  paidBy: { name: string; amount: Cents }[];
+  /**
+   * Transfers marked as paid, keyed "From->To". The amount is stored with the mark so it stops
+   * counting if the shares (and so the amount owed) change later.
+   */
+  paid: Record<string, { at: string; amount: Cents }>;
+  /** "YYYY-MM-DD", the local date by which people should have paid. */
+  dueDate?: string;
 }
 
 export class SplitReconciliationError extends Error {
