@@ -37,7 +37,7 @@ describe("fallback parser — measured accuracy", () => {
   });
 });
 
-const people = ["Pravin", "Aisha", "Sarah"];
+const people = ["Alexis", "Aisha", "Sarah"];
 const items = [
   { name: "FRIED RICE", quantity: 1, unitPrice: 900, totalPrice: 900 },
   { name: "CHICKEN RENDANG", quantity: 1, unitPrice: 1300, totalPrice: 1300 },
@@ -48,16 +48,16 @@ const items = [
 
 describe("splitClauses", () => {
   it("keeps lists together and splits real clauses", () => {
-    expect(splitClauses("Split the pizza between Pravin and Aisha only, everyone splits the rest", people)).toEqual([
-      "Split the pizza between Pravin and Aisha only",
+    expect(splitClauses("Split the pizza between Alexis and Aisha only, everyone splits the rest", people)).toEqual([
+      "Split the pizza between Alexis and Aisha only",
       "everyone splits the rest",
     ]);
-    expect(splitClauses("Pravin had the rice and Aisha had the chicken", people)).toEqual([
-      "Pravin had the rice",
+    expect(splitClauses("Alexis had the rice and Aisha had the chicken", people)).toEqual([
+      "Alexis had the rice",
       "Aisha had the chicken",
     ]);
-    expect(splitClauses("Pravin and Aisha split the rice and chicken", people)).toEqual([
-      "Pravin and Aisha split the rice and chicken",
+    expect(splitClauses("Alexis and Aisha split the rice and chicken", people)).toEqual([
+      "Alexis and Aisha split the rice and chicken",
     ]);
     expect(splitClauses("Everyone but Sarah splits the milkshake", people)).toHaveLength(1);
   });
@@ -65,8 +65,8 @@ describe("splitClauses", () => {
 
 describe("parseInstruction — never guesses", () => {
   it("asks about a typo'd name instead of resolving it", () => {
-    const r = parseInstruction("Pravn had the rice", people, items);
-    expect(r.chips).toContainEqual({ kind: "possible-typo", token: "Pravn", suggestion: "Pravin" });
+    const r = parseInstruction("Alexs had the rice", people, items);
+    expect(r.chips).toContainEqual({ kind: "possible-typo", token: "Alexs", suggestion: "Alexis" });
     expect(r.plan.assignments).toEqual([]); // nothing assigned to a guessed person
   });
 

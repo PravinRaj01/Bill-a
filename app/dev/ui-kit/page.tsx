@@ -11,7 +11,7 @@ import { personColor } from "@/lib/ui/person-color";
 
 // Visual/behaviour sandbox for the shared UI building blocks (dev only: see app/dev/layout.tsx).
 // Used for manual checks and Playwright smoke tests at phone and tablet widths.
-const PEOPLE = ["Pravin", "Lakx", "Wei Jie", "Aisha"];
+const PEOPLE = ["Alexis", "Riley", "Wei Jie", "Aisha"];
 
 export default function UiKit() {
   const [mode, setMode] = useState<"equal" | "custom" | "describe">("equal");
@@ -41,13 +41,13 @@ export default function UiKit() {
       <section className="space-y-3 rounded-3xl bg-surface p-4">
         <h2 className="text-sm text-muted-foreground">Slider + Money</h2>
         <div className="flex items-center justify-between gap-3">
-          <PersonAvatar name="Pravin" />
-          <span className="flex-1 font-semibold">Pravin</span>
+          <PersonAvatar name="Alexis" />
+          <span className="flex-1 font-semibold">Alexis</span>
           <span data-testid="pct" className="tabular-nums">{pct}%</span>
           <Money cents={mine} className="text-lg font-bold" />
         </div>
         <Slider
-          aria-label="Pravin's share"
+          aria-label="Alexis's share"
           value={[pct]}
           max={100}
           step={1}
@@ -55,10 +55,10 @@ export default function UiKit() {
             if (v % 5 === 0 && v !== pct) haptic("selection");
             setPct(v);
           }}
-          style={{ ["--slider-color" as string]: personColor("Pravin") }}
+          style={{ ["--slider-color" as string]: personColor("Alexis") }}
         />
         <div className="flex items-center justify-between text-sm text-muted-foreground">
-          <span>Lakx {100 - pct}%</span>
+          <span>Riley {100 - pct}%</span>
           <Money cents={total - mine} />
         </div>
       </section>

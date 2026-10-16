@@ -29,7 +29,7 @@ const mamak: Receipt = {
   ],
 };
 
-const people = ["Pravin", "Aisha", "Wei", "Farah"];
+const people = ["Alexis", "Aisha", "Wei", "Farah"];
 
 export interface HeldOutCase extends BakeoffCase {
   saferAsChip?: boolean;
@@ -57,7 +57,7 @@ const realfood: Receipt = {
     { name: "STEAM DUMPLINGS", quantity: 1, unitPrice: RM(16.04), totalPrice: RM(16.04) }, // 1
   ],
 };
-const couple = ["Pravin", "Wifey"];
+const couple = ["Alexis", "Wifey"];
 const ct = (id: string, instruction: string, expectedPlan: BakeoffCase["expectedPlan"]): HeldOutCase => ({
   id, instruction, people: couple, receipt: realfood, applyTax: true, expectedPlan,
 });
@@ -73,17 +73,17 @@ export const HELDOUT_CASES: HeldOutCase[] = [
     assignments: [{ itemIndex: 2, people: ["Farah", "Aisha"] }], defaultRule: eq, notes: "",
   }),
   c("negation-she-he-not-having", "Wei didn't have the cendol", {
-    assignments: [{ itemIndex: 5, people: ["Pravin", "Aisha", "Farah"] }], defaultRule: eq, notes: "",
+    assignments: [{ itemIndex: 5, people: ["Alexis", "Aisha", "Farah"] }], defaultRule: eq, notes: "",
   }),
-  c("treat-everyone", "Pravin treats everyone", {
-    assignments: [0, 1, 2, 3, 4, 5].map((itemIndex) => ({ itemIndex, people: ["Pravin"] })), defaultRule: eq, notes: "",
+  c("treat-everyone", "Alexis treats everyone", {
+    assignments: [0, 1, 2, 3, 4, 5].map((itemIndex) => ({ itemIndex, people: ["Alexis"] })), defaultRule: eq, notes: "",
   }),
-  c("just-two-items-ignore-rest", "Just the mee goreng and the milo ais, split between Pravin and Wei, ignore everything else", {
-    assignments: [{ itemIndex: 1, people: ["Pravin", "Wei"] }, { itemIndex: 4, people: ["Pravin", "Wei"] }],
+  c("just-two-items-ignore-rest", "Just the mee goreng and the milo ais, split between Alexis and Wei, ignore everything else", {
+    assignments: [{ itemIndex: 1, people: ["Alexis", "Wei"] }, { itemIndex: 4, people: ["Alexis", "Wei"] }],
     defaultRule: ex, notes: "",
   }),
-  c("two-and-joined-clauses", "Pravin had the nasi goreng and Aisha had the mee goreng, the rest is shared", {
-    assignments: [{ itemIndex: 0, people: ["Pravin"] }, { itemIndex: 1, people: ["Aisha"] }], defaultRule: eq, notes: "",
+  c("two-and-joined-clauses", "Alexis had the nasi goreng and Aisha had the mee goreng, the rest is shared", {
+    assignments: [{ itemIndex: 0, people: ["Alexis"] }, { itemIndex: 1, people: ["Aisha"] }], defaultRule: eq, notes: "",
   }),
   c("category-dessert-payer", "Farah is paying for the desserts", {
     assignments: [{ itemIndex: 5, people: ["Farah"] }], defaultRule: eq, notes: "",
@@ -91,10 +91,10 @@ export const HELDOUT_CASES: HeldOutCase[] = [
   c("partial-name-roti", "Aisha pays for the roti", {
     assignments: [{ itemIndex: 2, people: ["Aisha"] }], defaultRule: eq, notes: "",
   }),
-  c("shared-pair-then-complement-payer", "Pravin and Wei split the mee goreng and nasi goreng, Aisha pays for the rest", {
+  c("shared-pair-then-complement-payer", "Alexis and Wei split the mee goreng and nasi goreng, Aisha pays for the rest", {
     assignments: [
-      { itemIndex: 0, people: ["Pravin", "Wei"] },
-      { itemIndex: 1, people: ["Pravin", "Wei"] },
+      { itemIndex: 0, people: ["Alexis", "Wei"] },
+      { itemIndex: 1, people: ["Alexis", "Wei"] },
       { itemIndex: 2, people: ["Aisha"] },
       { itemIndex: 3, people: ["Aisha"] },
       { itemIndex: 4, people: ["Aisha"] },
@@ -107,34 +107,34 @@ export const HELDOUT_CASES: HeldOutCase[] = [
     assignments: [{ itemIndex: 4, people: ["Farah"] }, { itemIndex: 3, people: ["Wei"] }], defaultRule: eq, notes: "",
   }),
   c("everyone-except-person", "Everyone except Wei splits the cendol", {
-    assignments: [{ itemIndex: 5, people: ["Pravin", "Aisha", "Farah"] }], defaultRule: eq, notes: "",
+    assignments: [{ itemIndex: 5, people: ["Alexis", "Aisha", "Farah"] }], defaultRule: eq, notes: "",
   }),
   c("two-items-one-person", "Wei had the cendol and the milo ais", {
     assignments: [{ itemIndex: 5, people: ["Wei"] }, { itemIndex: 4, people: ["Wei"] }], defaultRule: eq, notes: "",
   }),
-  c("possessive-contraction", "Pravin's paying for the mee goreng", {
-    assignments: [{ itemIndex: 1, people: ["Pravin"] }], defaultRule: eq, notes: "",
+  c("possessive-contraction", "Alexis's paying for the mee goreng", {
+    assignments: [{ itemIndex: 1, people: ["Alexis"] }], defaultRule: eq, notes: "",
   }),
   c("pair-shares-two-items", "Aisha and Farah split the nasi goreng and mee goreng", {
     assignments: [{ itemIndex: 0, people: ["Aisha", "Farah"] }, { itemIndex: 1, people: ["Aisha", "Farah"] }],
     defaultRule: eq, notes: "",
   }),
   // --- phrasings a rule-based parser can't fully resolve: a question is fine, a wrong answer is not
-  c("synonym-not-in-item-names", "Pravin had the tea", {
-    assignments: [{ itemIndex: 3, people: ["Pravin"] }], defaultRule: eq, notes: "",
+  c("synonym-not-in-item-names", "Alexis had the tea", {
+    assignments: [{ itemIndex: 3, people: ["Alexis"] }], defaultRule: eq, notes: "",
   }, true),
   { ...c("unknown-person", "Sarah owes for the nasi goreng", {
     assignments: [{ itemIndex: 0, people: ["Sarah"] }], defaultRule: eq, notes: "",
   }, true), mustAsk: true },
-  c("typo-in-name", "Pravn had the nasi goreng", {
-    assignments: [{ itemIndex: 0, people: ["Pravin"] }], defaultRule: eq, notes: "",
+  c("typo-in-name", "Alexs had the nasi goreng", {
+    assignments: [{ itemIndex: 0, people: ["Alexis"] }], defaultRule: eq, notes: "",
   }, true),
   c("misspelled-item", "Wei had the chendol", {
     assignments: [{ itemIndex: 5, people: ["Wei"] }], defaultRule: eq, notes: "",
   }, true),
   // --- who pays the tax / service charge (added after a user's real receipt exposed the gap)
-  ct("tax-payer-food-and-tax", "Pravin pays for the food and Wifey pays the tax", {
-    assignments: [{ itemIndex: 0, people: ["Pravin"] }, { itemIndex: 1, people: ["Pravin"] }],
+  ct("tax-payer-food-and-tax", "Alexis pays for the food and Wifey pays the tax", {
+    assignments: [{ itemIndex: 0, people: ["Alexis"] }, { itemIndex: 1, people: ["Alexis"] }],
     defaultRule: eq, taxPayers: ["Wifey"], notes: "",
   }),
   ct("tax-payer-service-charge", "Wifey covers the service charge, split the rest equally", {

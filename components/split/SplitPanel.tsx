@@ -27,7 +27,7 @@ function exampleInstructions(people: string[]): string[] {
 // "How to split": three ways to get from the items to who pays what.
 //   Equal    everyone the same. One tap, works offline.
 //   Custom   a slider per person, exact to the cent. Works offline.
-//   Describe say it in words ("Pravin pays the drinks"): the on-device rules, or an AI if you set a key.
+//   Describe say it in words ("Alexis pays the drinks"): the on-device rules, or an AI if you set a key.
 // Key this component by the people list so a different group starts fresh (equal, unlocked).
 export function SplitPanel({ s, modes = ["equal", "custom", "describe"] }: { s: SplitSession; modes?: Mode[] }) {
   // Describe is the default where it is offered (the scan flow); otherwise the first mode (Equal: one tap).

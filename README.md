@@ -13,7 +13,7 @@ or Gemini key, which the browser calls directly.
   (WebAssembly) reads the photo locally — nothing is uploaded. A deterministic parser turns
   the OCR text into items, tax and a total, in integer cents. Works offline once the app has
   been opened online once.
-- **Split it in plain English.** "Pravin pays for the drinks, split the rest equally" or
+- **Split it in plain English.** "Alexis pays for the drinks, split the rest equally" or
   "Wifey pays the tax." A deterministic reference resolver (`lib/retrieval/`) works out what
   "the drinks" or "the rest" refers to; the model only ever decides *who owns what* — never
   the arithmetic. All money math happens in one place, [`lib/split/engine.ts`](lib/split/engine.ts),

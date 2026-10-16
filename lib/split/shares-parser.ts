@@ -4,12 +4,12 @@ import { apportion } from "./apportion";
 import type { Chip } from "./fallback-parser";
 
 // Reads whole-bill shares out of an instruction, deterministically and on the device:
-//   "Pravin 70%, Lakx 30%"            "pravin pays 70% lakx pay 30%"
-//   "70/30 Pravin and Lakx"           "split 2:1 between A and B"
-//   "Lakx pays RM30, rest equally"    "Pravin 60%, Lakx gets the rest"
+//   "Alexis 70%, Riley 30%"            "alexis pays 70% riley pay 30%"
+//   "70/30 Alexis and Riley"           "split 2:1 between A and B"
+//   "Riley pays RM30, rest equally"    "Alexis 60%, Riley gets the rest"
 // A model is never involved: this is arithmetic on numbers the user typed. What it can't
 // read with confidence comes back as a question (a chip with one-tap fixes), never a guess.
-// Anything that is really about ITEMS ("Pravin pays 50% of the drinks", "the tax") is left
+// Anything that is really about ITEMS ("Alexis pays 50% of the drinks", "the tax") is left
 // alone (kind "none") for the item-based pipeline.
 
 export type ShareParse =
@@ -107,7 +107,7 @@ export function parseShareInstruction(
   const { terms, ratios } = findTerms(text);
   if (terms.length === 0 && ratios.length === 0) return { kind: "none" };
   if (TAX_WORDS.test(text)) return { kind: "none" };
-  // A named item means this is about ITEMS ("Pravin pays 50% of the drinks"), not the whole bill.
+  // A named item means this is about ITEMS ("Alexis pays 50% of the drinks"), not the whole bill.
   // ("the rest" resolves as a complement of other items; it isn't an item.)
   if (items.length > 0 && resolveInstruction(text, items).references.some((r) => r.via !== "complement" && r.itemIndices.length > 0 && r.confidence >= 0.5)) {
     return { kind: "none" };
@@ -119,13 +119,13 @@ export function parseShareInstruction(
 
   const restWord = REST_WORDS.test(text);
 
-  // ---- ratio: "70/30 Pravin and Lakx", "split 2:1 between A and B" -------------------
+  // ---- ratio: "70/30 Alexis and Riley", "split 2:1 between A and B" -------------------
   if (ratios.length > 0) {
     if (terms.length > 0 || ratios.length > 1) return ask("Use one way of giving shares: percentages, a ratio, or amounts — not a mix.");
     const r = ratios[0];
     const order = [...new Set(mentions.map((m) => m.person))];
     if (r.numbers.length !== order.length) {
-      return ask(`I see ${r.numbers.length} numbers (${r.numbers.join(":")}) but ${order.length} ${order.length === 1 ? "person" : "people"} named. Say it like “Pravin 70%, Lakx 30%”.`);
+      return ask(`I see ${r.numbers.length} numbers (${r.numbers.join(":")}) but ${order.length} ${order.length === 1 ? "person" : "people"} named. Say it like “Alexis 70%, Riley 30%”.`);
     }
     if (r.numbers.some((n) => !(n > 0))) return ask("Every number in a ratio needs to be above 0.");
     const weights = people.map((p) => {
@@ -180,7 +180,7 @@ export function parseShareInstruction(
   if (pairs.length === 0) return { kind: "none" };
   if (unpairedTerms.length > 0) {
     const t = unpairedTerms[0];
-    return ask(`I couldn't tell who the ${t.kind === "pct" ? pctText(t.value) : money(t.value)} is for. Say it like “Pravin 70%, Lakx 30%”.`);
+    return ask(`I couldn't tell who the ${t.kind === "pct" ? pctText(t.value) : money(t.value)} is for. Say it like “Alexis 70%, Riley 30%”.`);
   }
   const named = pairs.map((p) => p.person);
   if (new Set(named).size !== named.length) return ask("Someone has two shares in that instruction. Give each person one.");
@@ -190,7 +190,7 @@ export function parseShareInstruction(
   const isPct = pairs[0].term.kind === "pct";
   const restPeopleNamed = [...new Set(unpairedPeople)].filter((p) => !given.has(p));
   const others = people.filter((p) => !given.has(p));
-  // Who gets what is left: people named without a number ("Lakx gets the rest"), otherwise everyone not given a share.
+  // Who gets what is left: people named without a number ("Riley gets the rest"), otherwise everyone not given a share.
   const takers = restWord ? (restPeopleNamed.length > 0 ? restPeopleNamed : others) : [];
 
   if (restPeopleNamed.length > 0 && !restWord) {

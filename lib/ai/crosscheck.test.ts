@@ -14,7 +14,7 @@ const receipt: Receipt = {
     { name: "TEH TARIK", quantity: 2, unitPrice: 400, totalPrice: 800 },
   ],
 };
-const people = ["Pravin", "Aisha", "Sarah"];
+const people = ["Alexis", "Aisha", "Sarah"];
 const base = { receipt, people, applyTax: false, keys: { groq: "gsk_x" } };
 
 const json = (b: unknown) => new Response(JSON.stringify(b), { status: 200 });
@@ -24,15 +24,15 @@ const plan = (assignments: unknown[], extra: Record<string, unknown> = {}) => ({
 
 describe("cross-check: cloud answer vs the on-device rules", () => {
   it("shows both readings when the AI and the rules disagree, each computed by the engine", async () => {
-    // The rules read "Pravin pays for the chicken" correctly; the (mock) model gave it to Aisha.
+    // The rules read "Alexis pays for the chicken" correctly; the (mock) model gave it to Aisha.
     const f = groqSays(plan([{ itemIndex: 1, people: ["Aisha"] }]));
-    const out = await planSplit({ ...base, instructions: ["Pravin pays for the chicken"], fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["Alexis pays for the chicken"], fetchImpl: f as never });
     expect(out.kind).toBe("disagreement");
     if (out.kind !== "disagreement") return;
     expect(out.ai.tier).toBe("groq");
     const amount = (r: { splits: { name: string; amount: number }[] }, n: string) => r.splits.find((s) => s.name === n)!.amount;
     expect(amount(out.ai.result, "Aisha")).toBeGreaterThanOrEqual(1300); // the AI's reading
-    expect(amount(out.rules.result, "Pravin")).toBeGreaterThanOrEqual(1300); // the rules' reading
+    expect(amount(out.rules.result, "Alexis")).toBeGreaterThanOrEqual(1300); // the rules' reading
     // both are complete, engine-verified splits of the same bill
     for (const r of [out.ai.result, out.rules.result]) {
       expect(r.splits.reduce((s, x) => s + x.amount, 0)).toBe(3000);
@@ -41,15 +41,15 @@ describe("cross-check: cloud answer vs the on-device rules", () => {
   });
 
   it("stays silent when they agree — the normal case costs the user nothing", async () => {
-    const f = groqSays(plan([{ itemIndex: 1, people: ["Pravin"] }]));
-    const out = await planSplit({ ...base, instructions: ["Pravin pays for the chicken"], fetchImpl: f as never });
+    const f = groqSays(plan([{ itemIndex: 1, people: ["Alexis"] }]));
+    const out = await planSplit({ ...base, instructions: ["Alexis pays for the chicken"], fetchImpl: f as never });
     expect(out.kind).toBe("split");
   });
 
   it("agreement is judged on the AMOUNTS: a different but equivalent plan is not a disagreement", async () => {
     // AI spells out "everyone shares the rest" explicitly; the rules leave it as the default. Same money.
-    const f = groqSays(plan([{ itemIndex: 1, people: ["Pravin"] }, { itemIndex: 0, people }, { itemIndex: 2, people }]));
-    const out = await planSplit({ ...base, instructions: ["Pravin pays for the chicken, split the rest equally"], fetchImpl: f as never });
+    const f = groqSays(plan([{ itemIndex: 1, people: ["Alexis"] }, { itemIndex: 0, people }, { itemIndex: 2, people }]));
+    const out = await planSplit({ ...base, instructions: ["Alexis pays for the chicken, split the rest equally"], fetchImpl: f as never });
     expect(out.kind).toBe("split");
   });
 
@@ -71,12 +71,12 @@ describe("cross-check: cloud answer vs the on-device rules", () => {
 
   it("can be switched off (benchmarks that score the model alone)", async () => {
     const f = groqSays(plan([{ itemIndex: 1, people: ["Aisha"] }]));
-    const out = await planSplit({ ...base, instructions: ["Pravin pays for the chicken"], crossCheck: false, fetchImpl: f as never });
+    const out = await planSplit({ ...base, instructions: ["Alexis pays for the chicken"], crossCheck: false, fetchImpl: f as never });
     expect(out.kind).toBe("split");
   });
 
   it("never applies to the on-device tier itself (comparing the rules with themselves)", async () => {
-    const out = await planSplit({ ...base, keys: {}, instructions: ["Pravin pays for the chicken"] });
+    const out = await planSplit({ ...base, keys: {}, instructions: ["Alexis pays for the chicken"] });
     expect(out.kind).toBe("split");
     expect(out.kind === "split" && out.tier).toBe("fallback");
   });
@@ -93,9 +93,9 @@ describe("parseInstruction.understood", () => {
   const items = receipt.items;
   it.each([
     ["Split equally", true],
-    ["Pravin pays for the chicken", true],
+    ["Alexis pays for the chicken", true],
     ["Aisha pays the tax", true],
-    ["Just split the rice between Pravin and Aisha, forget the rest", true],
+    ["Just split the rice between Alexis and Aisha, forget the rest", true],
     ["make it fair somehow", false],
     ["hello there", false],
     ["", false],

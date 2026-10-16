@@ -36,10 +36,10 @@ describe.skipIf(!hasDb)("saving a group never duplicates it (real Neon DB)", { t
   });
 
   it("saving the same name twice yields ONE group, with the latest members", async () => {
-    const first = await createGroup(db, A, { groupName: "Best Couple", names: ["Pravin", "Wifey"] });
-    const second = await createGroup(db, A, { groupName: "Best Couple", names: ["Pravin", "Wifey", "Sam"] });
+    const first = await createGroup(db, A, { groupName: "Best Couple", names: ["Alexis", "Wifey"] });
+    const second = await createGroup(db, A, { groupName: "Best Couple", names: ["Alexis", "Wifey", "Sam"] });
     expect(second.id).toBe(first.id);
-    expect(second.names).toEqual(["Pravin", "Wifey", "Sam"]);
+    expect(second.names).toEqual(["Alexis", "Wifey", "Sam"]);
     expect((await listGroups(db, A)).filter((g) => g.groupName === "Best Couple")).toHaveLength(1);
   });
 

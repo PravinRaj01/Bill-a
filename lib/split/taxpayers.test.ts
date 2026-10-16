@@ -3,7 +3,7 @@ import { validatePlan } from "@/lib/ai/validatePlan";
 import { parseInstruction } from "./fallback-parser";
 
 describe("validatePlan: taxPayers", () => {
-  const ctx = { itemCount: 3, people: ["Pravin", "Aisha", "Sarah"] };
+  const ctx = { itemCount: 3, people: ["Alexis", "Aisha", "Sarah"] };
   const plan = (extra: Record<string, unknown> = {}) => ({ assignments: [], defaultRule: "equal", notes: "", ...extra });
 
   it("is passed through, canonicalised and deduped", () => {
@@ -20,7 +20,7 @@ describe("validatePlan: taxPayers", () => {
   });
 
   it("drops unknown names but keeps the known one", () => {
-    expect(validatePlan(plan({ taxPayers: ["Mallory", "Pravin"] }), ctx)).toMatchObject({ ok: true, plan: { taxPayers: ["Pravin"] } });
+    expect(validatePlan(plan({ taxPayers: ["Mallory", "Alexis"] }), ctx)).toMatchObject({ ok: true, plan: { taxPayers: ["Alexis"] } });
   });
 
   it("rejects a tax payer who is nobody in the bill (would silently change who pays)", () => {
@@ -29,7 +29,7 @@ describe("validatePlan: taxPayers", () => {
 });
 
 describe("parseInstruction: who pays the tax", () => {
-  const two = ["Pravin", "Wifey"];
+  const two = ["Alexis", "Wifey"];
   const rf = [
     { name: "MUSH NOODLES DRY", quantity: 1, unitPrice: 1887, totalPrice: 1887 },
     { name: "STEAM DUMPLINGS", quantity: 1, unitPrice: 1604, totalPrice: 1604 },
@@ -40,8 +40,8 @@ describe("parseInstruction: who pays the tax", () => {
     ["Wifey pays for the service charge", ["Wifey"]],
     ["Wifey covers the GST", ["Wifey"]],
     ["put the SST on Wifey", ["Wifey"]],
-    ["Pravin pays for the food and Wifey pays the tax", ["Wifey"]],
-    ["Pravin and Wifey pay the tax", ["Pravin", "Wifey"]],
+    ["Alexis pays for the food and Wifey pays the tax", ["Wifey"]],
+    ["Alexis and Wifey pay the tax", ["Alexis", "Wifey"]],
   ])("%s -> taxPayers %j", (text, expected) => {
     const r = parseInstruction(text, two, rf);
     expect(r.plan.taxPayers).toEqual(expected);
@@ -49,7 +49,7 @@ describe("parseInstruction: who pays the tax", () => {
   });
 
   it("'Tax' is not mistaken for a person's name", () => {
-    const r = parseInstruction("Pravin pays and Tax is on Wifey", two, rf);
+    const r = parseInstruction("Alexis pays and Tax is on Wifey", two, rf);
     expect(r.chips.some((c) => c.kind === "unknown-person")).toBe(false);
   });
 
@@ -60,12 +60,12 @@ describe("parseInstruction: who pays the tax", () => {
   });
 
   it("'everything except the tax' does NOT make that person the tax payer", () => {
-    const r = parseInstruction("Pravin pays for everything except the tax", two, rf);
+    const r = parseInstruction("Alexis pays for everything except the tax", two, rf);
     expect(r.plan.taxPayers).toBeUndefined();
     expect(r.plan.assignments).toHaveLength(2);
   });
 
   it("no tax mention -> no taxPayers key, exactly as before", () => {
-    expect(parseInstruction("Pravin pays for the noodles", two, rf).plan).not.toHaveProperty("taxPayers");
+    expect(parseInstruction("Alexis pays for the noodles", two, rf).plan).not.toHaveProperty("taxPayers");
   });
 });

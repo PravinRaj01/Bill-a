@@ -16,7 +16,7 @@ export function personColorIndex(name: string): number {
 /** CSS colour for a person, e.g. for `style={{ background: personColor(name) }}`. */
 export const personColor = (name: string): string => `var(--person-${personColorIndex(name)})`;
 
-/** Two-letter initials: "Pravin Raj" -> "PR", "lakx" -> "LA". */
+/** Two-letter initials: "Alexis Reed" -> "AR", "riley" -> "RI". */
 export function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";

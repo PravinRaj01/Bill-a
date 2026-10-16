@@ -1,6 +1,6 @@
 import { SplitReconciliationError, type Cents, type SplitRecord, type SplitResult } from "@/types/domain";
 
-// Whole-bill shares ("Pravin 70%, Lakx 30%", "Lakx pays RM30, the rest equally"). Unlike an
+// Whole-bill shares ("Alexis 70%, Riley 30%", "Riley pays RM30, the rest equally"). Unlike an
 // item split there is nothing to look up on the receipt: the shares are just numbers the user
 // gave, so this is plain arithmetic that never touches a model. parseShareInstruction() turns
 // the words into per-person amounts (via apportion, which reconciles by construction); this

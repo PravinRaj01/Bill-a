@@ -42,8 +42,8 @@ const OWNERSHIP_VERB =
 
 /**
  * Splits on `,` `;` dashes, and on " and " / " but " only where a NEW clause
- * starts — "between Pravin and Aisha" and "the mee goreng and the milo ais"
- * must stay whole, "Pravin had X and Aisha had Y" must not.
+ * starts — "between Alexis and Aisha" and "the mee goreng and the milo ais"
+ * must stay whole, "Alexis had X and Aisha had Y" must not.
  */
 export function splitClauses(instruction: string, people: string[]): string[] {
   const rough = instruction
@@ -194,14 +194,14 @@ export function parseInstruction(
       }
     }
 
-    // 3. "Pravin treats everyone" / "put it all on him" / "Pravin pays for everything except X"
+    // 3. "Alexis treats everyone" / "put it all on him" / "Alexis pays for everything except X"
     if (persons.length > 0 && positive.length === 0 && TREAT_ALL.test(norm)) {
       takeAll(persons, allIdx.filter((i) => !exception.includes(i)));
       dangling = [];
       continue;
     }
 
-    // 4. named people + named items: "Pravin pays for the drinks", "A and B share the pizza"
+    // 4. named people + named items: "Alexis pays for the drinks", "A and B share the pizza"
     if (persons.length > 0 && positive.length > 0) {
       takeAll(persons, positive);
       if (exception.length > 0) remember();

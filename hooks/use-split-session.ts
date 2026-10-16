@@ -556,7 +556,7 @@ export function useSplitSession() {
 
   /**
    * Shares set directly (the sliders, or Equal): cents per person, in `people` order, adding up to
-   * the bill. Pure arithmetic on the device, same path as a typed "Pravin 70%, Lakx 30%".
+   * the bill. Pure arithmetic on the device, same path as a typed "Alexis 70%, Riley 30%".
    */
   const applyShares = async (amounts: Cents[]) => {
     if (!receipt || amounts.length !== people.length) return;

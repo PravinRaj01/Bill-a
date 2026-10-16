@@ -37,8 +37,8 @@ const RM = (amount: number) => Math.round(amount * 100); // RM x.xx -> cents
 export const BAKEOFF_CASES: BakeoffCase[] = [
   {
     id: "drinks-payer",
-    instruction: "Pravin pays for the drinks, split the rest equally",
-    people: ["Pravin", "Aisha", "Sarah"],
+    instruction: "Alexis pays for the drinks, split the rest equally",
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: RM(1.7),
@@ -53,8 +53,8 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     applyTax: true,
     expectedPlan: {
       assignments: [
-        { itemIndex: 1, people: ["Pravin"] },
-        { itemIndex: 2, people: ["Pravin"] },
+        { itemIndex: 1, people: ["Alexis"] },
+        { itemIndex: 2, people: ["Alexis"] },
       ],
       defaultRule: "equal",
       notes: "",
@@ -63,7 +63,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   {
     id: "equal-baseline",
     instruction: "Split everything equally",
-    people: ["Pravin", "Aisha"],
+    people: ["Alexis", "Aisha"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -79,8 +79,8 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   },
   {
     id: "one-person-pays-everything",
-    instruction: "Pravin is treating everyone today, put it all on him",
-    people: ["Pravin", "Aisha", "Sarah"],
+    instruction: "Alexis is treating everyone today, put it all on him",
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: RM(2),
@@ -94,9 +94,9 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     applyTax: true,
     expectedPlan: {
       assignments: [
-        { itemIndex: 0, people: ["Pravin"] },
-        { itemIndex: 1, people: ["Pravin"] },
-        { itemIndex: 2, people: ["Pravin"] },
+        { itemIndex: 0, people: ["Alexis"] },
+        { itemIndex: 1, people: ["Alexis"] },
+        { itemIndex: 2, people: ["Alexis"] },
       ],
       defaultRule: "equal",
       notes: "",
@@ -104,8 +104,8 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   },
   {
     id: "two-way-item-split",
-    instruction: "Split the pizza between Pravin and Aisha only, everyone splits the rest equally",
-    people: ["Pravin", "Aisha", "Sarah"],
+    instruction: "Split the pizza between Alexis and Aisha only, everyone splits the rest equally",
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -118,7 +118,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     },
     applyTax: false,
     expectedPlan: {
-      assignments: [{ itemIndex: 0, people: ["Pravin", "Aisha"] }],
+      assignments: [{ itemIndex: 0, people: ["Alexis", "Aisha"] }],
       defaultRule: "equal",
       notes: "",
     },
@@ -126,7 +126,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   {
     id: "category-desserts",
     instruction: "Sarah pays for all the desserts, split the rest equally",
-    people: ["Pravin", "Sarah"],
+    people: ["Alexis", "Sarah"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -150,8 +150,8 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   },
   {
     id: "all-items-explicitly-named",
-    instruction: "Pravin had the rice, Aisha had the chicken, Sarah had the tea — everyone covers their own",
-    people: ["Pravin", "Aisha", "Sarah"],
+    instruction: "Alexis had the rice, Aisha had the chicken, Sarah had the tea — everyone covers their own",
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -165,7 +165,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     applyTax: false,
     expectedPlan: {
       assignments: [
-        { itemIndex: 0, people: ["Pravin"] },
+        { itemIndex: 0, people: ["Alexis"] },
         { itemIndex: 1, people: ["Aisha"] },
         { itemIndex: 2, people: ["Sarah"] },
       ],
@@ -186,7 +186,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     // from) because here the excluded person still shares OTHER items.
     id: "single-item-exclusion",
     instruction: "Everyone splits equally, but Sarah's vegetarian so she's not paying for the chicken",
-    people: ["Pravin", "Aisha", "Sarah"],
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -199,15 +199,15 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     },
     applyTax: false,
     expectedPlan: {
-      assignments: [{ itemIndex: 1, people: ["Pravin", "Aisha"] }],
+      assignments: [{ itemIndex: 1, people: ["Alexis", "Aisha"] }],
       defaultRule: "equal",
       notes: "",
     },
   },
   {
     id: "exclude-unmentioned-items",
-    instruction: "Just split the burger between Pravin and Sarah, forget about the rest of the table's order",
-    people: ["Pravin", "Sarah"],
+    instruction: "Just split the burger between Alexis and Sarah, forget about the rest of the table's order",
+    people: ["Alexis", "Sarah"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -220,7 +220,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     },
     applyTax: false,
     expectedPlan: {
-      assignments: [{ itemIndex: 0, people: ["Pravin", "Sarah"] }],
+      assignments: [{ itemIndex: 0, people: ["Alexis", "Sarah"] }],
       defaultRule: "exclude",
       notes: "",
     },
@@ -228,7 +228,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   {
     id: "single-item-receipt",
     instruction: "Split it equally between the two of us",
-    people: ["Pravin", "Aisha"],
+    people: ["Alexis", "Aisha"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -241,7 +241,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   {
     id: "large-group-equal",
     instruction: "Everyone splits this equally, five of us",
-    people: ["Pravin", "Aisha", "Sarah", "Wei", "Farah"],
+    people: ["Alexis", "Aisha", "Sarah", "Wei", "Farah"],
     receipt: {
       currency: "RM",
       tax: RM(8),
@@ -258,8 +258,8 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   },
   {
     id: "informal-item-reference",
-    instruction: "Pravin had the teh tarik, split the rest between everyone",
-    people: ["Pravin", "Aisha", "Sarah"],
+    instruction: "Alexis had the teh tarik, split the rest between everyone",
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -273,15 +273,15 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     },
     applyTax: false,
     expectedPlan: {
-      assignments: [{ itemIndex: 2, people: ["Pravin"] }],
+      assignments: [{ itemIndex: 2, people: ["Alexis"] }],
       defaultRule: "equal",
       notes: "",
     },
   },
   {
     id: "two-explicit-payers-plus-shared-dessert",
-    instruction: "Pravin pays for the rice, Aisha pays for the chicken, and we all split the cake",
-    people: ["Pravin", "Aisha", "Sarah"],
+    instruction: "Alexis pays for the rice, Aisha pays for the chicken, and we all split the cake",
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -295,7 +295,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     applyTax: false,
     expectedPlan: {
       assignments: [
-        { itemIndex: 0, people: ["Pravin"] },
+        { itemIndex: 0, people: ["Alexis"] },
         { itemIndex: 1, people: ["Aisha"] },
       ],
       defaultRule: "equal",
@@ -305,7 +305,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   {
     id: "negation-one-item",
     instruction: "Everyone splits equally except the milkshake, which is just for Sarah",
-    people: ["Pravin", "Aisha", "Sarah"],
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: 0,
@@ -325,8 +325,8 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   },
   {
     id: "three-way-explicit-with-tax",
-    instruction: "Split three ways, but Pravin also owes for his extra teh tarik",
-    people: ["Pravin", "Aisha", "Sarah"],
+    instruction: "Split three ways, but Alexis also owes for his extra teh tarik",
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: RM(3),
@@ -338,7 +338,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
     },
     applyTax: true,
     expectedPlan: {
-      assignments: [{ itemIndex: 1, people: ["Pravin"] }],
+      assignments: [{ itemIndex: 1, people: ["Alexis"] }],
       defaultRule: "equal",
       notes: "",
     },
@@ -346,7 +346,7 @@ export const BAKEOFF_CASES: BakeoffCase[] = [
   {
     id: "no-instruction-defaults-equal",
     instruction: "Split equally",
-    people: ["Pravin", "Aisha", "Sarah"],
+    people: ["Alexis", "Aisha", "Sarah"],
     receipt: {
       currency: "RM",
       tax: RM(1.5),

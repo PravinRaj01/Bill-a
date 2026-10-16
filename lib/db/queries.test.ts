@@ -30,9 +30,9 @@ config({ path: ".env.local" });
 const hasDb = !!process.env.DATABASE_URL;
 
 const data: BillData = {
-  split: [{ name: "Pravin", amount: 1000, items: "x" }],
+  split: [{ name: "Alexis", amount: 1000, items: "x" }],
   items: { items: [], tax: 0, total: 1000, currency: "RM" },
-  people: ["Pravin"],
+  people: ["Alexis"],
   reasoning: "test",
 };
 const bill = (clientId: string, title: string): BillInput => ({
