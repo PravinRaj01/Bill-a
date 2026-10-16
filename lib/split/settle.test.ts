@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Settlement } from "@/types/domain";
 import {
   addDays,
+  defaultSettlement,
+  normalizeSettlement,
   aggregateBalances,
   balanceNudgeText,
   balanceTotals,
@@ -274,6 +276,14 @@ describe("messages", () => {
     expect(text).toBe("Hi Lakx! Your share for *Dinner* (16 Oct) is *RM41.20* (Nasi lemak (x1/2), Teh tarik). Please pay me when you can. Thanks! — via Bill.a");
   });
 
+  it("leaves out share descriptions that are not item names", () => {
+    for (const items of ["33.3% of the bill", "70% of the bill", "equal share of the remaining RM50.00", "amount you gave", "2 of 3 parts"]) {
+      expect(nudgeText({ debtor: "A", payTo: "B", title: "T", date: "2026-10-16", amount: 100, currency: "RM", items })).toBe(
+        "Hi A! Your share for *T* (16 Oct) is *RM1.00*. Please pay B when you can. Thanks! — via Bill.a",
+      );
+    }
+  });
+
   it("leaves out empty items and clips long ones", () => {
     expect(nudgeText({ debtor: "A", payTo: "B", title: "T", date: "2026-10-16", amount: 100, currency: "RM", items: "(nothing assigned)" })).not.toMatch(/\(\(/);
     const long = nudgeText({ debtor: "A", payTo: "B", title: "T", date: "2026-10-16", amount: 100, currency: "RM", items: "x".repeat(300) });
@@ -286,5 +296,39 @@ describe("messages", () => {
       .toBe("*Dinner* (16 Oct) — still to pay Pravin:\n• Lakx: RM41.20\n• Aisha: RM41.20\nThanks! — via Bill.a");
     expect(balanceNudgeText({ name: "Lakx", payTo: "me", currency: "RM", lines: [{ title: "Dinner", date: "2026-10-10", amount: 4120 }, { title: "Taxi", date: "2026-10-12", amount: 1500 }] }))
       .toBe("Hi Lakx! A reminder of what's still open:\n• Dinner (10 Oct): RM41.20\n• Taxi (12 Oct): RM15.00\nTotal *RM56.20* to me. Thanks! — via Bill.a");
+  });
+});
+
+describe("defaultSettlement / normalizeSettlement", () => {
+  it("the user fronted it if we know who that is, otherwise the first person", () => {
+    expect(defaultSettlement(shares3, "Lakx")).toEqual({ me: "Lakx", paidBy: [{ name: "Lakx", amount: 12360 }], paid: {} });
+    expect(defaultSettlement(shares3)).toEqual({ paidBy: [{ name: "Pravin", amount: 12360 }], paid: {} });
+    expect(defaultSettlement(shares3, "Ghost").paidBy[0].name).toBe("Pravin"); // not in the group
+  });
+
+  it("a single payer follows the bill when the shares change total", () => {
+    const grown = shares3.map((s) => ({ ...s, amount: s.amount + 100 }));
+    const n = normalizeSettlement(settle(), grown);
+    expect(n.paidBy).toEqual([{ name: "Pravin", amount: 12660 }]);
+    expect(settleView(grown, n, "2026-10-16")?.ok).toBe(true);
+  });
+
+  it("if the payer or 'me' left the group, the first person takes over and 'me' is forgotten", () => {
+    const n = normalizeSettlement(settle({ paidBy: singlePayer("Pravin", 12360), me: "Pravin" }), shares3.slice(1));
+    expect(n.paidBy[0].name).toBe("Lakx");
+    expect(n.me).toBeUndefined();
+  });
+
+  it("several payers are left as entered, so a mismatch shows instead of being hidden", () => {
+    const multi = settle({ paidBy: [{ name: "Pravin", amount: 8000 }, { name: "Lakx", amount: 4360 }] });
+    const grown = shares3.map((s) => ({ ...s, amount: s.amount + 100 }));
+    const n = normalizeSettlement(multi, grown);
+    expect(n.paidBy).toEqual(multi.paidBy);
+    expect(settleView(grown, n, "2026-10-16")).toMatchObject({ ok: false, reason: "paid-mismatch" });
+  });
+
+  it("is a no-op on an empty group", () => {
+    const s = settle();
+    expect(normalizeSettlement(s, [])).toBe(s);
   });
 });
