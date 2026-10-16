@@ -180,3 +180,40 @@ describe.skipIf(!hasDb)("cross-user authorization (real Neon DB)", { timeout: 90
     expect((await listBills(db, B)).length).toBe(1);
   });
 });
+
+// The History list reads two small slices of the saved jsonb. Through the Neon HTTP driver they must
+// come back as real objects (not strings), and a bill saved before settle-up existed must give null.
+describe.skipIf(!hasDb)("listBills settle-up slices (real Neon DB)", { timeout: 60_000 }, () => {
+  const db = getDb();
+  let uid = "";
+
+  beforeAll(async () => {
+    const [u] = await db.insert(users).values({ email: `settle-slices-${crypto.randomUUID().slice(0, 8)}@example.invalid`, name: "S" }).returning({ id: users.id });
+    uid = u.id;
+  });
+  afterAll(async () => {
+    if (uid) await db.delete(users).where(eq(users.id, uid));
+  });
+
+  it("returns the split and settlement as objects, and null settlement for an older bill", async () => {
+    const settlement = { me: "Alexis", paidBy: [{ name: "Alexis", amount: 2000 }], paid: { "Riley->Alexis": { at: "2026-10-16", amount: 1000 } }, dueDate: "2026-10-23" };
+    const two: BillData = {
+      ...data,
+      split: [{ name: "Alexis", amount: 1000, items: "x" }, { name: "Riley", amount: 1000, items: "y" }],
+      people: ["Alexis", "Riley"],
+      settlement,
+    };
+    await upsertBill(db, uid, { ...bill(crypto.randomUUID(), "Tracked"), totalAmount: 2000, data: two });
+    await upsertBill(db, uid, bill(crypto.randomUUID(), "Old bill"));
+
+    const list = await listBills(db, uid);
+    const tracked = list.find((r) => r.billTitle === "Tracked")!;
+    expect(tracked.settlement).toEqual(settlement);
+    expect(tracked.split).toEqual(two.split);
+    const old = list.find((r) => r.billTitle === "Old bill")!;
+    expect(old.settlement).toBeNull();
+    expect(Array.isArray(old.split)).toBe(true);
+    // and the list rows still carry no full `data` blob
+    expect("data" in tracked).toBe(false);
+  });
+});

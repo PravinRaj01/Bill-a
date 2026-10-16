@@ -140,8 +140,7 @@ export function settleView(shares: Share[], settlement: Settlement | undefined, 
   const owed = sum(transfers.map((t) => t.amount));
   const collected = sum(transfers.filter((t) => t.paid).map((t) => t.amount));
   const outstanding = owed - collected;
-  const dueIn = settlement.dueDate ? daysUntil(settlement.dueDate, today) : null;
-  const status: SettleStatus = outstanding === 0 ? "settled" : dueIn === null ? "open" : dueIn < 0 ? "overdue" : dueIn === 0 ? "due" : "open";
+  const { status, dueIn } = settleStatus(outstanding, settlement.dueDate, today);
 
   return {
     ok: true,
@@ -402,4 +401,65 @@ export function normalizeSettlement(s: Settlement, shares: Share[]): Settlement 
     return { ...base, paidBy: singlePayer(payer, total) };
   }
   return base;
+}
+
+// ---- the History list: a small summary per bill ---------------------------------------------
+
+/** settled / open / due today / overdue: one rule, used by the bill view and the History list alike. */
+export function settleStatus(outstanding: Cents, dueDate: string | undefined, today: string): { status: SettleStatus; dueIn: number | null } {
+  const dueIn = dueDate ? daysUntil(dueDate, today) : null;
+  const status: SettleStatus = outstanding === 0 ? "settled" : dueIn === null ? "open" : dueIn < 0 ? "overdue" : dueIn === 0 ? "due" : "open";
+  return { status, dueIn };
+}
+
+export interface BillSettleSummary {
+  owed: Cents;
+  collected: Cents;
+  outstanding: Cents;
+  paidCount: number;
+  transferCount: number;
+  dueDate?: string;
+  /** Who fronted it: one name, or several. */
+  payers: string[];
+  /** The user's own side (needs `settlement.me`): still owed to them, and still owed by them. */
+  mine: { owedToYou: Cents; youOwe: Cents } | null;
+  /** What was paid no longer matches the bill (the split changed): shown as "needs attention". */
+  mismatch: boolean;
+}
+
+/**
+ * Everything the History list needs about one bill's settle-up, without shipping the bill itself.
+ * Date-dependent status is NOT here (the server's "today" is not the user's): the client applies
+ * settleStatus() with its own date.
+ */
+export function summarizeSettlement(shares: Share[] | null | undefined, settlement: Settlement | null | undefined): BillSettleSummary | null {
+  if (!shares || !settlement) return null;
+  const view = settleView(shares, settlement, "1970-01-01");
+  if (!view) return null;
+  const payers = settlement.paidBy.filter((p) => p.amount > 0).map((p) => p.name);
+  if (!view.ok) {
+    return { owed: view.owed, collected: 0, outstanding: view.owed, paidCount: 0, transferCount: 0, dueDate: settlement.dueDate, payers, mine: null, mismatch: true };
+  }
+
+  const me = settlement.me ? norm(settlement.me) : null;
+  let owedToYou = 0;
+  let youOwe = 0;
+  if (me) {
+    for (const t of view.transfers) {
+      if (t.paid) continue;
+      if (norm(t.to) === me) owedToYou += t.amount;
+      else if (norm(t.from) === me) youOwe += t.amount;
+    }
+  }
+  return {
+    owed: view.owed,
+    collected: view.collected,
+    outstanding: view.outstanding,
+    paidCount: view.paidCount,
+    transferCount: view.transfers.length,
+    dueDate: settlement.dueDate,
+    payers,
+    mine: me ? { owedToYou, youOwe } : null,
+    mismatch: false,
+  };
 }

@@ -22,7 +22,9 @@ import {
   minimalTransfers,
   nudgeText,
   paidMatches,
+  settleStatus,
   settleView,
+  summarizeSettlement,
   shortDate,
   singlePayer,
   transferKey,
@@ -444,5 +446,56 @@ describe("defaultSettlement / normalizeSettlement", () => {
   it("is a no-op on an empty group", () => {
     const s = settle();
     expect(normalizeSettlement(s, [])).toBe(s);
+  });
+});
+
+describe("settleStatus / summarizeSettlement (the History list)", () => {
+  it("one rule for the status, with or without a due date", () => {
+    expect(settleStatus(0, "2026-10-01", "2026-10-16")).toEqual({ status: "settled", dueIn: -15 });
+    expect(settleStatus(500, undefined, "2026-10-16")).toEqual({ status: "open", dueIn: null });
+    expect(settleStatus(500, "2026-10-17", "2026-10-16")).toEqual({ status: "open", dueIn: 1 });
+    expect(settleStatus(500, "2026-10-16", "2026-10-16")).toEqual({ status: "due", dueIn: 0 });
+    expect(settleStatus(500, "2026-10-14", "2026-10-16")).toEqual({ status: "overdue", dueIn: -2 });
+  });
+
+  it("is null for an untracked bill (no settlement), or one with no split", () => {
+    expect(summarizeSettlement(shares3, undefined)).toBeNull();
+    expect(summarizeSettlement(shares3, null)).toBeNull();
+    expect(summarizeSettlement(null, settle())).toBeNull();
+  });
+
+  it("single payer, partly paid: totals, counts, payers and the user's own side", () => {
+    const s = markPaid(settle({ dueDate: "2026-10-20" }), { key: "Riley->Alexis", amount: 4120 }, "2026-10-16");
+    const sum1 = summarizeSettlement(shares3, s)!;
+    expect(sum1).toMatchObject({ owed: 8240, collected: 4120, outstanding: 4120, paidCount: 1, transferCount: 2, dueDate: "2026-10-20", payers: ["Alexis"], mismatch: false });
+    expect(sum1.mine).toEqual({ owedToYou: 4120, youOwe: 0 }); // me = Alexis: Casey still owes me 41.20
+  });
+
+  it("several payers: lists them all; the user's side nets only their own transfers", () => {
+    const s = settle({ paidBy: [{ name: "Alexis", amount: 8000 }, { name: "Riley", amount: 4360 }], me: "Riley" });
+    const r = summarizeSettlement(shares3, s)!;
+    expect(r.payers).toEqual(["Alexis", "Riley"]);
+    // Casey owes Alexis 38.80 and Riley 2.40: the user (Riley) is owed 2.40
+    expect(r.mine).toEqual({ owedToYou: 240, youOwe: 0 });
+    expect(r.owed).toBe(4120);
+  });
+
+  it("no 'me' means no personal totals", () => {
+    expect(summarizeSettlement(shares3, settle({ me: undefined }))!.mine).toBeNull();
+  });
+
+  it("the user owing someone counts as youOwe", () => {
+    const s = settle({ paidBy: singlePayer("Riley", 12360), me: "Alexis" });
+    expect(summarizeSettlement(shares3, s)!.mine).toEqual({ owedToYou: 0, youOwe: 4120 });
+  });
+
+  it("a mismatch (the split changed) is flagged instead of guessed", () => {
+    const r = summarizeSettlement([{ name: "Alexis", amount: 1000 }, { name: "Riley", amount: 1000 }], settle({ paidBy: singlePayer("Alexis", 5000) }))!;
+    expect(r).toMatchObject({ mismatch: true, owed: 2000, outstanding: 2000, transferCount: 0, mine: null });
+  });
+
+  it("settled: nothing outstanding", () => {
+    const all = markAllPaid(settle(), view(shares3, settle()).transfers, "2026-10-16");
+    expect(summarizeSettlement(shares3, all)).toMatchObject({ outstanding: 0, collected: 8240, paidCount: 2 });
   });
 });

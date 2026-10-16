@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { billHistory, savedGroups } from "./schema";
-import type { BillData } from "@/types/domain";
+import type { BillData, Settlement, SplitRecord } from "@/types/domain";
 
 // THE AUTHORIZATION LAYER — this file is what replaces Supabase RLS.
 //
@@ -83,6 +83,9 @@ const listColumns = {
   currency: billHistory.currency,
   providerTier: billHistory.providerTier,
   createdAt: billHistory.createdAt,
+  // Two small slices of the jsonb for the list's settle-up status; never the whole bill.
+  split: sql<SplitRecord[] | null>`${billHistory.data} -> 'split'`,
+  settlement: sql<Settlement | null>`${billHistory.data} -> 'settlement'`,
 };
 
 export const listBills = (db: Db, userId: string) =>
