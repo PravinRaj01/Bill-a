@@ -12,6 +12,7 @@ import {
   getGroup,
   listBills,
   listGroups,
+  listTrackedBills,
   updateGroupNames,
   upsertBill,
   type BillInput,
@@ -215,5 +216,42 @@ describe.skipIf(!hasDb)("listBills settle-up slices (real Neon DB)", { timeout: 
     expect(Array.isArray(old.split)).toBe(true);
     // and the list rows still carry no full `data` blob
     expect("data" in tracked).toBe(false);
+  });
+});
+
+// Balances read only the tracked bills, with just the two slices they need.
+describe.skipIf(!hasDb)("listTrackedBills (real Neon DB)", { timeout: 60_000 }, () => {
+  const db = getDb();
+  let uid = "";
+  let otherUid = "";
+
+  beforeAll(async () => {
+    const tag = crypto.randomUUID().slice(0, 8);
+    const [a, b] = await db
+      .insert(users)
+      .values([
+        { email: `tracked-a-${tag}@example.invalid`, name: "T" },
+        { email: `tracked-b-${tag}@example.invalid`, name: "U" },
+      ])
+      .returning({ id: users.id });
+    uid = a.id;
+    otherUid = b.id;
+  });
+  afterAll(async () => {
+    if (uid && otherUid) await db.delete(users).where(inArray(users.id, [uid, otherUid]));
+  });
+
+  it("returns only tracked bills, newest first, scoped to the user, without the whole bill", async () => {
+    const settlement = { me: "Alexis", paidBy: [{ name: "Alexis", amount: 2000 }], paid: {} };
+    const tracked: BillData = { ...data, split: [{ name: "Alexis", amount: 1000, items: "x" }, { name: "Riley", amount: 1000, items: "y" }], people: ["Alexis", "Riley"], settlement };
+    await upsertBill(db, uid, { ...bill(crypto.randomUUID(), "Tracked one"), totalAmount: 2000, data: tracked });
+    await upsertBill(db, uid, bill(crypto.randomUUID(), "Untracked"));
+    await upsertBill(db, otherUid, { ...bill(crypto.randomUUID(), "Someone else's tracked"), data: tracked });
+
+    const rows = await listTrackedBills(db, uid);
+    expect(rows.map((r) => r.billTitle)).toEqual(["Tracked one"]);
+    expect(rows[0].settlement).toEqual(settlement);
+    expect(rows[0].split).toHaveLength(2);
+    expect("data" in rows[0]).toBe(false);
   });
 });
