@@ -240,3 +240,42 @@
     animation-delay: 0s !important;
   }
 }
+
+/* Receipt ticket silhouette (components/receipt/ReceiptTicket.tsx). The notches and the torn edge are CUT
+   OUT of the shape with masks, so they are truly transparent and match whatever is behind the ticket.
+   The ticket is two stacked pieces: the top has a half-circle bitten out of each bottom corner, the body
+   one out of each top corner, and a zigzag along its bottom. Masks clip box-shadows, so the shadow is a
+   drop-shadow filter on the wrapper. */
+.ticket-top {
+  --notch: 12px;
+  -webkit-mask:
+    radial-gradient(circle var(--notch) at 0 100%, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% 100%, #0000 97%, #000) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle var(--notch) at 0 100%, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% 100%, #0000 97%, #000) right / 51% 100% no-repeat;
+}
+.ticket-notched {
+  --notch: 12px;
+  -webkit-mask:
+    radial-gradient(circle var(--notch) at 0 0, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% 0, #0000 97%, #000) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle var(--notch) at 0 0, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle var(--notch) at 100% 0, #0000 97%, #000) right / 51% 100% no-repeat;
+}
+.ticket-torn {
+  -webkit-mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
+  mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / 18px 100%;
+}
+/* A barcode-style footer strip. */
+.ticket-barcode {
+  height: 2rem;
+  background: repeating-linear-gradient(
+    90deg,
+    rgb(255 255 255 / 0.28) 0 2px, transparent 2px 5px,
+    rgb(255 255 255 / 0.28) 5px 6px, transparent 6px 9px,
+    rgb(255 255 255 / 0.28) 9px 12px, transparent 12px 14px,
+    rgb(255 255 255 / 0.28) 14px 15px, transparent 15px 20px
+  );
+}

@@ -40,23 +40,32 @@ export function ReceiptTicket({
   const total = rows.reduce((a, r) => a + r.amount, 0);
 
   return (
-    <section data-testid="receipt-ticket" aria-label={`Receipt: ${title}`} className="overflow-hidden rounded-3xl border border-white/5 bg-surface shadow-2xl ring-1 ring-white/10">
-      <header className="space-y-4 px-6 pt-6 pb-5">
-        <div className="flex items-start justify-between gap-3">
+    <m.div
+      data-testid="receipt-ticket"
+      role="region"
+      aria-label={`Receipt: ${title}`}
+      initial={{ opacity: 0, y: 16 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: "easeOut" }}
+      className="drop-shadow-[0_18px_28px_rgb(0_0_0/0.45)]"
+    >
+      {/* Top of the ticket: what it is, when, how much, who. */}
+      <header className="ticket-top space-y-4 rounded-t-3xl bg-surface bg-[linear-gradient(180deg,rgb(255_255_255/0.06),transparent_70%)] px-6 pt-6 pb-8">
+        <div className="flex items-center justify-between gap-3">
           <span className="rounded-full bg-coral/15 px-3 py-1 text-xs font-bold tracking-widest text-coral uppercase">Receipt</span>
-          <span className="pt-1 font-mono text-xs tracking-wider text-muted-foreground uppercase">{shortDate(date)}</span>
+          <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">{shortDate(date)}</span>
         </div>
         <h2 data-testid="ticket-title" className="text-2xl leading-tight font-black tracking-tight break-words text-white">
           {title}
         </h2>
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-semibold text-muted-foreground">Total</p>
+            <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Total</p>
             <Money cents={total} currency={symbol} className="text-4xl font-black tracking-tight text-white" />
           </div>
           {rows.length > 1 && (
             <div className="space-y-1.5 text-right">
-              <p className="text-xs font-semibold text-muted-foreground">Splitting with</p>
+              <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Splitting with</p>
               <div className="flex justify-end">
                 <AvatarStack names={rows.map((r) => r.name)} />
               </div>
@@ -65,14 +74,11 @@ export function ReceiptTicket({
         </div>
       </header>
 
-      {/* The tear line: a dashed rule with a notch cut out of each edge. */}
-      <div aria-hidden className="relative h-6">
-        <span className="absolute top-1/2 right-4 left-4 border-t-2 border-dashed border-white/10" />
-        <span className="absolute top-1/2 -left-3 size-6 -translate-y-1/2 rounded-full bg-background" />
-        <span className="absolute top-1/2 -right-3 size-6 -translate-y-1/2 rounded-full bg-background" />
-      </div>
-
-      <ul className="px-2 pb-2">
+      {/* The body is clipped twice: notches at the top (the tear line), a zigzag torn edge at the bottom. */}
+      <div className="ticket-torn">
+        <div className="ticket-notched relative bg-surface pt-5 pb-3">
+          <div aria-hidden className="absolute top-0 right-5 left-5 border-t-2 border-dashed border-white/15" />
+          <ul className="px-2 pb-2">
         {rows.map((row) => {
           const chips = parseItems(row.items);
           const expandable = chips.length > 0;
@@ -80,10 +86,12 @@ export function ReceiptTicket({
           const head = (
             <>
               <PersonAvatar name={row.name} />
-              <div className="min-w-0 flex-1 text-left">
+              <div className="min-w-0 flex-1 text-left sm:flex-none">
                 <span className="block truncate text-base font-bold text-white">{row.name}</span>
                 {row.note}
               </div>
+              {/* The dotted leader from the name to the amount, as on a till receipt. */}
+              <span aria-hidden className="mb-2 hidden min-w-3 flex-1 self-end border-b-2 border-dotted border-white/15 sm:block" />
               <Money cents={row.amount} currency={symbol} className="text-xl font-bold text-white" />
               {expandable && <ChevronDown aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")} />}
             </>
@@ -126,9 +134,16 @@ export function ReceiptTicket({
             </li>
           );
         })}
-      </ul>
+          </ul>
 
-      {children}
-    </section>
+          {children}
+
+          <div aria-hidden className="mx-6 mt-2 mb-4 space-y-1.5 text-center">
+            <div className="ticket-barcode" />
+            <p className="font-mono text-[10px] tracking-[0.3em] text-muted-foreground uppercase">Split with Bill.a</p>
+          </div>
+        </div>
+      </div>
+    </m.div>
   );
 }
