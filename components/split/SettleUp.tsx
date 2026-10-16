@@ -7,14 +7,15 @@ import { toast } from "sonner";
 import { PayerPicker } from "@/components/split/PayerPicker";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Money } from "@/components/ui/money";
-import type { SplitSession } from "@/hooks/use-split-session";
 import { formatMoney } from "@/lib/money";
 import {
   addDays,
+  everyonePaidOwn,
   groupNudgeText,
   localDate,
   markPaid,
   nudgeText,
+  scalePaidBy,
   settleView,
   singlePayer,
   unmarkPaid,
@@ -24,6 +25,7 @@ import {
 import { haptic } from "@/lib/ui/haptics";
 import { shareMessage, shareText } from "@/lib/ui/share";
 import { cn } from "@/lib/utils";
+import type { Settlement, SplitRecord } from "@/types/domain";
 
 const norm = (s: string) => s.trim().toLowerCase();
 const chip = "min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/30";
@@ -40,9 +42,25 @@ function dueLabel(due: string, dueIn: number): { text: string; tone: string } {
 // worked out from the shares (lib/split/settle.ts); nothing is SAVED with the bill until the first
 // real interaction (Mark paid, a different payer, a due date), so just looking never turns a dinner
 // everyone paid for in cash into an open debt in History.
-export function SettleUp({ s }: { s: SplitSession }) {
+/**
+ * What the card needs, so it works on the Summary (live session) and on a saved bill in History alike.
+ * `change` applies an edit to the settlement and saves it; `stop` removes tracking.
+ */
+export interface SettleModel {
+  shares: SplitRecord[];
+  settlement: Settlement | null;
+  symbol: string;
+  billTitle: string;
+  tracked: boolean;
+  change: (edit: (s: Settlement) => Settlement) => void | Promise<void>;
+  stop: () => void | Promise<void>;
+}
+
+export function SettleUp({ model }: { model: SettleModel }) {
   const [custom, setCustom] = useState(false);
-  const { settlement, symbol, finalSplit: shares } = s;
+  // Showing the one-person chips even though several people paid ("One person paid it all").
+  const [choosing, setChoosing] = useState(false);
+  const { settlement, symbol, shares } = model;
   if (!settlement || shares.length < 2) return null;
 
   const today = localDate();
@@ -56,21 +74,58 @@ export function SettleUp({ s }: { s: SplitSession }) {
     const msg = shareMessage(await shareText(text));
     if (msg) toast(msg);
   };
-  const nudge = (t: Transfer) =>
-    send(nudgeText({ debtor: t.from, payTo: payTo(t.to), title: s.billTitle, date: new Date(), amount: t.amount, currency: symbol, items: shares.find((x) => x.name === t.from)?.items }));
+  /**
+   * One message per person with EVERYTHING they still owe, whichever of their rows was tapped. It says what
+   * they owe to whom (not "your share": with several payers those differ), and describes the items only
+   * when the amount is their whole share.
+   */
+  const nudge = (debtor: string) => {
+    if (!view || !view.ok) return;
+    const open = view.transfers.filter((t) => t.from === debtor && !t.paid);
+    if (open.length === 0) return;
+    const share = shares.find((x) => x.name === debtor);
+    const wholeShare = open.length === 1 && open[0].amount === share?.amount;
+    void send(
+      nudgeText({
+        debtor,
+        title: model.billTitle,
+        date: new Date(),
+        currency: symbol,
+        owes: open.map((t) => ({ to: payTo(t.to), amount: t.amount })),
+        items: wholeShare ? share?.items : undefined,
+      }),
+    );
+  };
+
+  /** The group-chat message: one creditor ("still to pay Alex") or several ("who still owes what"). */
+  const nudgeAll = () => {
+    if (!view || !view.ok) return;
+    const open = view.transfers.filter((t) => !t.paid);
+    if (open.length === 0) return;
+    const single = new Set(open.map((t) => norm(t.to))).size === 1;
+    void send(
+      groupNudgeText({
+        title: model.billTitle,
+        date: new Date(),
+        currency: symbol,
+        payTo: single ? payTo(open[0].to) : undefined,
+        lines: open.map((t) => ({ debtor: t.from, to: t.to, amount: t.amount })),
+      }),
+    );
+  };
 
   const toggle = (t: Transfer) => {
     if (t.paid) {
-      void s.changeSettlement((x) => unmarkPaid(x, t.key));
+      void model.change((x) => unmarkPaid(x, t.key));
       return;
     }
-    void s.changeSettlement((x) => markPaid(x, t, today));
+    void model.change((x) => markPaid(x, t, today));
     haptic("success");
-    toast(`${t.from} marked as paid`, { action: { label: "Undo", onClick: () => void s.changeSettlement((x) => unmarkPaid(x, t.key)) } });
+    toast(`${t.from} marked as paid`, { action: { label: "Undo", onClick: () => void model.change((x) => unmarkPaid(x, t.key)) } });
   };
 
   const setDue = (date: string | null) =>
-    void s.changeSettlement((x) => {
+    void model.change((x) => {
       const next = { ...x };
       if (date) next.dueDate = date;
       else delete next.dueDate;
@@ -81,7 +136,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
     <section aria-label="Settle up" data-testid="settle-up" className="space-y-5 border-t border-white/5 p-5">
       <div className="flex items-center justify-between gap-3">
         <h3 className="text-base font-bold text-white">Settle up</h3>
-        {s.settleTracked && <span className="text-xs font-semibold text-success">Tracked in History</span>}
+        {model.tracked && <span className="text-xs font-semibold text-success">Tracked in History</span>}
       </div>
 
       <PayerPicker
@@ -89,8 +144,11 @@ export function SettleUp({ s }: { s: SplitSession }) {
         paidBy={settlement.paidBy}
         total={total}
         symbol={symbol}
-        onSingle={(name) => void s.changeSettlement((x) => withPayers(x, singlePayer(name, total)))}
-        onMulti={(paidBy) => void s.changeSettlement((x) => withPayers(x, paidBy))}
+        onSingle={(name) => void model.change((x) => withPayers(x, singlePayer(name, total)))}
+        onMulti={(paidBy) => void model.change((x) => withPayers(x, paidBy))}
+        onEveryoneOwn={() => void model.change((x) => withPayers(x, everyonePaidOwn(shares)))}
+        choosing={choosing}
+        setChoosing={setChoosing}
       />
 
       <label className="flex min-h-11 items-center justify-between gap-3 px-1 text-sm">
@@ -98,7 +156,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
         <select
           data-testid="me-select"
           value={settlement.me ?? ""}
-          onChange={(e) => void s.changeSettlement((x) => ({ ...x, me: e.target.value || undefined }))}
+          onChange={(e) => void model.change((x) => ({ ...x, me: e.target.value || undefined }))}
           className="h-11 rounded-xl border border-white/10 bg-surface-2 px-3 text-base text-white"
         >
           {!settlement.me && <option value="">Choose…</option>}
@@ -109,9 +167,29 @@ export function SettleUp({ s }: { s: SplitSession }) {
       </label>
 
       {view && !view.ok && (
-        <p role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200">
-          What was paid ({formatMoney(view.fronted, symbol)}) doesn&apos;t match the bill ({formatMoney(view.owed, symbol)}). Change who paid to fix it.
-        </p>
+        <div role="alert" data-testid="paid-mismatch" className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200">
+          <p>
+            What was paid ({formatMoney(view.fronted, symbol)}) doesn&apos;t match the bill ({formatMoney(view.owed, symbol)}). That happens when the split changed after you entered who paid.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              data-testid="scale-paid"
+              onClick={() => void model.change((x) => withPayers(x, scalePaidBy(x.paidBy, view.owed)))}
+              className="min-h-11 rounded-full border border-amber-400/40 bg-amber-400/10 px-4 text-sm font-semibold text-amber-100 hover:bg-amber-400/20"
+            >
+              Scale what each paid to {formatMoney(view.owed, symbol)}
+            </button>
+            <button
+              type="button"
+              data-testid="one-paid-fix"
+              onClick={() => setChoosing(true)}
+              className="min-h-11 rounded-full border border-white/15 px-4 text-sm font-semibold text-zinc-200 hover:bg-white/5"
+            >
+              One person paid it all
+            </button>
+          </div>
+        </div>
       )}
 
       {view?.ok && (
@@ -160,7 +238,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
                       <button
                         type="button"
                         aria-label={`Nudge ${t.from}`}
-                        onClick={() => void nudge(t)}
+                        onClick={() => nudge(t.from)}
                         className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
                       >
                         <Send className="size-4" />
@@ -186,20 +264,7 @@ export function SettleUp({ s }: { s: SplitSession }) {
                 <button
                   type="button"
                   data-testid="nudge-all"
-                  onClick={() => {
-                    const open = view.transfers.filter((t) => !t.paid);
-                    const creditors = new Set(open.map((t) => norm(t.to)));
-                    const single = creditors.size === 1;
-                    void send(
-                      groupNudgeText({
-                        title: s.billTitle,
-                        date: new Date(),
-                        payTo: single ? payTo(open[0].to) : "whoever fronted it",
-                        currency: symbol,
-                        lines: open.map((t) => ({ debtor: single ? t.from : `${t.from} → ${t.to}`, amount: t.amount })),
-                      }),
-                    );
-                  }}
+                  onClick={nudgeAll}
                   className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/5"
                 >
                   <Send className="size-4" /> Nudge everyone who owes
@@ -255,8 +320,8 @@ export function SettleUp({ s }: { s: SplitSession }) {
         </>
       )}
 
-      {s.settleTracked && (
-        <button type="button" onClick={() => void s.stopTracking()} className="min-h-11 px-1 text-sm text-muted-foreground underline-offset-4 hover:text-white hover:underline">
+      {model.tracked && (
+        <button type="button" onClick={() => void model.stop()} className="min-h-11 px-1 text-sm text-muted-foreground underline-offset-4 hover:text-white hover:underline">
           Stop tracking this bill
         </button>
       )}

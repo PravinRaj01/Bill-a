@@ -7,6 +7,11 @@ import {
   aggregateBalances,
   balanceNudgeText,
   balanceTotals,
+  everyonePaidOwn,
+  positionNote,
+  positions,
+  scalePaidBy,
+  summaryText,
   balances,
   daysUntil,
   groupNudgeText,
@@ -17,7 +22,9 @@ import {
   minimalTransfers,
   nudgeText,
   paidMatches,
+  settleStatus,
   settleView,
+  summarizeSettlement,
   shortDate,
   singlePayer,
   transferKey,
@@ -271,31 +278,140 @@ describe("aggregateBalances", () => {
 });
 
 describe("messages", () => {
-  it("one person's nudge names the person, bill, date, amount and items", () => {
-    const text = nudgeText({ debtor: "Riley", payTo: "me", title: "Dinner", date: "2026-10-16", amount: 4120, currency: "RM", items: "Nasi lemak (x1/2), Teh tarik" });
-    expect(text).toBe("Hi Riley! Your share for *Dinner* (16 Oct) is *RM41.20* (Nasi lemak (x1/2), Teh tarik). Please pay me when you can. Thanks! — via Bill.a");
+  const base = { debtor: "Sam", title: "Dinner", date: "2026-10-16", currency: "RM" };
+
+  it("says what is owed to whom, not 'your share'", () => {
+    expect(nudgeText({ ...base, owes: [{ to: "me", amount: 4120 }], items: "Nasi lemak (x1/2), Teh tarik" })).toBe(
+      "Hi Sam! For *Dinner* (16 Oct) you owe me *RM41.20* (Nasi lemak (x1/2), Teh tarik). Please pay when you can. Thanks! — via Bill.a",
+    );
+    expect(nudgeText({ ...base, owes: [{ to: "Alexis", amount: 3000 }] })).toBe(
+      "Hi Sam! For *Dinner* (16 Oct) you owe Alexis *RM30.00*. Please pay when you can. Thanks! — via Bill.a",
+    );
   });
 
-  it("leaves out share descriptions that are not item names", () => {
-    for (const items of ["33.3% of the bill", "70% of the bill", "equal share of the remaining RM50.00", "amount you gave", "2 of 3 parts"]) {
-      expect(nudgeText({ debtor: "A", payTo: "B", title: "T", date: "2026-10-16", amount: 100, currency: "RM", items })).toBe(
-        "Hi A! Your share for *T* (16 Oct) is *RM1.00*. Please pay B when you can. Thanks! — via Bill.a",
+  it("someone who owes two people gets ONE message with both and a total", () => {
+    expect(nudgeText({ ...base, owes: [{ to: "Alexis", amount: 2000 }, { to: "Riley", amount: 1000 }], items: "ignored for several creditors" })).toBe(
+      "Hi Sam! For *Dinner* (16 Oct) you owe:\n• Alexis: RM20.00\n• Riley: RM10.00\nTotal *RM30.00*. Please pay when you can. Thanks! — via Bill.a",
+    );
+  });
+
+  it("leaves out share descriptions that are not item names, and clips long item lists", () => {
+    for (const items of ["33.3% of the bill", "70% of the bill", "equal share of the remaining RM50.00", "amount you gave", "2 of 3 parts", "(nothing assigned)"]) {
+      expect(nudgeText({ ...base, owes: [{ to: "B", amount: 100 }], items })).toBe(
+        "Hi Sam! For *Dinner* (16 Oct) you owe B *RM1.00*. Please pay when you can. Thanks! — via Bill.a",
       );
     }
-  });
-
-  it("leaves out empty items and clips long ones", () => {
-    expect(nudgeText({ debtor: "A", payTo: "B", title: "T", date: "2026-10-16", amount: 100, currency: "RM", items: "(nothing assigned)" })).not.toMatch(/\(\(/);
-    const long = nudgeText({ debtor: "A", payTo: "B", title: "T", date: "2026-10-16", amount: 100, currency: "RM", items: "x".repeat(300) });
+    const long = nudgeText({ ...base, owes: [{ to: "B", amount: 100 }], items: "x".repeat(300) });
     expect(long.length).toBeLessThan(260);
     expect(long).toMatch(/…/);
   });
 
-  it("group and cross-bill messages list each line with the total", () => {
-    expect(groupNudgeText({ title: "Dinner", date: "2026-10-16", payTo: "Alexis", currency: "RM", lines: [{ debtor: "Riley", amount: 4120 }, { debtor: "Aisha", amount: 4120 }] }))
-      .toBe("*Dinner* (16 Oct) — still to pay Alexis:\n• Riley: RM41.20\n• Aisha: RM41.20\nThanks! — via Bill.a");
+  it("the group message: one creditor vs several", () => {
+    expect(groupNudgeText({ title: "Dinner", date: "2026-10-16", currency: "RM", payTo: "Alexis", lines: [{ debtor: "Riley", amount: 4120 }, { debtor: "Casey", amount: 4120 }] }))
+      .toBe("*Dinner* (16 Oct) — still to pay Alexis:\n• Riley: RM41.20\n• Casey: RM41.20\nThanks! — via Bill.a");
+    expect(groupNudgeText({ title: "Dinner", date: "2026-10-16", currency: "RM", lines: [{ debtor: "Casey", to: "Alexis", amount: 2000 }, { debtor: "Casey", to: "Riley", amount: 1000 }] }))
+      .toBe("*Dinner* (16 Oct) — who still owes what:\n• Casey → Alexis: RM20.00\n• Casey → Riley: RM10.00\nThanks! — via Bill.a");
+  });
+
+  it("the cross-bill message lists each bill with the total", () => {
     expect(balanceNudgeText({ name: "Riley", payTo: "me", currency: "RM", lines: [{ title: "Dinner", date: "2026-10-10", amount: 4120 }, { title: "Taxi", date: "2026-10-12", amount: 1500 }] }))
       .toBe("Hi Riley! A reminder of what's still open:\n• Dinner (10 Oct): RM41.20\n• Taxi (12 Oct): RM15.00\nTotal *RM56.20* to me. Thanks! — via Bill.a");
+  });
+});
+
+// The same RM90 bill split three ways (RM30 each) with every way people actually pay for it. For each:
+// the transfers, what each person's row says, and the message the person who owes would receive.
+describe("scenarios: who paid", () => {
+  const people: Share[] = [{ name: "Alexis", amount: 3000 }, { name: "Riley", amount: 3000 }, { name: "Casey", amount: 3000 }];
+  const run = (paidBy: Settlement["paidBy"]) => {
+    const s = settle({ paidBy, me: undefined });
+    const v = view(people, s);
+    const notes = positions(people, paidBy).map((p) => `${p.name}: ${positionNote(p, "RM") || "-"}`);
+    return { v, notes, line: v.transfers.map((t) => `${t.from}->${t.to} ${t.amount / 100}`) };
+  };
+  const ask = (v: ReturnType<typeof run>["v"], debtor: string) =>
+    nudgeText({
+      debtor, title: "Dinner", date: "2026-10-16", currency: "RM",
+      owes: v.transfers.filter((t) => t.from === debtor && !t.paid).map((t) => ({ to: t.to, amount: t.amount })),
+    });
+
+  it("one person paid it all", () => {
+    const r = run(singlePayer("Alexis", 9000));
+    expect(r.line).toEqual(["Riley->Alexis 30", "Casey->Alexis 30"]);
+    expect(r.notes).toEqual(["Alexis: Paid RM90.00 · gets RM60.00 back", "Riley: Owes RM30.00", "Casey: Owes RM30.00"]);
+  });
+
+  it("two people paid, one owes (60 + 30)", () => {
+    const r = run([{ name: "Alexis", amount: 6000 }, { name: "Riley", amount: 3000 }]);
+    expect(r.line).toEqual(["Casey->Alexis 30"]);
+    expect(r.notes).toEqual(["Alexis: Paid RM60.00 · gets RM30.00 back", "Riley: Paid their own share", "Casey: Owes RM30.00"]);
+    expect(ask(r.v, "Casey")).toBe("Hi Casey! For *Dinner* (16 Oct) you owe Alexis *RM30.00*. Please pay when you can. Thanks! — via Bill.a");
+  });
+
+  it("someone owes two people (50 + 40): one combined message, not two 'shares'", () => {
+    const r = run([{ name: "Alexis", amount: 5000 }, { name: "Riley", amount: 4000 }]);
+    expect(r.line).toEqual(["Casey->Alexis 20", "Casey->Riley 10"]);
+    expect(ask(r.v, "Casey")).toBe("Hi Casey! For *Dinner* (16 Oct) you owe:\n• Alexis: RM20.00\n• Riley: RM10.00\nTotal *RM30.00*. Please pay when you can. Thanks! — via Bill.a");
+    // the old wording would have told Casey "your share is RM20.00": her share is RM30
+    expect(ask(r.v, "Casey")).not.toMatch(/share/i);
+  });
+
+  it("everyone paid their own share: nobody owes anybody", () => {
+    const own = everyonePaidOwn(people);
+    expect(own).toEqual([{ name: "Alexis", amount: 3000 }, { name: "Riley", amount: 3000 }, { name: "Casey", amount: 3000 }]);
+    const r = run(own);
+    expect(r.line).toEqual([]);
+    expect(r.v.status).toBe("settled");
+    expect(r.notes.every((n) => n.endsWith("Paid their own share"))).toBe(true);
+  });
+
+  it("a debtor who also paid part owes only the difference (70 + 20)", () => {
+    const r = run([{ name: "Alexis", amount: 7000 }, { name: "Casey", amount: 2000 }]);
+    expect(r.line).toEqual(["Riley->Alexis 30", "Casey->Alexis 10"]);
+    expect(r.notes[2]).toBe("Casey: Paid RM20.00 · still owes RM10.00");
+    // she is told RM10, not "your share RM30"
+    expect(ask(r.v, "Casey")).toMatch(/you owe Alexis \*RM10\.00\*/);
+  });
+
+  it("a payer who overpays their own share is owed it back (40 + 50)", () => {
+    const r = run([{ name: "Alexis", amount: 4000 }, { name: "Riley", amount: 5000 }]);
+    expect(r.line).toEqual(["Casey->Riley 20", "Casey->Alexis 10"]);
+    expect(r.notes.slice(0, 2)).toEqual(["Alexis: Paid RM40.00 · gets RM10.00 back", "Riley: Paid RM50.00 · gets RM20.00 back"]);
+  });
+
+  it("marking one of someone's two debts paid leaves a message for just the other", () => {
+    const s = markPaid(settle({ paidBy: [{ name: "Alexis", amount: 5000 }, { name: "Riley", amount: 4000 }], me: undefined }), { key: "Casey->Alexis", amount: 2000 }, "2026-10-16");
+    const v = view(people, s);
+    expect(ask(v, "Casey")).toBe("Hi Casey! For *Dinner* (16 Oct) you owe Riley *RM10.00*. Please pay when you can. Thanks! — via Bill.a");
+  });
+
+  it("the amounts paid no longer add up after the bill changes: scale them to the new total, to the cent", () => {
+    const paid = [{ name: "Alexis", amount: 6000 }, { name: "Riley", amount: 3000 }];
+    const smaller: Share[] = [{ name: "Alexis", amount: 1400 }, { name: "Riley", amount: 1400 }, { name: "Casey", amount: 1400 }];
+    expect(settleView(smaller, settle({ paidBy: paid }), "2026-10-16")).toMatchObject({ ok: false, reason: "paid-mismatch" });
+    const scaled = scalePaidBy(paid, 4200);
+    expect(scaled).toEqual([{ name: "Alexis", amount: 2800 }, { name: "Riley", amount: 1400 }]);
+    expect(sum(scaled.map((p) => p.amount))).toBe(4200);
+    expect(settleView(smaller, settle({ paidBy: scaled }), "2026-10-16")?.ok).toBe(true);
+  });
+
+  it("scaling keeps the total exact for awkward amounts and drops payers who round to nothing", () => {
+    expect(sum(scalePaidBy([{ name: "A", amount: 3333 }, { name: "B", amount: 3333 }, { name: "C", amount: 3334 }], 1001).map((p) => p.amount))).toBe(1001);
+    expect(scalePaidBy([{ name: "A", amount: 9999 }, { name: "B", amount: 1 }], 100).map((p) => p.name)).toEqual(["A"]);
+    expect(scalePaidBy([{ name: "A", amount: 0 }], 500)).toEqual([{ name: "A", amount: 0 }]); // nothing to scale: unchanged
+  });
+
+  it("the shared summary says who paid and who still owes whom", () => {
+    const s = settle({ paidBy: [{ name: "Alexis", amount: 5000 }, { name: "Riley", amount: 4000 }], me: undefined });
+    const text = summaryText({ currency: "RM", shares: people, settlement: s, view: view(people, s) });
+    expect(text).toBe(
+      "*Bill-a Summary (RM)*\n\n👤 *Alexis*: RM30.00\n👤 *Riley*: RM30.00\n👤 *Casey*: RM30.00\n\nPaid by Alexis (RM50.00), Riley (RM40.00).\n\nStill to pay:\n• Casey → Alexis: RM20.00\n• Casey → Riley: RM10.00",
+    );
+    const one = settle({ paidBy: singlePayer("Alexis", 9000), me: undefined });
+    expect(summaryText({ currency: "RM", shares: people, settlement: one, view: view(people, one) })).toMatch(/Paid by Alexis\.\n\nStill to pay:\n• Riley → Alexis: RM30\.00\n• Casey → Alexis: RM30\.00$/);
+    const done = markAllPaid(one, view(people, one).transfers, "2026-10-16");
+    expect(summaryText({ currency: "RM", shares: people, settlement: done, view: view(people, done) })).toMatch(/All settled ✓$/);
+    expect(summaryText({ currency: "RM", shares: people })).toBe("*Bill-a Summary (RM)*\n\n👤 *Alexis*: RM30.00\n👤 *Riley*: RM30.00\n👤 *Casey*: RM30.00");
   });
 });
 
@@ -330,5 +446,56 @@ describe("defaultSettlement / normalizeSettlement", () => {
   it("is a no-op on an empty group", () => {
     const s = settle();
     expect(normalizeSettlement(s, [])).toBe(s);
+  });
+});
+
+describe("settleStatus / summarizeSettlement (the History list)", () => {
+  it("one rule for the status, with or without a due date", () => {
+    expect(settleStatus(0, "2026-10-01", "2026-10-16")).toEqual({ status: "settled", dueIn: -15 });
+    expect(settleStatus(500, undefined, "2026-10-16")).toEqual({ status: "open", dueIn: null });
+    expect(settleStatus(500, "2026-10-17", "2026-10-16")).toEqual({ status: "open", dueIn: 1 });
+    expect(settleStatus(500, "2026-10-16", "2026-10-16")).toEqual({ status: "due", dueIn: 0 });
+    expect(settleStatus(500, "2026-10-14", "2026-10-16")).toEqual({ status: "overdue", dueIn: -2 });
+  });
+
+  it("is null for an untracked bill (no settlement), or one with no split", () => {
+    expect(summarizeSettlement(shares3, undefined)).toBeNull();
+    expect(summarizeSettlement(shares3, null)).toBeNull();
+    expect(summarizeSettlement(null, settle())).toBeNull();
+  });
+
+  it("single payer, partly paid: totals, counts, payers and the user's own side", () => {
+    const s = markPaid(settle({ dueDate: "2026-10-20" }), { key: "Riley->Alexis", amount: 4120 }, "2026-10-16");
+    const sum1 = summarizeSettlement(shares3, s)!;
+    expect(sum1).toMatchObject({ owed: 8240, collected: 4120, outstanding: 4120, paidCount: 1, transferCount: 2, dueDate: "2026-10-20", payers: ["Alexis"], mismatch: false });
+    expect(sum1.mine).toEqual({ owedToYou: 4120, youOwe: 0 }); // me = Alexis: Casey still owes me 41.20
+  });
+
+  it("several payers: lists them all; the user's side nets only their own transfers", () => {
+    const s = settle({ paidBy: [{ name: "Alexis", amount: 8000 }, { name: "Riley", amount: 4360 }], me: "Riley" });
+    const r = summarizeSettlement(shares3, s)!;
+    expect(r.payers).toEqual(["Alexis", "Riley"]);
+    // Casey owes Alexis 38.80 and Riley 2.40: the user (Riley) is owed 2.40
+    expect(r.mine).toEqual({ owedToYou: 240, youOwe: 0 });
+    expect(r.owed).toBe(4120);
+  });
+
+  it("no 'me' means no personal totals", () => {
+    expect(summarizeSettlement(shares3, settle({ me: undefined }))!.mine).toBeNull();
+  });
+
+  it("the user owing someone counts as youOwe", () => {
+    const s = settle({ paidBy: singlePayer("Riley", 12360), me: "Alexis" });
+    expect(summarizeSettlement(shares3, s)!.mine).toEqual({ owedToYou: 0, youOwe: 4120 });
+  });
+
+  it("a mismatch (the split changed) is flagged instead of guessed", () => {
+    const r = summarizeSettlement([{ name: "Alexis", amount: 1000 }, { name: "Riley", amount: 1000 }], settle({ paidBy: singlePayer("Alexis", 5000) }))!;
+    expect(r).toMatchObject({ mismatch: true, owed: 2000, outstanding: 2000, transferCount: 0, mine: null });
+  });
+
+  it("settled: nothing outstanding", () => {
+    const all = markAllPaid(settle(), view(shares3, settle()).transfers, "2026-10-16");
+    expect(summarizeSettlement(shares3, all)).toMatchObject({ outstanding: 0, collected: 8240, paidCount: 2 });
   });
 });

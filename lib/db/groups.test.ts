@@ -9,7 +9,9 @@ import { createGroup, listGroups } from "./queries";
 // never create a lookalike. Real Neon DB (the guarantee is a unique constraint, so
 // mocking the DB would prove nothing). Skipped when DATABASE_URL isn't set.
 
-config({ path: ".env.local" });
+// These tests WRITE to a real database (throwaway users, cleaned up after). They read .env.test.local only,
+// the Neon test branch, never .env.local (production). Without that file they are skipped.
+config({ path: ".env.test.local", quiet: true });
 const hasDb = !!process.env.DATABASE_URL;
 
 describe.skipIf(!hasDb)("saving a group never duplicates it (real Neon DB)", { timeout: 60_000 }, () => {

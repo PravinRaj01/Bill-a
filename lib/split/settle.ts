@@ -1,4 +1,5 @@
 import { formatMoney } from "@/lib/money";
+import { apportion } from "./apportion";
 import type { Cents, Settlement } from "@/types/domain";
 
 // Settle-up: who fronted a bill, who owes whom, who has paid back. Everything here is integer cents
@@ -139,8 +140,7 @@ export function settleView(shares: Share[], settlement: Settlement | undefined, 
   const owed = sum(transfers.map((t) => t.amount));
   const collected = sum(transfers.filter((t) => t.paid).map((t) => t.amount));
   const outstanding = owed - collected;
-  const dueIn = settlement.dueDate ? daysUntil(settlement.dueDate, today) : null;
-  const status: SettleStatus = outstanding === 0 ? "settled" : dueIn === null ? "open" : dueIn < 0 ? "overdue" : dueIn === 0 ? "due" : "open";
+  const { status, dueIn } = settleStatus(outstanding, settlement.dueDate, today);
 
   return {
     ok: true,
@@ -248,39 +248,98 @@ export function balanceTotals(list: PersonBalance[]): { owedToYou: Cents; youOwe
   };
 }
 
+// ---- who is ahead and who is behind (for showing it) -----------------------------------------
+
+export interface Position {
+  name: string;
+  /** What they owe for the bill. */
+  share: Cents;
+  /** What they paid up front. */
+  fronted: Cents;
+  /** fronted - share: positive = they are owed money back, negative = they still owe. */
+  net: Cents;
+}
+
+export function positions(shares: Share[], paidBy: Settlement["paidBy"]): Position[] {
+  const fronted = new Map<string, number>();
+  for (const p of paidBy) fronted.set(p.name, (fronted.get(p.name) ?? 0) + p.amount);
+  return shares.map((s) => {
+    const f = fronted.get(s.name) ?? 0;
+    return { name: s.name, share: s.amount, fronted: f, net: f - s.amount };
+  });
+}
+
+/** The line under a person on the settlement list ("Paid RM60.00 · gets RM30.00 back"), or "" for nothing to say. */
+export function positionNote(p: Position, currency: string): string {
+  const m = (c: Cents) => formatMoney(c, currency);
+  if (p.fronted > 0 && p.net > 0) return `Paid ${m(p.fronted)} · gets ${m(p.net)} back`;
+  if (p.fronted > 0 && p.net < 0) return `Paid ${m(p.fronted)} · still owes ${m(-p.net)}`;
+  if (p.fronted > 0) return "Paid their own share";
+  if (p.net < 0) return `Owes ${m(-p.net)}`;
+  return "";
+}
+
+/** Everyone paid exactly their own share (separate cards at the till): nobody owes anybody. */
+export const everyonePaidOwn = (shares: Share[]): Settlement["paidBy"] =>
+  shares.filter((s) => s.amount > 0).map((s) => ({ name: s.name, amount: s.amount }));
+
+/**
+ * The bill total changed under several payers (the split was redone): keep everyone's proportion of
+ * what was fronted, scaled to the new total to the cent, instead of leaving amounts that no longer add up.
+ */
+export function scalePaidBy(paidBy: Settlement["paidBy"], total: Cents): Settlement["paidBy"] {
+  const weights = paidBy.map((p) => p.amount);
+  if (sum(weights) <= 0) return paidBy;
+  const scaled = apportion(total, weights);
+  return paidBy.map((p, i) => ({ name: p.name, amount: scaled[i] })).filter((p) => p.amount > 0);
+}
+
 // ---- messages -------------------------------------------------------------------------------
 
 const clip = (s: string, n = 90) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
-/** One person's share of one bill. `payTo` is "me" or the payer's name. */
+/**
+ * What one person still owes, in one message however many people they owe. It says what they owe TO
+ * WHOM, not "your share": with several payers the amount they owe is not their share (they may have
+ * paid part of it, or owe two people). `to` is "me" or the creditor's name.
+ */
 export function nudgeText(o: {
   debtor: string;
-  payTo: string;
   title: string;
   date: string | number | Date;
-  amount: Cents;
   currency: string;
+  owes: { to: string; amount: Cents }[];
+  /** Only pass this when what they owe is their whole share, so it describes what the money is for. */
   items?: string;
 }): string {
-  // Only real item names help the reader; "33.3% of the bill" / "(nothing assigned)" are just noise here.
-  const useful = !!o.items && o.items !== "(nothing assigned)" && !/of the bill$|the remaining|amount you gave|parts$/.test(o.items);
-  const what = useful ? ` (${clip(o.items!)})` : "";
-  return (
-    `Hi ${o.debtor}! Your share for *${o.title}* (${shortDate(o.date)}) is *${formatMoney(o.amount, o.currency)}*${what}. ` +
-    `Please pay ${o.payTo} when you can. Thanks! — via Bill.a`
-  );
+  const head = `Hi ${o.debtor}! For *${o.title}* (${shortDate(o.date)}) you owe`;
+  const tail = "Please pay when you can. Thanks! — via Bill.a";
+  if (o.owes.length === 1) {
+    // Only real item names help the reader; "33.3% of the bill" / "(nothing assigned)" are just noise here.
+    const useful = !!o.items && o.items !== "(nothing assigned)" && !/of the bill$|the remaining|amount you gave|parts$/.test(o.items);
+    const what = useful ? ` (${clip(o.items!)})` : "";
+    return `${head} ${o.owes[0].to} *${formatMoney(o.owes[0].amount, o.currency)}*${what}. ${tail}`;
+  }
+  const list = o.owes.map((x) => `• ${x.to}: ${formatMoney(x.amount, o.currency)}`).join("\n");
+  return `${head}:\n${list}\nTotal *${formatMoney(sum(o.owes.map((x) => x.amount)), o.currency)}*. ${tail}`;
 }
 
-/** Everyone who still owes on one bill, in one message for the group chat. */
+/**
+ * Everyone who still owes on one bill, for the group chat. One creditor: "still to pay <them>" with a
+ * line per person. Several creditors: "who still owes what" with "Casey → Alex" lines.
+ */
 export function groupNudgeText(o: {
   title: string;
   date: string | number | Date;
-  payTo: string;
   currency: string;
-  lines: { debtor: string; amount: Cents }[];
+  /** Set when everyone owes the same person. */
+  payTo?: string;
+  lines: { debtor: string; to?: string; amount: Cents }[];
 }): string {
-  const list = o.lines.map((l) => `• ${l.debtor}: ${formatMoney(l.amount, o.currency)}`).join("\n");
-  return `*${o.title}* (${shortDate(o.date)}) — still to pay ${o.payTo}:\n${list}\nThanks! — via Bill.a`;
+  const money = (c: Cents) => formatMoney(c, o.currency);
+  const head = `*${o.title}* (${shortDate(o.date)}) — ${o.payTo ? `still to pay ${o.payTo}` : "who still owes what"}:`;
+  const list = o.lines.map((l) => (o.payTo ? `• ${l.debtor}: ${money(l.amount)}` : `• ${l.debtor} → ${l.to}: ${money(l.amount)}`)).join("\n");
+  return `${head}\n${list}\nThanks! — via Bill.a`;
 }
 
 /** Everything one person still owes you across bills. */
@@ -293,6 +352,28 @@ export function balanceNudgeText(o: {
   const list = o.lines.map((l) => `• ${l.title} (${shortDate(l.date)}): ${formatMoney(l.amount, o.currency)}`).join("\n");
   const total = sum(o.lines.map((l) => l.amount));
   return `Hi ${o.name}! A reminder of what's still open:\n${list}\nTotal *${formatMoney(total, o.currency)}* to ${o.payTo}. Thanks! — via Bill.a`;
+}
+
+/** The summary people share: each share, who paid (one or several), and who still has to pay whom. */
+export function summaryText(o: { currency: string; shares: Share[]; settlement?: Settlement | null; view?: SettleView | null }): string {
+  const money = (c: Cents) => formatMoney(c, o.currency);
+  const lines = [`*Bill-a Summary (${o.currency})*`, ""];
+  for (const s of o.shares) lines.push(`👤 *${s.name}*: ${money(s.amount)}`);
+
+  const payers = (o.settlement?.paidBy ?? []).filter((p) => p.amount > 0);
+  if (payers.length === 1) lines.push("", `Paid by ${payers[0].name}.`);
+  else if (payers.length > 1) lines.push("", `Paid by ${payers.map((p) => `${p.name} (${money(p.amount)})`).join(", ")}.`);
+
+  if (o.view && o.view.ok && o.view.transfers.length > 0) {
+    const open = o.view.transfers.filter((t) => !t.paid);
+    if (open.length > 0) {
+      lines.push("", "Still to pay:");
+      for (const t of open) lines.push(`• ${t.from} → ${t.to}: ${money(t.amount)}`);
+    } else {
+      lines.push("", "All settled ✓");
+    }
+  }
+  return lines.join("\n");
 }
 
 // ---- defaults and keeping a settlement in step with the shares -------------------------------
@@ -320,4 +401,65 @@ export function normalizeSettlement(s: Settlement, shares: Share[]): Settlement 
     return { ...base, paidBy: singlePayer(payer, total) };
   }
   return base;
+}
+
+// ---- the History list: a small summary per bill ---------------------------------------------
+
+/** settled / open / due today / overdue: one rule, used by the bill view and the History list alike. */
+export function settleStatus(outstanding: Cents, dueDate: string | undefined, today: string): { status: SettleStatus; dueIn: number | null } {
+  const dueIn = dueDate ? daysUntil(dueDate, today) : null;
+  const status: SettleStatus = outstanding === 0 ? "settled" : dueIn === null ? "open" : dueIn < 0 ? "overdue" : dueIn === 0 ? "due" : "open";
+  return { status, dueIn };
+}
+
+export interface BillSettleSummary {
+  owed: Cents;
+  collected: Cents;
+  outstanding: Cents;
+  paidCount: number;
+  transferCount: number;
+  dueDate?: string;
+  /** Who fronted it: one name, or several. */
+  payers: string[];
+  /** The user's own side (needs `settlement.me`): still owed to them, and still owed by them. */
+  mine: { owedToYou: Cents; youOwe: Cents } | null;
+  /** What was paid no longer matches the bill (the split changed): shown as "needs attention". */
+  mismatch: boolean;
+}
+
+/**
+ * Everything the History list needs about one bill's settle-up, without shipping the bill itself.
+ * Date-dependent status is NOT here (the server's "today" is not the user's): the client applies
+ * settleStatus() with its own date.
+ */
+export function summarizeSettlement(shares: Share[] | null | undefined, settlement: Settlement | null | undefined): BillSettleSummary | null {
+  if (!shares || !settlement) return null;
+  const view = settleView(shares, settlement, "1970-01-01");
+  if (!view) return null;
+  const payers = settlement.paidBy.filter((p) => p.amount > 0).map((p) => p.name);
+  if (!view.ok) {
+    return { owed: view.owed, collected: 0, outstanding: view.owed, paidCount: 0, transferCount: 0, dueDate: settlement.dueDate, payers, mine: null, mismatch: true };
+  }
+
+  const me = settlement.me ? norm(settlement.me) : null;
+  let owedToYou = 0;
+  let youOwe = 0;
+  if (me) {
+    for (const t of view.transfers) {
+      if (t.paid) continue;
+      if (norm(t.to) === me) owedToYou += t.amount;
+      else if (norm(t.from) === me) youOwe += t.amount;
+    }
+  }
+  return {
+    owed: view.owed,
+    collected: view.collected,
+    outstanding: view.outstanding,
+    paidCount: view.paidCount,
+    transferCount: view.transfers.length,
+    dueDate: settlement.dueDate,
+    payers,
+    mine: me ? { owedToYou, youOwe } : null,
+    mismatch: false,
+  };
 }

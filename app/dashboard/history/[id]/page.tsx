@@ -8,6 +8,9 @@ import { useRouter, useParams } from "next/navigation"; // Import useParams
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageTransition } from "@/components/page-transition";
+import { SettleUp } from "@/components/split/SettleUp";
+import { useBillSettlement } from "@/hooks/use-bill-settlement";
+import { getCurrentUser } from "@/lib/actions/user";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ChevronLeft, Calendar, Trash2, Play, Share2, Loader2 } from "lucide-react";
 
@@ -17,7 +20,14 @@ export default function BillDetailPage() {
 
   const [bill, setBill] = useState<BillHistoryRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<{ id: string; name: string | null } | null>(null);
   const router = useRouter();
+
+  // Who is signed in (edits to settle-up are saved as theirs, through the outbox).
+  useEffect(() => {
+    getCurrentUser().then((u) => setUser(u ? { id: u.id, name: u.name } : null)).catch(() => setUser(null));
+  }, []);
+  const settle = useBillSettlement(bill, user);
 
   // 1. Fetch Data Client-Side
   useEffect(() => {
@@ -118,6 +128,12 @@ export default function BillDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {settle && (
+        <div className="overflow-hidden rounded-3xl border border-white/5 bg-surface ring-1 ring-white/10">
+          <SettleUp model={settle} />
+        </div>
+      )}
 
       <div className="p-6 border border-white/5 rounded-3xl bg-zinc-950/50">
          <p className="text-[10px] uppercase font-black text-zinc-700 mb-3 tracking-widest">System Reasoning Log</p>

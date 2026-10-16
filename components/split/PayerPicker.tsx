@@ -30,7 +30,8 @@ function Chips({ names, selected, onPick }: { names: string[]; selected: string;
             type="button"
             role="radio"
             aria-checked={on}
-            tabIndex={on ? 0 : -1}
+            // one tab stop: the selected chip, or the first when nothing is selected yet
+            tabIndex={on || (!names.includes(selected) && name === names[0]) ? 0 : -1}
             onClick={() => {
               if (!on) haptic("selection");
               onPick(name);
@@ -56,6 +57,7 @@ function MultiEditor({
   initial,
   onApply,
   onCancel,
+  onEveryoneOwn,
 }: {
   names: string[];
   total: Cents;
@@ -63,6 +65,7 @@ function MultiEditor({
   initial: Settlement["paidBy"];
   onApply: (paidBy: Settlement["paidBy"]) => void;
   onCancel: () => void;
+  onEveryoneOwn: () => void;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(names.map((n) => [n, initial.some((p) => p.name === n && p.amount > 0) ? centsToInput(initial.find((p) => p.name === n)!.amount) : ""])),
@@ -103,6 +106,9 @@ function MultiEditor({
       >
         {left === 0 ? `✓ Adds up to ${formatMoney(total, symbol)}` : left > 0 ? `${formatMoney(left, symbol)} left to assign` : `${formatMoney(-left, symbol)} too much`}
       </p>
+      <button type="button" data-testid="everyone-own" onClick={onEveryoneOwn} className="min-h-11 w-full rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 hover:bg-white/5">
+        Everyone paid their own share
+      </button>
       <div className="flex gap-2">
         <Button type="button" variant="outline" className="h-11 flex-1 rounded-xl border-white/10 text-sm text-zinc-300" onClick={onCancel}>
           Cancel
@@ -128,6 +134,9 @@ export function PayerPicker({
   symbol,
   onSingle,
   onMulti,
+  onEveryoneOwn,
+  choosing,
+  setChoosing,
 }: {
   names: string[];
   paidBy: Settlement["paidBy"];
@@ -135,6 +144,11 @@ export function PayerPicker({
   symbol: string;
   onSingle: (name: string) => void;
   onMulti: (paidBy: Settlement["paidBy"]) => void;
+  /** Everyone paid exactly their own share (separate cards at the till). */
+  onEveryoneOwn: () => void;
+  /** Show the one-person chips even though several people paid. Owned by the card so a warning can open it. */
+  choosing: boolean;
+  setChoosing: (v: boolean) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const multi = paidBy.length > 1;
@@ -145,10 +159,16 @@ export function PayerPicker({
         names={names}
         total={total}
         symbol={symbol}
-        initial={paidBy}
+        // Coming from one payer, start blank: the old payer's full amount would only have to be undone.
+        initial={multi ? paidBy : []}
         onCancel={() => setEditing(false)}
+        onEveryoneOwn={() => {
+          setEditing(false);
+          onEveryoneOwn();
+        }}
         onApply={(p) => {
           setEditing(false);
+          setChoosing(false);
           if (p.length === 1) onSingle(p[0].name);
           else onMulti(p);
         }}
@@ -156,10 +176,20 @@ export function PayerPicker({
     );
   }
 
+  const showChips = !multi || choosing;
   return (
     <div className="space-y-2">
-      <p className="px-1 text-xs font-semibold text-muted-foreground">Paid by</p>
-      {multi ? (
+      <p className="px-1 text-xs font-semibold text-muted-foreground">{multi && !choosing ? "Paid by (several people)" : "Paid by"}</p>
+      {showChips ? (
+        <Chips
+          names={names}
+          selected={multi ? "" : (paidBy[0]?.name ?? "")}
+          onPick={(n) => {
+            setChoosing(false);
+            onSingle(n);
+          }}
+        />
+      ) : (
         <div data-testid="multi-summary" className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface-2/60 p-3 text-sm">
           {paidBy.map((p) => (
             <span key={p.name} className="flex items-center gap-1.5 rounded-full bg-white/5 py-1 pr-3 pl-1 font-semibold text-white">
@@ -168,12 +198,17 @@ export function PayerPicker({
             </span>
           ))}
         </div>
-      ) : (
-        <Chips names={names} selected={paidBy[0]?.name ?? ""} onPick={onSingle} />
       )}
-      <button type="button" onClick={() => setEditing(true)} className="min-h-11 px-1 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-white hover:underline">
-        {multi ? "Change who paid" : "Several people paid"}
-      </button>
+      <div className="flex flex-wrap gap-x-4">
+        <button type="button" data-testid="open-multi" onClick={() => setEditing(true)} className="min-h-11 px-1 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-white hover:underline">
+          {multi ? "Edit amounts" : "Several people paid"}
+        </button>
+        {multi && !choosing && (
+          <button type="button" data-testid="one-paid" onClick={() => setChoosing(true)} className="min-h-11 px-1 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-white hover:underline">
+            One person paid it all
+          </button>
+        )}
+      </div>
     </div>
   );
 }
