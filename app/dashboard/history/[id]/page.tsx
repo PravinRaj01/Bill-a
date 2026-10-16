@@ -1,27 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { deleteBills, getBill } from "@/lib/actions/history";
-import type { BillHistoryRow } from "@/lib/db/schema";
-import { formatMoney } from "@/lib/money";
-import { useRouter, useParams } from "next/navigation"; // Import useParams
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { useParams, useRouter } from "next/navigation";
+import { ChevronDown, ChevronLeft, ChevronUp, Loader2, Play, ScrollText, Share2, Trash2 } from "lucide-react";
+import { toast } from "sonner";
+
 import { PageTransition } from "@/components/page-transition";
+import { ReceiptTicket, type TicketRow } from "@/components/receipt/ReceiptTicket";
 import { SettleUp } from "@/components/split/SettleUp";
+import { ConfirmSheet } from "@/components/ui/confirm-sheet";
 import { useBillSettlement } from "@/hooks/use-bill-settlement";
+import { usePaymentShare } from "@/hooks/use-payment-share";
+import { deleteBills, getBill } from "@/lib/actions/history";
 import { getCurrentUser } from "@/lib/actions/user";
-import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
-import { ChevronLeft, Calendar, Trash2, Play, Share2, Loader2 } from "lucide-react";
+import type { BillHistoryRow } from "@/lib/db/schema";
+import { allOwedToMe, localDate, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
+import { shareMessage, shareText } from "@/lib/ui/share";
 
 export default function BillDetailPage() {
-  const params = useParams(); // <--- FIX: Get ID from the hook
-  const id = params?.id as string; // Safely extract string ID
+  const params = useParams();
+  const id = params?.id as string;
 
   const [bill, setBill] = useState<BillHistoryRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ id: string; name: string | null } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showReasoning, setShowReasoning] = useState(false);
   const router = useRouter();
+  const payment = usePaymentShare();
 
   // Who is signed in (edits to settle-up are saved as theirs, through the outbox).
   useEffect(() => {
@@ -29,119 +35,148 @@ export default function BillDetailPage() {
   }, []);
   const settle = useBillSettlement(bill, user);
 
-  // 1. Fetch Data Client-Side
   useEffect(() => {
-    if (!id) return; // Wait until ID is available
-
+    if (!id) return;
     const fetchBill = async () => {
-      // Scoped to the signed-in user on the server: an id that belongs to
-      // someone else is indistinguishable from one that doesn't exist.
+      // Scoped to the signed-in user on the server: an id that belongs to someone else is
+      // indistinguishable from one that doesn't exist.
       const data = await getBill(id).catch(() => null);
-      if (!data) {
-          router.push('/dashboard/history');
-      } else {
-          setBill(data);
-      }
+      if (!data) router.push("/dashboard/history");
+      else setBill(data);
       setLoading(false);
     };
     fetchBill();
   }, [id, router]);
 
-  // 2. Handle Delete
   const handleDelete = async () => {
-      const confirm = window.confirm("Are you sure you want to delete this history?");
-      if (!confirm) return;
-
-      await deleteBills([id]);
-      router.push('/dashboard/history', { transitionTypes: ['nav-back'] });
-      router.refresh();
+    await deleteBills([id]);
+    router.push("/dashboard/history", { transitionTypes: ["nav-back"] });
+    router.refresh();
   };
 
-  // 3. Handle Continue Session: the new-session page loads the bill itself (scoped to
-  // the signed-in user on the server), so no data is passed through sessionStorage.
+  // The new-session page loads the bill itself (scoped to the signed-in user on the server), so no data
+  // is passed through sessionStorage.
   const handleContinue = () => {
-      router.push(`/dashboard/new?restore=${encodeURIComponent(id)}`, { transitionTypes: ['nav-forward'] });
+    router.push(`/dashboard/new?restore=${encodeURIComponent(id)}`, { transitionTypes: ["nav-forward"] });
   };
 
-  if (loading) return <div className="flex h-screen items-center justify-center bg-black text-white"><Loader2 className="animate-spin" /></div>;
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-background text-white">
+        <Loader2 className="animate-spin" />
+      </div>
+    );
+  }
   if (!bill) return null;
 
-  // One data shape now: { split, items, people, reasoning } (no legacy branches).
-  const splitData = bill.data.split;
-
+  const shares = bill.data.split;
   const symbol = bill.currency || "RM";
+  const view = settle?.settlement ? settleView(shares, settle.settlement, localDate()) : null;
+  const positionOf = new Map(
+    view?.ok && settle?.settlement ? positions(shares, settle.settlement.paidBy).map((p) => [p.name, p] as const) : [],
+  );
+
+  const rows: TicketRow[] = shares.map((row) => {
+    const pos = positionOf.get(row.name);
+    const note = pos ? positionNote(pos, symbol) : "";
+    return {
+      name: row.name,
+      amount: row.amount,
+      items: row.items,
+      note: note ? (
+        <span data-testid="position-note" className="block text-xs text-muted-foreground">
+          {note}
+        </span>
+      ) : undefined,
+    };
+  });
+
+  const share = async () => {
+    const text = summaryText({
+      currency: symbol,
+      shares,
+      settlement: settle?.settlement,
+      view,
+      payment: allOwedToMe(view, settle?.settlement?.me) ? payment.block : undefined,
+    });
+    const msg = shareMessage(await shareText(text));
+    if (msg) toast(msg);
+  };
 
   return (
     <PageTransition>
-    <div className="p-6 md:p-10 max-w-2xl mx-auto space-y-6 mb-20">
-      <div className="flex justify-between items-center">
-        <button onClick={() => router.back()} className="flex items-center text-[10px] text-zinc-500 hover:text-white transition-colors uppercase font-black tracking-widest">
-          <ChevronLeft className="w-4 h-4 mr-1" /> Back
-        </button>
-        <button onClick={handleDelete} className="text-zinc-800 hover:text-red-500 transition-colors p-2">
-            <Trash2 className="w-5 h-5" />
-        </button>
-      </div>
-
-      <header className="flex justify-between items-start gap-4">
-        <div className="space-y-1">
-          <h1 className="text-4xl font-black tracking-tighter uppercase italic text-white leading-none">{bill.billTitle}</h1>
-          <div className="flex items-center gap-2 text-[10px] text-zinc-600 font-mono tracking-widest uppercase mt-2">
-            <Calendar className="w-3 h-3" /> {new Date(bill.createdAt).toLocaleDateString()}
-          </div>
+      <div className="mx-auto mb-20 max-w-2xl space-y-6 bg-background p-6 text-white md:p-10">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => router.back()}
+            className="flex min-h-11 items-center pr-3 text-sm font-semibold text-muted-foreground transition-colors hover:text-white"
+          >
+            <ChevronLeft className="mr-1 size-4" /> Back
+          </button>
+          <button
+            type="button"
+            aria-label="Delete this bill"
+            data-testid="delete-bill"
+            onClick={() => setConfirmDelete(true)}
+            className="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-red-400"
+          >
+            <Trash2 className="size-5" />
+          </button>
         </div>
-        
-        {/* CONTINUE SESSION BUTTON */}
-        <Button 
-            size="sm" 
-            onClick={handleContinue}
-            className="bg-white text-black hover:bg-zinc-200 font-black uppercase text-[10px] h-10 px-4 rounded-xl shadow-xl"
-        >
-            <Play className="w-3 h-3 mr-2" fill="currentColor" /> Continue
-        </Button>
-      </header>
 
-      <Card className="bg-[#0c0c0e] border-white/5 shadow-2xl overflow-hidden rounded-3xl ring-1 ring-white/10">
-        <CardHeader className="text-center border-b border-white/5 py-4 bg-white/[0.02]">
-          <CardTitle className="text-[10px] font-bold text-slate-500 uppercase tracking-[0.3em]">Final Settlement</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <Table>
-            <TableBody>
-              {splitData.map((row, i) => (
-                <TableRow key={i} className="border-white/5 hover:bg-white/[0.01]">
-                  <TableCell className="py-6 font-bold text-white px-8">{row.name}</TableCell>
-                  <TableCell className="text-right font-mono text-white text-xl px-8">{formatMoney(row.amount, symbol)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          
-          <div className="p-6">
-             <Button variant="outline" className="w-full h-12 border-white/5 text-zinc-500 hover:text-white font-bold rounded-xl uppercase tracking-widest text-[10px]" onClick={() => {
-                let text = `*Bill: ${bill.billTitle} (${symbol})*\n\n`;
-                splitData.forEach((r) => (text += `👤 *${r.name}*: ${formatMoney(r.amount, symbol)}\n`));
-                window.open(`whatsapp://send?text=${encodeURIComponent(text)}`);
-            }}>
-                <Share2 className="w-4 h-4 mr-2" /> Share WhatsApp
-            </Button>
+        <ReceiptTicket title={bill.billTitle} date={bill.createdAt} symbol={symbol} rows={rows}>
+          {settle && <SettleUp model={{ ...settle, payment }} />}
+
+          <div className="space-y-3 border-t border-white/5 p-5">
+            <button
+              type="button"
+              data-testid="share-bill"
+              onClick={share}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-base font-bold text-black transition-opacity hover:opacity-90"
+            >
+              <Share2 className="size-4" /> Share summary
+            </button>
+            <button
+              type="button"
+              onClick={handleContinue}
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/5"
+            >
+              <Play className="size-4" fill="currentColor" /> Continue this session
+            </button>
           </div>
-        </CardContent>
-      </Card>
 
-      {settle && (
-        <div className="overflow-hidden rounded-3xl border border-white/5 bg-surface ring-1 ring-white/10">
-          <SettleUp model={settle} />
-        </div>
-      )}
+          <div className="border-t border-white/5">
+            <button
+              type="button"
+              aria-expanded={showReasoning}
+              onClick={() => setShowReasoning(!showReasoning)}
+              className="flex min-h-12 w-full items-center justify-between px-5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-white/5"
+            >
+              <span className="flex items-center gap-2">
+                <ScrollText size={14} /> How this was worked out
+              </span>
+              {showReasoning ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            {showReasoning && (
+              <div className="px-5 pb-5">
+                <div className="max-h-60 overflow-y-auto rounded-xl border border-white/5 bg-black/40 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-zinc-400">
+                  {bill.data.reasoning || "No log recorded."}
+                </div>
+              </div>
+            )}
+          </div>
+        </ReceiptTicket>
 
-      <div className="p-6 border border-white/5 rounded-3xl bg-zinc-950/50">
-         <p className="text-[10px] uppercase font-black text-zinc-700 mb-3 tracking-widest">System Reasoning Log</p>
-         <div className="text-[10px] font-mono text-zinc-600 whitespace-pre-wrap leading-relaxed italic max-h-60 overflow-y-auto">
-            {bill.data.reasoning || "No log recorded."}
-         </div>
+        <ConfirmSheet
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete this bill?"
+          description="It's removed from History on all your devices. This can't be undone."
+          confirmLabel="Delete"
+          onConfirm={handleDelete}
+        />
       </div>
-    </div>
     </PageTransition>
   );
 }
