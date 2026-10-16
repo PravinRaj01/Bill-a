@@ -298,6 +298,9 @@ export function scalePaidBy(paidBy: Settlement["paidBy"], total: Cents): Settlem
 
 const clip = (s: string, n = 90) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
 
+/** Adds the user's "Pay me:" block (lib/payment/format.ts) under a message; nothing when there isn't one. */
+const withPayment = (text: string, payment?: string) => (payment ? `${text}\n\n${payment}` : text);
+
 /**
  * What one person still owes, in one message however many people they owe. It says what they owe TO
  * WHOM, not "your share": with several payers the amount they owe is not their share (they may have
@@ -311,6 +314,8 @@ export function nudgeText(o: {
   owes: { to: string; amount: Cents }[];
   /** Only pass this when what they owe is their whole share, so it describes what the money is for. */
   items?: string;
+  /** The user's payment block; only pass it when what is owed is owed TO the user. */
+  payment?: string;
 }): string {
   const head = `Hi ${o.debtor}! For *${o.title}* (${shortDate(o.date)}) you owe`;
   const tail = "Please pay when you can. Thanks! — via Bill.a";
@@ -318,10 +323,10 @@ export function nudgeText(o: {
     // Only real item names help the reader; "33.3% of the bill" / "(nothing assigned)" are just noise here.
     const useful = !!o.items && o.items !== "(nothing assigned)" && !/of the bill$|the remaining|amount you gave|parts$/.test(o.items);
     const what = useful ? ` (${clip(o.items!)})` : "";
-    return `${head} ${o.owes[0].to} *${formatMoney(o.owes[0].amount, o.currency)}*${what}. ${tail}`;
+    return withPayment(`${head} ${o.owes[0].to} *${formatMoney(o.owes[0].amount, o.currency)}*${what}. ${tail}`, o.payment);
   }
   const list = o.owes.map((x) => `• ${x.to}: ${formatMoney(x.amount, o.currency)}`).join("\n");
-  return `${head}:\n${list}\nTotal *${formatMoney(sum(o.owes.map((x) => x.amount)), o.currency)}*. ${tail}`;
+  return withPayment(`${head}:\n${list}\nTotal *${formatMoney(sum(o.owes.map((x) => x.amount)), o.currency)}*. ${tail}`, o.payment);
 }
 
 /**
@@ -335,11 +340,13 @@ export function groupNudgeText(o: {
   /** Set when everyone owes the same person. */
   payTo?: string;
   lines: { debtor: string; to?: string; amount: Cents }[];
+  /** The user's payment block; only pass it when everyone owes the user. */
+  payment?: string;
 }): string {
   const money = (c: Cents) => formatMoney(c, o.currency);
   const head = `*${o.title}* (${shortDate(o.date)}) — ${o.payTo ? `still to pay ${o.payTo}` : "who still owes what"}:`;
   const list = o.lines.map((l) => (o.payTo ? `• ${l.debtor}: ${money(l.amount)}` : `• ${l.debtor} → ${l.to}: ${money(l.amount)}`)).join("\n");
-  return `${head}\n${list}\nThanks! — via Bill.a`;
+  return withPayment(`${head}\n${list}\nThanks! — via Bill.a`, o.payment);
 }
 
 /** Everything one person still owes you across bills. */
@@ -348,14 +355,23 @@ export function balanceNudgeText(o: {
   payTo: string;
   currency: string;
   lines: { title: string; date: string | number | Date; amount: Cents }[];
+  /** The user's payment block (these balances are always owed to the user). */
+  payment?: string;
 }): string {
   const list = o.lines.map((l) => `• ${l.title} (${shortDate(l.date)}): ${formatMoney(l.amount, o.currency)}`).join("\n");
   const total = sum(o.lines.map((l) => l.amount));
-  return `Hi ${o.name}! A reminder of what's still open:\n${list}\nTotal *${formatMoney(total, o.currency)}* to ${o.payTo}. Thanks! — via Bill.a`;
+  return withPayment(`Hi ${o.name}! A reminder of what's still open:\n${list}\nTotal *${formatMoney(total, o.currency)}* to ${o.payTo}. Thanks! — via Bill.a`, o.payment);
 }
 
 /** The summary people share: each share, who paid (one or several), and who still has to pay whom. */
-export function summaryText(o: { currency: string; shares: Share[]; settlement?: Settlement | null; view?: SettleView | null }): string {
+export function summaryText(o: {
+  currency: string;
+  shares: Share[];
+  settlement?: Settlement | null;
+  view?: SettleView | null;
+  /** The user's payment block; only pass it when what is still owed is owed to the user. */
+  payment?: string;
+}): string {
   const money = (c: Cents) => formatMoney(c, o.currency);
   const lines = [`*Bill-a Summary (${o.currency})*`, ""];
   for (const s of o.shares) lines.push(`👤 *${s.name}*: ${money(s.amount)}`);
@@ -373,7 +389,14 @@ export function summaryText(o: { currency: string; shares: Share[]; settlement?:
       lines.push("", "All settled ✓");
     }
   }
-  return lines.join("\n");
+  return withPayment(lines.join("\n"), o.payment);
+}
+
+/** True when there is something still to pay and all of it goes to `me`: the only time "pay me" is right. */
+export function allOwedToMe(view: SettleView | null | undefined, me: string | undefined): boolean {
+  if (!view || !view.ok || !me) return false;
+  const open = view.transfers.filter((t) => !t.paid);
+  return open.length > 0 && open.every((t) => t.to.trim().toLowerCase() === me.trim().toLowerCase());
 }
 
 // ---- defaults and keeping a settlement in step with the shares -------------------------------

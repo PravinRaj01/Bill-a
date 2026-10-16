@@ -6,6 +6,8 @@ import { toast } from "sonner";
 
 import { BalanceCard } from "@/components/balances/BalanceCard";
 import { PageTransition } from "@/components/page-transition";
+import { PaymentToggle } from "@/components/payment/PaymentToggle";
+import { usePaymentShare } from "@/hooks/use-payment-share";
 import { getBalances, getBill, type BalancesResult } from "@/lib/actions/history";
 import { pushOutbox } from "@/lib/actions/sync";
 import { getCurrentUser } from "@/lib/actions/user";
@@ -22,6 +24,7 @@ export default function BalancesPage() {
   const [result, setResult] = useState<BalancesResult | null>(null);
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const payment = usePaymentShare();
 
   const reload = useCallback(async () => {
     setResult(await getBalances());
@@ -58,6 +61,7 @@ export default function BalancesPage() {
       payTo: "me",
       currency: p.currency,
       lines: p.bills.filter((b) => b.amount > 0).map((b) => ({ title: b.title, date: b.createdAt, amount: b.amount })),
+      payment: payment.block || undefined, // these balances are owed to the user
     });
     const msg = shareMessage(await shareText(text));
     if (msg) toast(msg);
@@ -131,6 +135,8 @@ export default function BalancesPage() {
                 ))}
               </div>
             )}
+
+            {people.length > 0 && <PaymentToggle payment={payment} />}
 
             {people.length > 0 ? (
               <ul className="grid gap-4 lg:grid-cols-2 lg:items-start">
