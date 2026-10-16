@@ -1,0 +1,294 @@
+import { formatMoney } from "@/lib/money";
+import type { Cents, Settlement } from "@/types/domain";
+
+// Settle-up: who fronted a bill, who owes whom, who has paid back. Everything here is integer cents
+// and deterministic, and nothing here touches a model or the network.
+//
+// The facts a person enters are stored (who paid, which transfers are marked paid, a due date).
+// What is owed is always DERIVED from the shares people actually pay, so it can never disagree with
+// them: change the shares and the transfers follow, and a "paid" mark that no longer matches the
+// amount owed simply stops counting.
+
+export interface Share {
+  name: string;
+  amount: Cents;
+}
+
+export interface Transfer {
+  from: string;
+  to: string;
+  amount: Cents;
+  /** "From->To": the key a paid mark is stored under. */
+  key: string;
+  paid: boolean;
+}
+
+export type SettleStatus = "settled" | "open" | "due" | "overdue";
+
+export const transferKey = (from: string, to: string) => `${from}->${to}`;
+
+const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
+const norm = (s: string) => s.trim().toLowerCase();
+
+// ---- dates (local calendar dates as "YYYY-MM-DD", compared as UTC days so DST can't skew them) ----
+
+const pad = (n: number) => String(n).padStart(2, "0");
+export const localDate = (d: Date = new Date()): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+function dayNumber(iso: string): number {
+  const [y, m, d] = iso.split("-").map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86_400_000);
+}
+
+/** Whole days from `today` to `due` (negative = overdue). */
+export const daysUntil = (due: string, today: string): number => dayNumber(due) - dayNumber(today);
+
+/** `today` + n days. */
+export function addDays(today: string, n: number): string {
+  const [y, m, d] = today.split("-").map(Number);
+  return localDate(new Date(y, m - 1, d + n));
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+/** "16 Oct". English month names on purpose: the message text is English whatever the device locale. */
+export function shortDate(d: string | number | Date): string {
+  const date = typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? new Date(`${d}T00:00:00`) : new Date(d);
+  return `${date.getDate()} ${MONTHS[date.getMonth()]}`;
+}
+
+// ---- who paid -------------------------------------------------------------------------------
+
+export const singlePayer = (name: string, total: Cents): Settlement["paidBy"] => [{ name, amount: total }];
+
+/** True when what was fronted adds up to what is owed (the one rule that makes the rest well-defined). */
+export const paidMatches = (shares: Share[], paidBy: Settlement["paidBy"]): boolean =>
+  sum(shares.map((s) => s.amount)) === sum(paidBy.map((p) => p.amount));
+
+/**
+ * Each person's position once the bill is paid: what they fronted minus what they owe.
+ * Positive = they are owed money, negative = they owe. Sums to zero when `paidMatches`.
+ */
+export function balances(shares: Share[], paidBy: Settlement["paidBy"]): { name: string; net: Cents }[] {
+  const fronted = new Map<string, number>();
+  for (const p of paidBy) fronted.set(p.name, (fronted.get(p.name) ?? 0) + p.amount);
+  const owes = new Map(shares.map((s) => [s.name, s.amount]));
+  const names = [...shares.map((s) => s.name), ...[...fronted.keys()].filter((n) => !owes.has(n))];
+  return names.map((name) => ({ name, net: (fronted.get(name) ?? 0) - (owes.get(name) ?? 0) }));
+}
+
+/**
+ * Pairs debtors with creditors, biggest first, until everyone is square. Every step clears at least
+ * one person, so there are at most (people - 1) transfers; with one payer it is simply "everyone owes
+ * the payer their share". Ties break by the order people were listed, so the result never shuffles.
+ */
+export function minimalTransfers(bal: { name: string; net: Cents }[]): Omit<Transfer, "paid">[] {
+  if (sum(bal.map((b) => b.net)) !== 0) return [];
+  const order = (a: { amt: number; i: number }, b: { amt: number; i: number }) => b.amt - a.amt || a.i - b.i;
+  const credit = bal.map((b, i) => ({ name: b.name, amt: b.net, i })).filter((b) => b.amt > 0).sort(order);
+  const debt = bal.map((b, i) => ({ name: b.name, amt: -b.net, i })).filter((b) => b.amt > 0).sort(order);
+
+  const out: Omit<Transfer, "paid">[] = [];
+  let c = 0;
+  let d = 0;
+  while (c < credit.length && d < debt.length) {
+    const amount = Math.min(credit[c].amt, debt[d].amt);
+    out.push({ from: debt[d].name, to: credit[c].name, amount, key: transferKey(debt[d].name, credit[c].name) });
+    credit[c].amt -= amount;
+    debt[d].amt -= amount;
+    if (credit[c].amt === 0) c++;
+    if (debt[d].amt === 0) d++;
+  }
+  return out;
+}
+
+// ---- the bill's settle-up state -------------------------------------------------------------
+
+export type SettleView =
+  | { ok: false; reason: "paid-mismatch"; fronted: Cents; owed: Cents }
+  | {
+      ok: true;
+      transfers: Transfer[];
+      /** Total that has to change hands (the payer's own share never does). */
+      owed: Cents;
+      collected: Cents;
+      outstanding: Cents;
+      paidCount: number;
+      status: SettleStatus;
+      /** Days until the due date (negative = overdue); null with no due date. */
+      dueIn: number | null;
+      /** The settlement with stale paid marks dropped: save this, not the one you passed in. */
+      settlement: Settlement;
+    };
+
+/** Settle-up state of one bill. `null` when it has no settlement. */
+export function settleView(shares: Share[], settlement: Settlement | undefined, today: string): SettleView | null {
+  if (!settlement || settlement.paidBy.length === 0) return null;
+  if (!paidMatches(shares, settlement.paidBy)) {
+    return { ok: false, reason: "paid-mismatch", fronted: sum(settlement.paidBy.map((p) => p.amount)), owed: sum(shares.map((s) => s.amount)) };
+  }
+
+  // A mark only counts if it is for the same pair AND the same amount as is owed now.
+  const live: Settlement["paid"] = {};
+  const transfers: Transfer[] = minimalTransfers(balances(shares, settlement.paidBy)).map((t) => {
+    const mark = settlement.paid[t.key];
+    const paid = !!mark && mark.amount === t.amount;
+    if (paid) live[t.key] = mark;
+    return { ...t, paid };
+  });
+
+  const owed = sum(transfers.map((t) => t.amount));
+  const collected = sum(transfers.filter((t) => t.paid).map((t) => t.amount));
+  const outstanding = owed - collected;
+  const dueIn = settlement.dueDate ? daysUntil(settlement.dueDate, today) : null;
+  const status: SettleStatus = outstanding === 0 ? "settled" : dueIn === null ? "open" : dueIn < 0 ? "overdue" : dueIn === 0 ? "due" : "open";
+
+  return {
+    ok: true,
+    transfers,
+    owed,
+    collected,
+    outstanding,
+    paidCount: transfers.filter((t) => t.paid).length,
+    status,
+    dueIn,
+    settlement: { ...settlement, paid: live },
+  };
+}
+
+// ---- edits (immutable) ----------------------------------------------------------------------
+
+export function markPaid(s: Settlement, t: Pick<Transfer, "key" | "amount">, today: string): Settlement {
+  return { ...s, paid: { ...s.paid, [t.key]: { at: today, amount: t.amount } } };
+}
+
+export function unmarkPaid(s: Settlement, key: string): Settlement {
+  const { [key]: _removed, ...rest } = s.paid;
+  void _removed;
+  return { ...s, paid: rest };
+}
+
+/** Mark every still-open transfer paid (ones already paid keep their original date). */
+export function markAllPaid(s: Settlement, transfers: Transfer[], today: string): Settlement {
+  return transfers.reduce((acc, t) => (t.paid ? acc : markPaid(acc, t, today)), s);
+}
+
+/** A new payer arrangement invalidates the old marks (the pairs change), so they are cleared. */
+export function withPayers(s: Settlement | undefined, paidBy: Settlement["paidBy"]): Settlement {
+  return { ...s, paidBy, paid: {} };
+}
+
+/** Which person is the signed-in user? The one whose first name matches the account's, else nobody. */
+export function guessMe(people: string[], accountName?: string | null): string | undefined {
+  const first = norm((accountName ?? "").split(/\s+/)[0] ?? "");
+  if (!first) return undefined;
+  const hits = people.filter((p) => norm(p.split(/\s+/)[0] ?? "") === first);
+  return hits.length === 1 ? hits[0] : undefined; // two people with the same first name: don't guess
+}
+
+// ---- across bills ---------------------------------------------------------------------------
+
+export interface BillForBalances {
+  id: string;
+  title: string;
+  createdAt: string | number | Date;
+  currency: string;
+  split: Share[];
+  settlement?: Settlement;
+}
+
+export interface PersonBalance {
+  /** Stable id: currency + the lower-cased name. */
+  key: string;
+  name: string;
+  currency: string;
+  /** Positive: they owe you. Negative: you owe them. */
+  net: Cents;
+  bills: { id: string; title: string; createdAt: string | number | Date; amount: Cents; dueDate?: string }[];
+}
+
+/**
+ * What each person owes you (or you them) across all bills, counting only transfers that involve
+ * YOU on that bill (`settlement.me`) and are still unpaid. Two people are the same person if their
+ * names match ignoring case and spaces; the display name is the most recent bill's spelling.
+ * Amounts in different currencies are kept apart, never netted.
+ */
+export function aggregateBalances(bills: BillForBalances[], today: string): PersonBalance[] {
+  const byPerson = new Map<string, PersonBalance>();
+  const oldestFirst = [...bills].sort((a, b) => +new Date(a.createdAt) - +new Date(b.createdAt));
+
+  for (const bill of oldestFirst) {
+    const me = bill.settlement?.me;
+    if (!me) continue;
+    const view = settleView(bill.split, bill.settlement, today);
+    if (!view || !view.ok) continue;
+
+    for (const t of view.transfers) {
+      if (t.paid) continue;
+      const iAmCreditor = norm(t.to) === norm(me);
+      const iAmDebtor = norm(t.from) === norm(me);
+      if (!iAmCreditor && !iAmDebtor) continue; // a debt between two other people
+      const other = iAmCreditor ? t.from : t.to;
+      const signed = iAmCreditor ? t.amount : -t.amount;
+      const key = `${bill.currency}|${norm(other)}`;
+      const entry = byPerson.get(key) ?? { key, name: other, currency: bill.currency, net: 0, bills: [] };
+      entry.name = other;
+      entry.net += signed;
+      entry.bills.push({ id: bill.id, title: bill.title, createdAt: bill.createdAt, amount: signed, dueDate: bill.settlement?.dueDate });
+      byPerson.set(key, entry);
+    }
+  }
+  return [...byPerson.values()].filter((p) => p.net !== 0).sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name));
+}
+
+/** "You're owed" / "you owe" totals for a header, per currency of the first balance (the common single-currency case). */
+export function balanceTotals(list: PersonBalance[]): { owedToYou: Cents; youOwe: Cents } {
+  return {
+    owedToYou: sum(list.filter((p) => p.net > 0).map((p) => p.net)),
+    youOwe: sum(list.filter((p) => p.net < 0).map((p) => -p.net)), // not -sum(): an empty list would give -0
+  };
+}
+
+// ---- messages -------------------------------------------------------------------------------
+
+const clip = (s: string, n = 90) => (s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s);
+
+/** One person's share of one bill. `payTo` is "me" or the payer's name. */
+export function nudgeText(o: {
+  debtor: string;
+  payTo: string;
+  title: string;
+  date: string | number | Date;
+  amount: Cents;
+  currency: string;
+  items?: string;
+}): string {
+  const what = o.items && o.items !== "(nothing assigned)" ? ` (${clip(o.items)})` : "";
+  return (
+    `Hi ${o.debtor}! Your share for *${o.title}* (${shortDate(o.date)}) is *${formatMoney(o.amount, o.currency)}*${what}. ` +
+    `Please pay ${o.payTo} when you can. Thanks! — via Bill.a`
+  );
+}
+
+/** Everyone who still owes on one bill, in one message for the group chat. */
+export function groupNudgeText(o: {
+  title: string;
+  date: string | number | Date;
+  payTo: string;
+  currency: string;
+  lines: { debtor: string; amount: Cents }[];
+}): string {
+  const list = o.lines.map((l) => `• ${l.debtor}: ${formatMoney(l.amount, o.currency)}`).join("\n");
+  return `*${o.title}* (${shortDate(o.date)}) — still to pay ${o.payTo}:\n${list}\nThanks! — via Bill.a`;
+}
+
+/** Everything one person still owes you across bills. */
+export function balanceNudgeText(o: {
+  name: string;
+  payTo: string;
+  currency: string;
+  lines: { title: string; date: string | number | Date; amount: Cents }[];
+}): string {
+  const list = o.lines.map((l) => `• ${l.title} (${shortDate(l.date)}): ${formatMoney(l.amount, o.currency)}`).join("\n");
+  const total = sum(o.lines.map((l) => l.amount));
+  return `Hi ${o.name}! A reminder of what's still open:\n${list}\nTotal *${formatMoney(total, o.currency)}* to ${o.payTo}. Thanks! — via Bill.a`;
+}

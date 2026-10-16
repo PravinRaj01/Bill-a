@@ -4,6 +4,18 @@ import { z } from "zod";
 // async functions, so the schema lives here) and by the client outbox types.
 // Cents are integers everywhere from here down. `data` is bounded so a client
 // can't stash an arbitrarily large blob in our database.
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+// Bounded like everything else here: a client can't stash an arbitrarily large blob.
+export const settlementSchema = z.object({
+  me: z.string().max(60).optional(),
+  paidBy: z.array(z.object({ name: z.string().max(60), amount: z.number().int().min(0).max(100_000_000) })).max(50),
+  paid: z
+    .record(z.string().max(130), z.object({ at: isoDate, amount: z.number().int().min(0).max(100_000_000) }))
+    .refine((o) => Object.keys(o).length <= 100, "too many paid marks"),
+  dueDate: isoDate.optional(),
+});
+
 export const billSchema = z.object({
   clientId: z.uuid(),
   billTitle: z.string().trim().min(1).max(120),
@@ -38,6 +50,7 @@ export const billSchema = z.object({
       .array(z.object({ name: z.string().max(60), amount: z.number().int(), items: z.string().max(2000) }))
       .max(50)
       .optional(),
+    settlement: settlementSchema.optional(),
   }),
 });
 
