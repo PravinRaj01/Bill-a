@@ -7,6 +7,7 @@ import type { SavedGroup } from "@/lib/db/schema"
 import { Users, ChevronRight, Zap, Camera, Share2, ArrowUpRight, Calculator } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { MeshHero } from "@/components/ui/mesh-hero"
+import { PageTransition } from "@/components/page-transition"
 
 // The shader colours: graphite into a warm coral glow (the same coral as the primary buttons).
 const SCAN_COLORS = ["#0e0f12", "#3a1b22", "#ff6b57", "#1f2228"]
@@ -20,11 +21,12 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <div className="min-h-screen bg-background text-white p-6 pb-24 md:p-10 max-w-6xl mx-auto animate-in fade-in space-y-10">
+    <PageTransition>
+    <div className="min-h-screen bg-background text-white p-6 pb-24 md:p-10 max-w-6xl mx-auto space-y-10">
 
       {/* Two ways in: a receipt, or just an amount. */}
       <section aria-label="Start a split" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Link href="/dashboard/new" data-testid="tile-scan" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
+        <Link href="/dashboard/new" transitionTypes={["nav-forward"]} data-testid="tile-scan" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
           <MeshHero colors={SCAN_COLORS} className="h-44 rounded-[2rem] border border-white/10 transition-transform duration-200 group-active:scale-[0.98] sm:h-56">
             <div className="flex h-44 flex-col justify-between p-6 sm:h-56">
               <div className="flex items-start justify-between">
@@ -41,7 +43,7 @@ export default function DashboardPage() {
           </MeshHero>
         </Link>
 
-        <Link href="/dashboard/new?mode=quick" data-testid="tile-quick" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
+        <Link href="/dashboard/new?mode=quick" transitionTypes={["nav-forward"]} data-testid="tile-quick" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
           <div className="flex h-44 flex-col justify-between rounded-[2rem] border border-white/10 bg-surface p-6 transition-all duration-200 group-hover:border-white/25 group-active:scale-[0.98] sm:h-56">
             <div className="flex items-start justify-between">
               <span className="flex size-12 items-center justify-center rounded-full bg-coral/15 text-coral">
@@ -99,7 +101,7 @@ export default function DashboardPage() {
               <Users size={16} />
               <h2 className="text-xs font-semibold tracking-widest uppercase">Saved groups</h2>
             </div>
-            <Link href="/dashboard/groups" className="text-xs font-semibold text-muted-foreground hover:text-white transition-colors uppercase tracking-widest">
+            <Link href="/dashboard/groups" transitionTypes={["nav-forward"]} className="text-xs font-semibold text-muted-foreground hover:text-white transition-colors uppercase tracking-widest">
               Manage
             </Link>
           </div>
@@ -107,7 +109,7 @@ export default function DashboardPage() {
           <div className="space-y-4">
             {groups.length > 0 ? (
               groups.map((group) => (
-                <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`} className="block w-full">
+                <Link key={group.id} href={`/dashboard/new?group_id=${group.id}`} transitionTypes={["nav-forward"]} className="block w-full">
                   <Card className="bg-surface border border-white/5 hover:border-white/20 transition-all rounded-3xl p-6 group flex items-center justify-between h-24">
                     <div className="flex flex-col justify-center gap-1.5 flex-1 min-w-0 mr-4">
                       <h3 className="font-bold text-white truncate text-base leading-none">
@@ -135,5 +137,6 @@ export default function DashboardPage() {
         </div>
       </div>
     </div>
+    </PageTransition>
   )
 }

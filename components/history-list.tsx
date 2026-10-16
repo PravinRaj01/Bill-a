@@ -97,7 +97,7 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
               )}
               <Card className={`flex-1 bg-[#0c0c0e] border-white/5 rounded-2xl group overflow-hidden ${selectedIds.includes(bill.id) ? 'opacity-50' : ''}`}>
                 <CardContent className="p-0">
-                  <Link href={`/dashboard/history/${bill.id}`} className="flex items-center p-5 gap-4" onClick={(e) => isEditMode && e.preventDefault()}>
+                  <Link href={`/dashboard/history/${bill.id}`} transitionTypes={["nav-forward"]} className="flex items-center p-5 gap-4" onClick={(e) => isEditMode && e.preventDefault()}>
                     <div className="w-10 h-10 bg-white/5 rounded-full flex items-center justify-center border border-white/5 shrink-0">
                       <Receipt className="w-4 h-4 text-zinc-500" />
                     </div>

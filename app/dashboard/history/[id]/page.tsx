@@ -7,6 +7,7 @@ import { formatMoney } from "@/lib/money";
 import { useRouter, useParams } from "next/navigation"; // Import useParams
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageTransition } from "@/components/page-transition";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { ChevronLeft, Calendar, Trash2, Play, Share2, Loader2 } from "lucide-react";
 
@@ -42,14 +43,14 @@ export default function BillDetailPage() {
       if (!confirm) return;
 
       await deleteBills([id]);
-      router.push('/dashboard/history');
+      router.push('/dashboard/history', { transitionTypes: ['nav-back'] });
       router.refresh();
   };
 
   // 3. Handle Continue Session: the new-session page loads the bill itself (scoped to
   // the signed-in user on the server), so no data is passed through sessionStorage.
   const handleContinue = () => {
-      router.push(`/dashboard/new?restore=${encodeURIComponent(id)}`);
+      router.push(`/dashboard/new?restore=${encodeURIComponent(id)}`, { transitionTypes: ['nav-forward'] });
   };
 
   if (loading) return <div className="flex h-screen items-center justify-center bg-black text-white"><Loader2 className="animate-spin" /></div>;
@@ -61,7 +62,8 @@ export default function BillDetailPage() {
   const symbol = bill.currency || "RM";
 
   return (
-    <div className="p-6 md:p-10 max-w-2xl mx-auto space-y-6 mb-20 animate-in fade-in">
+    <PageTransition>
+    <div className="p-6 md:p-10 max-w-2xl mx-auto space-y-6 mb-20">
       <div className="flex justify-between items-center">
         <button onClick={() => router.back()} className="flex items-center text-[10px] text-zinc-500 hover:text-white transition-colors uppercase font-black tracking-widest">
           <ChevronLeft className="w-4 h-4 mr-1" /> Back
@@ -124,5 +126,6 @@ export default function BillDetailPage() {
          </div>
       </div>
     </div>
+    </PageTransition>
   );
 }
