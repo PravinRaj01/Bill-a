@@ -32,8 +32,10 @@ import type { Cents, Receipt, ReceiptItem, SplitRecord } from "@/types/domain";
 // view over it. Money is integer cents the whole way through: the only floats are what a
 // person types, and those go through parseMoneyInput() at the edge.
 
-export type Step = "NAMES" | "SCAN" | "REVIEW" | "SUMMARY";
-export const STEP_ORDER: Step[] = ["NAMES", "SCAN", "REVIEW", "SUMMARY"];
+// The scan flow is NAMES -> SCAN -> REVIEW -> SUMMARY; quick split is AMOUNT -> NAMES -> SPLIT -> SUMMARY.
+// One order for both, so "forward" is simply a later index (used for the slide direction).
+export type Step = "AMOUNT" | "NAMES" | "SCAN" | "REVIEW" | "SPLIT" | "SUMMARY";
+export const STEP_ORDER: Step[] = ["AMOUNT", "NAMES", "SCAN", "REVIEW", "SPLIT", "SUMMARY"];
 
 /** What the local scan was unsure about; drives the amber highlights on REVIEW. */
 export interface ScanInfo {
@@ -66,7 +68,9 @@ export function useSplitSession() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [step, setStep] = useState<Step>("NAMES");
+  // ?mode=quick: split an amount without scanning (never when continuing a saved bill).
+  const quick = searchParams.get("mode") === "quick" && !searchParams.get("restore");
+  const [step, setStep] = useState<Step>(quick ? "AMOUNT" : "NAMES");
   const [people, setPeople] = useState<string[]>([]);
   const [sessionName, setSessionName] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -145,10 +149,11 @@ export function useSplitSession() {
       return !v;
     });
 
-  // Identity comes from the verified session; groups are scoped to it on the server.
+  // Identity comes from the verified session; groups are scoped to it on the server. Offline (or
+  // if the call fails) we simply can't tell, so carry on as a guest: nothing here may block splitting.
   useEffect(() => {
     (async () => {
-      const u = await getCurrentUser();
+      const u = await getCurrentUser().catch(() => null);
       if (u) {
         setUser(u);
         setIsGuest(false);
@@ -255,10 +260,34 @@ export function useSplitSession() {
           console.error("Could not save group", e);
         }
       }
-      setStep("SCAN");
+      setStep(quick ? "SPLIT" : "SCAN");
     } finally {
       setStarting(false);
     }
+  };
+
+  // ---- quick split: an amount instead of a scanned receipt ----------------------------
+  /** Builds a one-item receipt from the typed amount (and optional tax) and moves on to the people. */
+  const startQuick = ({ cents, title, taxCents }: { cents: Cents; title: string; taxCents: Cents }) => {
+    const name = title.trim();
+    setReceipt(
+      withTotal({
+        items: [{ name: name || "Quick split", quantity: 1, unitPrice: cents, totalPrice: cents }],
+        tax: taxCents,
+        total: 0,
+        currency: "RM",
+      }),
+    );
+    if (name) setSessionName(name);
+    setIncludeTax(true);
+    setStep("NAMES");
+  };
+
+  /** One step back. Quick split walks its own path; the scan flow has always gone back to the names. */
+  const back = () => {
+    if (!quick) return setStep("NAMES");
+    const prev: Partial<Record<Step, Step>> = { NAMES: "AMOUNT", SPLIT: "NAMES", SUMMARY: "SPLIT" };
+    setStep(prev[step] ?? "AMOUNT");
   };
 
   // ---- scanning ---------------------------------------------------------------------
@@ -580,7 +609,7 @@ export function useSplitSession() {
 
   return {
     // flow
-    step, setStep, finish,
+    step, setStep, finish, quick, back, startQuick, firstStep: (quick ? "AMOUNT" : "NAMES") as Step,
     // people & groups
     people, addPerson, removePerson, sessionName, setSessionName,
     isGuest, savedGroups, loadSavedGroup, activeGroupId, groupName, setGroupName,

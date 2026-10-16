@@ -25,7 +25,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
     <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="text-2xl font-bold tracking-tight text-white">Who&apos;s splitting?</h2>
-        <p className="text-sm text-muted-foreground">Step 1 of 3 · add everyone at the table</p>
+        <p className="text-sm text-muted-foreground">Step {s.quick ? 2 : 1} of 3 · add everyone at the table</p>
       </div>
 
       <div className="space-y-4">
@@ -164,7 +164,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
           disabled={s.people.length < 1 || s.starting}
           onClick={s.startScanning}
         >
-          {s.starting ? <Loader2 className="animate-spin" /> : "Start scanning"}
+          {s.starting ? <Loader2 className="animate-spin" /> : s.quick ? "Continue" : "Start scanning"}
         </Button>
       </div>
     </div>
