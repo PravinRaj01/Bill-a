@@ -128,3 +128,17 @@ export class SplitReconciliationError extends Error {
     this.name = "SplitReconciliationError";
   }
 }
+
+/**
+ * How friends can pay the user back. Every part is optional; whatever is set is shown on the receipt and
+ * appended to shared messages. The DuitNow QR is stored as its decoded payload text only (never the image):
+ * it is redrawn crisply from that text. See lib/payment/.
+ */
+export type DuitNowIdKind = "mobile" | "ic" | "brn" | "passport";
+
+export interface PaymentDetails {
+  duitnowQr?: { payload: string; name?: string };
+  duitnowId?: { kind: DuitNowIdKind; value: string };
+  bank?: { bank: string; account: string; holder: string };
+  note?: string;
+}

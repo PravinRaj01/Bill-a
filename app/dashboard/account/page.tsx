@@ -1,126 +1,138 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Bot, CreditCard, History, LogOut, Mail, User, Wallet } from "lucide-react";
+
 import { signOutAction } from "@/app/auth/actions";
+import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
+import { PageTransition } from "@/components/page-transition";
+import { PaymentDetailsForm } from "@/components/payment/PaymentDetailsForm";
+import { Segmented } from "@/components/ui/segmented";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { usePaymentDetails } from "@/hooks/use-payment-details";
 import { getAccountStats } from "@/lib/actions/history";
 import { getCurrentUser } from "@/lib/actions/user";
 import { fromCents } from "@/lib/money";
-import { Button } from "@/components/ui/button";
-import { PageTransition } from "@/components/page-transition";
-import { Card, CardContent } from "@/components/ui/card";
-import { 
-  LogOut, 
-  User, 
-  Wallet, 
-  History, 
-  TrendingUp,
-  Mail
-} from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
+
+type Tab = "overview" | "pay" | "ai";
+
+/** Whole units with the bill's own currency, e.g. "RM1,234". */
+const whole = (currency: string, cents: number) => `${currency}${Math.round(fromCents(cents)).toLocaleString()}`;
 
 export default function AccountPage() {
   const [user, setUser] = useState<Awaited<ReturnType<typeof getCurrentUser>>>(null);
-  const [stats, setStats] = useState({ totalBills: 0, totalAmount: 0 });
-  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState<Awaited<ReturnType<typeof getAccountStats>>>({ count: 0, totals: [] });
+  // The Account page is sign-in only, so payment details come from the account.
+  const payment = usePaymentDetails(true);
+  // The page is split into tabs so a phone never has to scroll through everything at once.
+  const [tab, setTab] = useState<Tab>("overview");
 
   useEffect(() => {
-    const getData = async () => {
-      const [u, s] = await Promise.all([getCurrentUser(), getAccountStats()]);
+    Promise.all([getCurrentUser(), getAccountStats()]).then(([u, s]) => {
       setUser(u);
-      // The DB stores integer cents; the tile shows whole currency units.
-      setStats({ totalBills: s.count, totalAmount: fromCents(s.totalCents) });
-      setLoading(false);
-    };
-    getData();
+      setStats(s);
+    });
   }, []);
 
-  const handleSignOut = () => signOutAction();
+  const [biggest, ...others] = stats.totals;
 
   return (
     <PageTransition>
-    <div className="min-h-screen bg-background text-white p-6 md:p-10 max-w-xl mx-auto">
-      
-      {/* Header */}
-      <header className="space-y-1 mb-8">
-        <h1 className="text-3xl font-black tracking-tighter uppercase italic text-white">My Account</h1>
-      </header>
+      <div className="mx-auto mb-20 max-w-xl space-y-5 bg-background p-6 text-white md:p-10">
+        <header className="space-y-1">
+          <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">My Account</h1>
+        </header>
 
-      <div className="space-y-6">
-        
-        {/* Profile Card */}
-        <Card className="bg-[#0c0c0e] border border-white/5 rounded-3xl overflow-hidden">
-          <CardContent className="p-8 flex flex-col items-center text-center space-y-4">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-zinc-800 to-zinc-900 p-1 ring-1 ring-white/10">
-              <Avatar className="w-full h-full rounded-full">
-                <AvatarImage src={user?.image ?? undefined} />
-                <AvatarFallback className="bg-black text-zinc-500 font-bold text-2xl">
-                  {user?.email?.charAt(0).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-            </div>
-            
-            <div className="space-y-1">
-              <h2 className="text-lg font-bold text-white tracking-tight">
-                {user?.name || "Bill.a User"}
-              </h2>
-              <div className="flex items-center justify-center gap-2 text-xs text-zinc-500 font-mono bg-white/5 py-1 px-3 rounded-full w-fit mx-auto">
-                <Mail size={12} />
-                {user?.email}
+        <Segmented
+          label="Account sections"
+          value={tab}
+          onValueChange={setTab}
+          options={[
+            { value: "overview", label: "Overview", icon: <User className="size-4" /> },
+            { value: "pay", label: "Get paid", icon: <CreditCard className="size-4" /> },
+            { value: "ai", label: "AI", icon: <Bot className="size-4" /> },
+          ]}
+        />
+
+        {tab === "overview" && (
+          <div data-testid="account-overview" className="space-y-4">
+            <div className="flex items-center gap-4 rounded-3xl border border-white/5 bg-surface p-5">
+              <div className="size-16 shrink-0 rounded-full bg-surface-2 p-1 ring-1 ring-white/10">
+                <Avatar className="size-full rounded-full">
+                  <AvatarImage src={user?.image ?? undefined} />
+                  <AvatarFallback className="bg-background text-xl font-bold text-muted-foreground">{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
+                </Avatar>
+              </div>
+              <div className="min-w-0 space-y-1">
+                <h2 className="truncate text-lg font-bold tracking-tight text-white">{user?.name || "Bill.a User"}</h2>
+                <p className="flex items-center gap-1.5 truncate font-mono text-xs text-muted-foreground">
+                  <Mail size={12} className="shrink-0" />
+                  <span className="truncate">{user?.email}</span>
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="bg-[#0c0c0e] border border-white/5 rounded-3xl p-6 relative overflow-hidden group hover:border-white/20 transition-all">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <History size={48} />
-            </div>
-            <div className="space-y-1 relative z-10">
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Sessions</span>
-              <div className="text-3xl font-black text-white tracking-tighter">
-                {stats.totalBills}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="relative overflow-hidden rounded-3xl border border-white/5 bg-surface p-5">
+                <History size={44} className="absolute top-3 right-3 opacity-10" />
+                <div className="relative space-y-1">
+                  <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase">Sessions</span>
+                  <div className="text-3xl font-black tracking-tighter text-white tabular-nums">{stats.count}</div>
+                </div>
+              </div>
+              <div data-testid="account-total" className="relative overflow-hidden rounded-3xl border border-white/5 bg-surface p-5">
+                <Wallet size={44} className="absolute top-3 right-3 opacity-10" />
+                <div className="relative space-y-1">
+                  <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase">Total value</span>
+                  <div className="text-3xl font-black tracking-tighter text-white tabular-nums">{biggest ? whole(biggest.currency, biggest.cents) : "0"}</div>
+                  {/* Bills in other currencies are listed, never added into the big number. */}
+                  {others.length > 0 && <p className="text-xs font-semibold text-muted-foreground tabular-nums">{others.map((t) => whole(t.currency, t.cents)).join(" · ")}</p>}
+                </div>
               </div>
             </div>
-          </Card>
 
-          <Card className="bg-[#0c0c0e] border border-white/5 rounded-3xl p-6 relative overflow-hidden group hover:border-white/20 transition-all">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-              <Wallet size={48} />
-            </div>
-            <div className="space-y-1 relative z-10">
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Total Value</span>
-              <div className="text-3xl font-black text-white tracking-tighter">
-                <span className="text-base align-top opacity-50 mr-0.5">$</span>
-                {stats.totalAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-              </div>
-            </div>
-          </Card>
-        </div>
+            <button
+              type="button"
+              onClick={() => setTab("pay")}
+              className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-white/5 bg-surface px-5 text-left transition-colors hover:bg-surface-2"
+            >
+              <span>
+                <span className="block text-sm font-bold text-white">Get paid</span>
+                <span className="block text-xs text-muted-foreground">{payment.details ? "Payment details saved" : "Add how friends can pay you back"}</span>
+              </span>
+              <CreditCard size={18} className="text-muted-foreground" />
+            </button>
 
-        {/* Action Buttons */}
-        <div className="pt-4 space-y-3">
-           <section className="space-y-3" data-testid="account-ai-settings">
-             <h2 className="px-1 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">AI settings</h2>
-             <ApiKeySettings />
-           </section>
-           <Button 
-            onClick={handleSignOut}
-            className="w-full h-14 bg-zinc-900 hover:bg-zinc-800 text-white border border-white/5 rounded-2xl font-bold uppercase tracking-widest text-xs flex items-center justify-between px-6 group"
-          >
-            <span>Sign Out</span>
-            <LogOut size={16} className="text-zinc-500 group-hover:text-white transition-colors" />
-          </Button>
+            <button
+              type="button"
+              onClick={() => signOutAction()}
+              className="group flex min-h-14 w-full items-center justify-between rounded-2xl border border-white/5 bg-surface px-5 text-xs font-bold tracking-widest uppercase transition-colors hover:bg-surface-2"
+            >
+              <span>Sign Out</span>
+              <LogOut size={16} className="text-muted-foreground transition-colors group-hover:text-white" />
+            </button>
 
-          <div className="text-center pt-4">
-             <p className="text-[10px] text-zinc-700 font-mono uppercase">User ID: {user?.id?.slice(0, 8)}...</p>
+            <p className="text-center font-mono text-xs text-muted-foreground/60 uppercase">User ID: {user?.id?.slice(0, 8)}...</p>
           </div>
-        </div>
+        )}
 
+        {tab === "pay" && (
+          <section className="space-y-3" data-testid="account-payment">
+            <p className="px-1 text-sm text-muted-foreground">Add how friends can pay you back. It&apos;s added to the messages and receipts you share, only when you choose to.</p>
+            {payment.details === undefined ? (
+              <div className="h-48 animate-pulse rounded-3xl bg-surface" aria-label="Loading payment details" />
+            ) : (
+              <PaymentDetailsForm initial={payment.details} onSave={payment.save} />
+            )}
+          </section>
+        )}
+
+        {tab === "ai" && (
+          <section className="space-y-3" data-testid="account-ai-settings">
+            <ApiKeySettings />
+          </section>
+        )}
       </div>
-    </div>
     </PageTransition>
   );
 }

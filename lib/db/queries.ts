@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./client";
-import { billHistory, savedGroups } from "./schema";
-import type { BillData, Settlement, SplitRecord } from "@/types/domain";
+import { billHistory, savedGroups, users } from "./schema";
+import type { BillData, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
 
 // THE AUTHORIZATION LAYER — this file is what replaces Supabase RLS.
 //
@@ -153,6 +153,20 @@ export async function billStats(db: Db, userId: string) {
   return { count: row?.count ?? 0, totalCents: row?.totalCents ?? 0 };
 }
 
+/** Total of all the user's bills per currency, in cents (bills can be in different currencies, so they are never summed together). */
+export async function billTotalsByCurrency(db: Db, userId: string): Promise<{ currency: string; cents: number }[]> {
+  return db
+    .select({
+      currency: billHistory.currency,
+      cents: sql<number>`coalesce(sum(${billHistory.totalAmount}), 0)::bigint`.mapWith(Number),
+    })
+    .from(billHistory)
+    .where(eq(billHistory.userId, userId))
+    .groupBy(billHistory.currency)
+    .orderBy(desc(sql`sum(${billHistory.totalAmount})`));
+}
+
+
 export interface BillInput {
   clientId: string;
   billTitle: string;
@@ -197,4 +211,20 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
     })
     .returning({ id: billHistory.id, clientId: billHistory.clientId });
   return row;
+}
+
+// --- payment details (how friends pay this user back) -----------------------
+// Lives on the user row; both functions are keyed by the session's userId only.
+// `details` must already have been through parsePaymentDetails (lib/validation/payment.ts).
+
+export async function getPaymentDetails(db: Db, userId: string): Promise<PaymentDetails | null> {
+  const [row] = await db.select({ paymentDetails: users.paymentDetails }).from(users).where(eq(users.id, userId)).limit(1);
+  return row?.paymentDetails ?? null;
+}
+
+/** An empty object clears the details (stored as null). */
+export async function setPaymentDetails(db: Db, userId: string, details: PaymentDetails): Promise<PaymentDetails | null> {
+  const value = Object.keys(details).length ? details : null;
+  await db.update(users).set({ paymentDetails: value }).where(eq(users.id, userId));
+  return value;
 }

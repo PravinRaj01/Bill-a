@@ -11,7 +11,7 @@ import {
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
 import type { AdapterAccountType } from "next-auth/adapters";
-import type { BillData } from "@/types/domain";
+import type { BillData, PaymentDetails } from "@/types/domain";
 
 // Single source of truth for the database. Two groups of tables:
 //
@@ -39,6 +39,9 @@ export const users = pgTable("user", {
   image: text("image"),
   // Null for Google-only users. Argon2id hash for email+password users.
   passwordHash: text("password_hash"),
+  // How friends can pay this user back (DuitNow QR/ID, bank, note). Validated by lib/validation/payment.ts
+  // before it is written; null until the user sets something.
+  paymentDetails: jsonb("payment_details").$type<PaymentDetails>(),
 });
 
 export const accounts = pgTable(
