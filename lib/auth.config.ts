@@ -20,7 +20,7 @@ export const authConfig = {
       const path = nextUrl.pathname;
       const loggedIn = !!auth?.user;
 
-      const strictlyProtected = ["/dashboard/history", "/dashboard/account", "/dashboard/balances", "/dashboard/people"];
+      const strictlyProtected = ["/dashboard/history", "/dashboard/account", "/dashboard/balances", "/dashboard/people", "/dashboard/shared", "/dashboard/add"];
       if (strictlyProtected.some((p) => path.startsWith(p))) return loggedIn;
 
       if (loggedIn && path === "/") {

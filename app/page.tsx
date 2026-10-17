@@ -16,6 +16,8 @@ export default function AuthPage() {
   // action) doesn't wipe the email after a failed attempt. Password still clears.
   const [email, setEmail] = useState("")
   const [loading, setLoading] = useState(false)
+  // The page a logged-out visitor was sent away from (an invite link, say): they land back on it after logging in.
+  const [callbackUrl, setCallbackUrl] = useState("")
 
   // Initial App Load Splash Screen
   useEffect(() => {
@@ -25,7 +27,10 @@ export default function AuthPage() {
 
   // Auth.js sends failures back as /?error=<code> (lib/auth.config.ts pages.error).
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get("error")
+    const params = new URLSearchParams(window.location.search)
+    const wanted = params.get("callbackUrl")
+    if (wanted) queueMicrotask(() => setCallbackUrl(wanted))
+    const code = params.get("error")
     if (!code) return
     queueMicrotask(() =>
       setError(
@@ -79,6 +84,7 @@ export default function AuthPage() {
 
         {/* Credentials Form */}
         <form action={handleSubmit} className="grid gap-4">
+          <input type="hidden" name="callbackUrl" value={callbackUrl} />
           {!isLogin && (
             <div className="grid gap-2">
               <Label htmlFor="name" className="ml-1 text-muted-foreground">

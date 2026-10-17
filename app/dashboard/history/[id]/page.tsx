@@ -8,14 +8,16 @@ import { toast } from "sonner";
 import { PageTransition } from "@/components/page-transition";
 import { ReceiptTicket, type TicketRow } from "@/components/receipt/ReceiptTicket";
 import { ShareSheet } from "@/components/receipt/ShareSheet";
+import { ClaimsBanner } from "@/components/split/ClaimsBanner";
 import { SettleUp } from "@/components/split/SettleUp";
 import { ConfirmSheet } from "@/components/ui/confirm-sheet";
 import { useBillSettlement } from "@/hooks/use-bill-settlement";
 import { usePaymentShare } from "@/hooks/use-payment-share";
 import { deleteBills, getBill } from "@/lib/actions/history";
+import { pendingClaims, rejectPaidClaim, type PendingClaim } from "@/lib/actions/shared";
 import { getCurrentUser } from "@/lib/actions/user";
 import type { BillHistoryRow } from "@/lib/db/schema";
-import { allOwedToMe, localDate, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
+import { allOwedToMe, localDate, markPaid, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
 import { shareMessage, shareText } from "@/lib/ui/share";
 import { Button } from "@/components/ui/button";
 
@@ -29,6 +31,7 @@ export default function BillDetailPage() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showReasoning, setShowReasoning] = useState(false);
   const [imageOpen, setImageOpen] = useState(false);
+  const [claims, setClaims] = useState<PendingClaim[]>([]);
   const router = useRouter();
   const payment = usePaymentShare();
 
@@ -50,6 +53,32 @@ export default function BillDetailPage() {
     };
     fetchBill();
   }, [id, router]);
+
+  // Friends who say they've paid you for this bill (only bills shared with friends can have any).
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    pendingClaims(id).then((c) => !cancelled && setClaims(c)).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const confirmClaim = async (c: PendingClaim) => {
+    // The same paid mark you'd make by hand; saving it is what confirms the friend's claim on the server.
+    await settle?.change((s) => markPaid(s, { key: c.transferKey, amount: c.amount }, localDate()));
+    setClaims((all) => all.filter((x) => x.id !== c.id));
+    toast(`Marked paid by ${c.from.name}`);
+  };
+  const rejectClaim = async (c: PendingClaim) => {
+    try {
+      await rejectPaidClaim(c.id);
+      setClaims((all) => all.filter((x) => x.id !== c.id));
+      toast(`Told ${c.from.name} it hasn't arrived`);
+    } catch {
+      toast.error("Couldn't do that. Please try again.");
+    }
+  };
 
   // Back slides to where the bill was opened from (Balances links here with ?from=balances), else History.
   const goBack = () => {
@@ -133,6 +162,8 @@ export default function BillDetailPage() {
             <Trash2 className="size-5" />
           </button>
         </div>
+
+        <ClaimsBanner claims={claims} symbol={symbol} onConfirm={confirmClaim} onReject={rejectClaim} />
 
         <ReceiptTicket title={bill.billTitle} date={bill.createdAt} symbol={symbol} rows={rows}>
           {settle && <SettleUp model={{ ...settle, payment }} />}

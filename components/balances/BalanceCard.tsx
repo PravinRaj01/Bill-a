@@ -40,7 +40,7 @@ export function BalanceCard({
         <div className="min-w-0 flex-1">
           <h3 className="truncate text-lg font-bold text-foreground">{person.name}</h3>
           <p className="text-sm text-muted-foreground">
-            across {n} {n === 1 ? "bill" : "bills"}
+            {person.shared ? "shared with you · " : ""}across {n} {n === 1 ? "bill" : "bills"}
           </p>
         </div>
         <div className="shrink-0 text-right">
@@ -57,8 +57,14 @@ export function BalanceCard({
         </p>
       )}
 
+      {person.shared && (
+        <p data-testid="shared-note" className="-mt-1 px-1 text-xs text-muted-foreground">
+          These are {person.name}&apos;s bills, so only they can mark things paid. Open a bill to say you&apos;ve paid.
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-2">
-        {theyOweYou && (
+        {theyOweYou && !person.shared && (
           <button
             type="button"
             data-testid="balance-nudge"
@@ -68,6 +74,7 @@ export function BalanceCard({
             <Send className="size-4" /> Nudge {person.name}
           </button>
         )}
+        {!person.shared && (
         <button
           type="button"
           data-testid="balance-settle"
@@ -78,6 +85,7 @@ export function BalanceCard({
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" strokeWidth={3} />}
           {theyOweYou ? "Mark all paid" : "I've paid them"}
         </button>
+        )}
       </div>
 
       <button
@@ -103,7 +111,7 @@ export function BalanceCard({
             {person.bills.map((b) => (
               <li key={b.id}>
                 <Link
-                  href={`/dashboard/history/${b.id}?from=balances`}
+                  href={person.shared ? `/dashboard/shared/${b.id}` : `/dashboard/history/${b.id}?from=balances`}
                   transitionTypes={["nav-forward"]}
                   className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-white/[0.07] px-3 py-2 transition-colors hover:bg-white/5"
                 >

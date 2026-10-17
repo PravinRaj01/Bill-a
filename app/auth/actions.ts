@@ -4,6 +4,7 @@ import { AuthError } from "next-auth";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { signIn, signOut } from "@/lib/auth";
+import { safeCallback } from "@/lib/auth/callback";
 import { hashPassword } from "@/lib/auth/password";
 import { getDb } from "@/lib/db/client";
 import { users } from "@/lib/db/schema";
@@ -43,7 +44,7 @@ export async function login(formData: FormData): Promise<{ error: string } | und
     if (e instanceof AuthError) return { error: "Invalid email or password" };
     throw e;
   }
-  redirect("/dashboard");
+  redirect(safeCallback(formData.get("callbackUrl")));
 }
 
 export async function signup(formData: FormData): Promise<{ error: string } | undefined> {
@@ -75,7 +76,7 @@ export async function signup(formData: FormData): Promise<{ error: string } | un
     if (e instanceof AuthError) return { error: "Account created, but sign-in failed. Please log in." };
     throw e;
   }
-  redirect("/dashboard");
+  redirect(safeCallback(formData.get("callbackUrl")));
 }
 
 /** Used as a <form action>. signIn() throws a redirect to Google's consent screen. */

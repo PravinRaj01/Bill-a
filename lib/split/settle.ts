@@ -204,6 +204,8 @@ export interface PersonBalance {
   /** Positive: they owe you. Negative: you owe them. */
   net: Cents;
   bills: { id: string; title: string; createdAt: string | number | Date; amount: Cents; dueDate?: string }[];
+  /** Set for a friend who shared bills with you: their bills open read-only, and Mark all paid / Nudge don't apply. */
+  shared?: { ownerId: string };
 }
 
 /**

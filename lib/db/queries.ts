@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { billHistory, people, savedGroups, users } from "./schema";
+import { confirmSatisfiedClaims, syncShares } from "./social";
 import type { BillData, Participant, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
 
 // THE AUTHORIZATION LAYER — this file is what replaces Supabase RLS.
@@ -218,6 +219,13 @@ export interface BillInput {
  * just creates this user's own row.
  */
 export async function upsertBill(db: Db, userId: string, input: BillInput) {
+  // Who was on this bill before, so a friend the owner left out of a past bill isn't added back by a re-save.
+  const [prev] = await db
+    .select({ split: sql<SplitRecord[] | null>`${billHistory.data} -> 'split'` })
+    .from(billHistory)
+    .where(and(eq(billHistory.userId, userId), eq(billHistory.clientId, input.clientId)))
+    .limit(1);
+  const previousNames = prev ? (prev.split ?? []).map((s) => s.name.trim().toLowerCase()) : null;
   const values = {
     userId,
     clientId: input.clientId,
@@ -240,9 +248,13 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
         currency: values.currency,
         data: values.data,
         providerTier: values.providerTier,
+        updatedAt: sql`now()`,
       },
     })
     .returning({ id: billHistory.id, clientId: billHistory.clientId });
+  // Friends on the bill get it in their History; a paid mark that answers an "I've paid" confirms it.
+  await syncShares(db, userId, row.id, input.data, previousNames);
+  await confirmSatisfiedClaims(db, row.id, input.data.settlement);
   return row;
 }
 

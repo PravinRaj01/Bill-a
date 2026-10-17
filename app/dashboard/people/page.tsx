@@ -5,6 +5,7 @@ import { ChevronLeft, Plus, UserRound } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageTransition } from "@/components/page-transition";
+import { FriendsSection } from "@/components/people/FriendsSection";
 import { PersonSheet } from "@/components/people/PersonSheet";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Button } from "@/components/ui/button";
@@ -24,7 +25,7 @@ const key = (name: string) => name.trim().toLowerCase();
 // Everyone you split with: a name, and a WhatsApp number if you have it. Each row shows what they owe you
 // (or you them), and the sheet has their latest bills and a one-tap nudge.
 export default function PeoplePage() {
-  const { people, setPeople } = usePhoneBook();
+  const { people, setPeople, reload } = usePhoneBook();
   const [signedIn, setSignedIn] = useState<boolean | null>(null);
   const [balances, setBalances] = useState<BalancesResult | null>(null);
   const [bills, setBills] = useState<BillListEntry[]>([]);
@@ -116,6 +117,8 @@ export default function PeoplePage() {
             </Button>
           )}
         </header>
+
+        {signedIn && <FriendsSection onChanged={() => void reload()} />}
 
         {signedIn && suggestions.length > 0 && (
           <section aria-label="People from your bills" className="space-y-2">
