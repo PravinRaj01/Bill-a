@@ -31,7 +31,7 @@ export function AmountStep({ s }: { s: SplitSession }) {
     <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="type-title">How much?</h2>
-        <p className="text-sm text-muted-foreground">Step 1 of 3 · no receipt needed</p>
+        <p className="text-sm text-muted-foreground">Step {s.quick ? 1 : 2} of 3 · no receipt needed</p>
       </div>
 
       <div className="rounded-3xl glass p-5">

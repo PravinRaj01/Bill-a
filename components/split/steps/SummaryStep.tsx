@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Segmented } from "@/components/ui/segmented";
 import { CASH_UNITS } from "@/lib/split/cashRound";
 import { formatMoney } from "@/lib/money";
+import { SaveAsGroup } from "@/components/split/SaveAsGroup";
 import type { SplitSession } from "@/hooks/use-split-session";
 
 type Tab = "settle" | "adjust" | "share";
@@ -205,6 +206,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
       >
         <ImageIcon className="mr-2 size-4" /> Share as image
       </Button>
+      <SaveAsGroup s={s} />
       <Button type="button" variant="outline" className="h-12 w-full rounded-xl border-white/10 text-sm font-semibold text-foreground/80" onClick={s.finish}>
         Finish session
       </Button>

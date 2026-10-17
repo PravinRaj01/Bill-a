@@ -88,7 +88,7 @@ export default function DashboardPage() {
 
         {/* Two ways in: a receipt, or just an amount. */}
         <section aria-label="Start a split" className="grid grid-cols-2 gap-3 sm:gap-4">
-          <Link href="/dashboard/new" transitionTypes={["nav-forward"]} data-testid="tile-scan" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
+          <Link href="/dashboard/new?how=scan" transitionTypes={["nav-forward"]} data-testid="tile-scan" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
             <MeshHero colors={SCAN_COLORS} className="h-40 rounded-[2rem] border border-white/10 transition-transform duration-200 group-active:scale-[0.98] sm:h-52">
               <div className="flex h-40 flex-col justify-between p-4 sm:h-52 sm:p-6">
                 <div className="flex items-start justify-between">
@@ -105,7 +105,7 @@ export default function DashboardPage() {
             </MeshHero>
           </Link>
 
-          <Link href="/dashboard/new?mode=quick" transitionTypes={["nav-forward"]} data-testid="tile-quick" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
+          <Link href="/dashboard/new?how=amount" transitionTypes={["nav-forward"]} data-testid="tile-quick" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
             <div className="flex h-40 flex-col justify-between rounded-[2rem] glass p-4 transition-all duration-200 group-hover:border-white/25 group-active:scale-[0.98] sm:h-52 sm:p-6">
               <div className="flex items-start justify-between">
                 <span className="flex size-11 items-center justify-center rounded-full bg-coral/15 text-coral">
@@ -209,7 +209,7 @@ export default function DashboardPage() {
                 {groups.map((group) => (
                   <li key={group.id} className="w-64 shrink-0 snap-start md:w-auto">
                     <Link
-                      href={`/dashboard/new?group_id=${group.id}`}
+                      href={`/dashboard/new?group_id=${group.id}&how=ask`}
                       transitionTypes={["nav-forward"]}
                       data-testid="home-group"
                       className="flex h-full flex-col justify-between gap-4 rounded-3xl glass p-5 transition-colors hover:border-white/20"
