@@ -4,10 +4,11 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { m } from "motion/react"
-import { Home, History, Scale, User, UserRound, LogOut, LogIn, Plus } from "lucide-react"
+import { Bell, Home, History, Scale, User, UserRound, LogOut, LogIn, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { StartSheet } from "@/components/nav/StartSheet"
+import { NotificationBell, UnreadBadge, useUnreadCount } from "@/components/notifications/NotificationBell"
 import { PersonAvatar } from "@/components/person-avatar"
 import { useProfile } from "@/components/profile-provider"
 import { signOutAction } from "@/app/auth/actions"
@@ -19,6 +20,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
   const pathname = usePathname()
   const profile = useProfile()
   const [startOpen, setStartOpen] = useState(false)
+  const unread = useUnreadCount(signedIn)
 
   // History, Balances and Account require a login (see lib/auth.config.ts), so guests
   // don't get links that would just bounce them to the login page.
@@ -72,10 +74,13 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
           <span className="text-sm font-bold tracking-tighter italic">Bill.a</span>
         </div>
         {signedIn ? (
-          // Your own portrait, straight to your profile.
-          <Link href="/dashboard/account?tab=profile" aria-label="Your profile" data-testid="header-avatar" className="flex size-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white/30">
-            <PersonAvatar name={profile.meName} compact className="size-9" />
-          </Link>
+          <div className="flex items-center gap-1">
+            <NotificationBell count={unread} />
+            {/* Your own portrait, straight to your profile. */}
+            <Link href="/dashboard/account?tab=profile" aria-label="Your profile" data-testid="header-avatar" className="flex size-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white/30">
+              <PersonAvatar name={profile.meName} compact className="size-9" />
+            </Link>
+          </div>
         ) : (
           <Badge variant="outline" className="text-[10px] border-white/10 opacity-50 uppercase tracking-widest">
             V1.0
@@ -106,6 +111,21 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
               </Link>
             ))}
           </nav>
+          {signedIn && (
+            <Link
+              href="/dashboard/notifications"
+              data-testid="nav-notifications"
+              aria-current={isActive('/dashboard/notifications') ? "page" : undefined}
+              className={cn(
+                "mb-2 flex items-center gap-3 px-3 py-2 rounded-xl transition-all",
+                isActive('/dashboard/notifications') ? "bg-primary/15 text-primary font-bold" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+              )}
+            >
+              <Bell className="w-5 h-5" />
+              Notifications
+              <UnreadBadge count={unread} className="ml-auto" />
+            </Link>
+          )}
           {signedIn && (
             <Link
               href="/dashboard/people"

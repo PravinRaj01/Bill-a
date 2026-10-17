@@ -9,6 +9,7 @@ import { PageTransition } from "@/components/page-transition";
 import { ReceiptTicket, type TicketRow } from "@/components/receipt/ReceiptTicket";
 import { ShareSheet } from "@/components/receipt/ShareSheet";
 import { ClaimsBanner } from "@/components/split/ClaimsBanner";
+import { FriendNudges } from "@/components/split/FriendNudges";
 import { SettleUp } from "@/components/split/SettleUp";
 import { ConfirmSheet } from "@/components/ui/confirm-sheet";
 import { useBillSettlement } from "@/hooks/use-bill-settlement";
@@ -164,6 +165,7 @@ export default function BillDetailPage() {
         </div>
 
         <ClaimsBanner claims={claims} symbol={symbol} onConfirm={confirmClaim} onReject={rejectClaim} />
+        <FriendNudges billId={id} symbol={symbol} />
 
         <ReceiptTicket title={bill.billTitle} date={bill.createdAt} symbol={symbol} rows={rows}>
           {settle && <SettleUp model={{ ...settle, payment }} />}
