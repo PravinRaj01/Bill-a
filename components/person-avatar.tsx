@@ -36,9 +36,11 @@ function usePortrait(name: string, seed?: string): string | null {
 
 // A hand-drawn portrait made from the name (lib/ui/avatar.ts) inside the person's stable colour ring. The
 // initials show while the portrait loads, and stay if it can't.
-export function PersonAvatar({ name, className, compact }: { name: string; className?: string; compact?: boolean }) {
+export function PersonAvatar({ name, className, compact, seed }: { name: string; className?: string; compact?: boolean; seed?: string | null }) {
   // The user's own chosen portrait (Account › Profile) wins over the one generated from their name.
-  const portrait = usePortrait(name, useSeedFor(name));
+  // A friend's own chosen portrait (`seed`) is shown as they picked it.
+  const own = useSeedFor(name);
+  const portrait = usePortrait(name, seed ?? own);
   return (
     <Avatar
       className={cn("size-9", compact ? "border-2" : "ring-2", className)}
