@@ -19,12 +19,12 @@ import { getAccountStats } from "@/lib/actions/history";
 import { getCurrentUser } from "@/lib/actions/user";
 import { fromCents } from "@/lib/money";
 
-type Tab = "overview" | "profile" | "pay" | "alerts" | "ai";
+type Tab = "overview" | "profile" | "pay" | "ai";
 
 /** Whole units with the bill's own currency, e.g. "RM1,234". */
 const whole = (currency: string, cents: number) => `${currency}${Math.round(fromCents(cents)).toLocaleString()}`;
 
-const TABS: Tab[] = ["overview", "profile", "pay", "alerts", "ai"];
+const TABS: Tab[] = ["overview", "profile", "pay", "ai"];
 const asTab = (v: string | null): Tab | null => (TABS as string[]).includes(v ?? "") ? (v as Tab) : null;
 
 // useSearchParams needs a Suspense boundary (the page is prerendered), hence the thin wrapper.
@@ -78,7 +78,6 @@ function AccountContent() {
             { value: "overview", label: "Overview" },
             { value: "profile", label: "Profile" },
             { value: "pay", label: "Get paid" },
-            { value: "alerts", label: "Alerts" },
             { value: "ai", label: "AI" },
           ]}
         />
@@ -146,6 +145,8 @@ function AccountContent() {
               <span className="flex items-center gap-2 text-muted-foreground"><UserRound size={18} /><ChevronRight size={16} /></span>
             </Link>
 
+            <NotificationSettings />
+
             <button
               type="button"
               onClick={() => signOutAction()}
@@ -171,8 +172,6 @@ function AccountContent() {
             )}
           </section>
         )}
-
-        {tab === "alerts" && <NotificationSettings />}
 
         {tab === "ai" && (
           <section className="space-y-3" data-testid="account-ai-settings">
