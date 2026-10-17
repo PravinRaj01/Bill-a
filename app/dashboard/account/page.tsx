@@ -8,6 +8,7 @@ import { ChevronRight, CreditCard, History, LogOut, Mail, UserRound, Wallet } fr
 import { signOutAction } from "@/app/auth/actions";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { PageTransition } from "@/components/page-transition";
+import { NotificationSettings } from "@/components/account/NotificationSettings";
 import { ProfileEditor } from "@/components/account/ProfileEditor";
 import { PersonAvatar } from "@/components/person-avatar";
 import { useProfile } from "@/components/profile-provider";
@@ -18,12 +19,12 @@ import { getAccountStats } from "@/lib/actions/history";
 import { getCurrentUser } from "@/lib/actions/user";
 import { fromCents } from "@/lib/money";
 
-type Tab = "overview" | "profile" | "pay" | "ai";
+type Tab = "overview" | "profile" | "pay" | "alerts" | "ai";
 
 /** Whole units with the bill's own currency, e.g. "RM1,234". */
 const whole = (currency: string, cents: number) => `${currency}${Math.round(fromCents(cents)).toLocaleString()}`;
 
-const TABS: Tab[] = ["overview", "profile", "pay", "ai"];
+const TABS: Tab[] = ["overview", "profile", "pay", "alerts", "ai"];
 const asTab = (v: string | null): Tab | null => (TABS as string[]).includes(v ?? "") ? (v as Tab) : null;
 
 // useSearchParams needs a Suspense boundary (the page is prerendered), hence the thin wrapper.
@@ -77,6 +78,7 @@ function AccountContent() {
             { value: "overview", label: "Overview" },
             { value: "profile", label: "Profile" },
             { value: "pay", label: "Get paid" },
+            { value: "alerts", label: "Alerts" },
             { value: "ai", label: "AI" },
           ]}
         />
@@ -169,6 +171,8 @@ function AccountContent() {
             )}
           </section>
         )}
+
+        {tab === "alerts" && <NotificationSettings />}
 
         {tab === "ai" && (
           <section className="space-y-3" data-testid="account-ai-settings">

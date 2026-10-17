@@ -51,6 +51,45 @@ self.addEventListener("message", (event) => {
   if (data.type === "cache-page" && SHELL_ROUTES.includes(data.path)) event.waitUntil(cachePage(data.path));
 });
 
+// Web Push: the server sends { title, body, url, tag }. Tapping the notification opens (or focuses) the app at
+// that path. Only same-site paths are followed.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    /* not JSON: show the generic message */
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Bill.a", {
+      body: data.body || "You have a new notification",
+      icon: "/icon.png",
+      badge: "/icon.png",
+      tag: data.tag || "billa",
+      data: { url: typeof data.url === "string" ? data.url : "/dashboard/notifications" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const raw = (event.notification.data && event.notification.data.url) || "/dashboard/notifications";
+  const url = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard/notifications";
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const w of windows) {
+        if (new URL(w.url).origin === self.location.origin && "focus" in w) {
+          await w.focus();
+          if ("navigate" in w) await w.navigate(url).catch(() => {});
+          return;
+        }
+      }
+      await self.clients.openWindow(url);
+    })(),
+  );
+});
+
 self.addEventListener("fetch", (event) => {
   const req = event.request;
   if (req.method !== "GET") return;

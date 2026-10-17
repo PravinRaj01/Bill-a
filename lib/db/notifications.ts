@@ -1,5 +1,9 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
+import { ownerLabel } from "@/lib/split/shared";
+import { notificationHref, notificationText } from "@/lib/notifications/text";
+import { afterResponse } from "@/lib/push/after";
+import { pushConfigured, pushToUser } from "@/lib/push/send";
 import type { Db } from "./client";
 import { notifications, users, type NotificationKind } from "./schema";
 
@@ -31,7 +35,20 @@ export async function notify(db: Db, n: NotifyInput): Promise<boolean> {
         })
         .returning({ id: notifications.id })
     : await q.onConflictDoNothing().returning({ id: notifications.id });
-  return rows.length > 0;
+  if (rows.length === 0) return false;
+  if (pushConfigured()) afterResponse(() => pushNew(db, n));
+  return true;
+}
+
+/** The phone side of a new notification: the same sentence the inbox shows, to every device the user turned on. */
+async function pushNew(db: Db, n: NotifyInput): Promise<void> {
+  let actor = "Someone";
+  if (n.actorId) {
+    const [u] = await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, n.actorId)).limit(1);
+    if (u) actor = ownerLabel(u);
+  }
+  const like = { kind: n.kind, billId: n.billId ?? null, payload: n.payload ?? {} };
+  await pushToUser(db, n.userId, { title: "Bill.a", body: notificationText(like, actor), url: notificationHref(like) ?? "/dashboard/notifications", tag: n.kind });
 }
 
 export async function notifyMany(db: Db, list: NotifyInput[]): Promise<void> {

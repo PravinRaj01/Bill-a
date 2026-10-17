@@ -30,6 +30,8 @@ export function notificationText(n: NotificationLike, actor: string): string {
       return `${actor} says your ${money(n.payload)} for ${title(n.payload)} hasn't arrived`;
     case "bill_deleted":
       return `${actor} deleted ${title(n.payload)}`;
+    case "digest":
+      return typeof n.payload.summary === "string" && n.payload.summary ? n.payload.summary : "Your daily summary";
     case "nudge":
       return `${actor} is reminding you about ${money(n.payload)} on ${title(n.payload)}`;
   }
@@ -48,6 +50,8 @@ export function notificationHref(n: NotificationLike): string | null {
     case "claim_rejected":
     case "nudge":
       return n.billId ? `/dashboard/shared/${n.billId}` : null;
+    case "digest":
+      return "/dashboard/balances";
     case "bill_deleted":
       return null;
   }

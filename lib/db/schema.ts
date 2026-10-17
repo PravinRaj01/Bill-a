@@ -229,7 +229,8 @@ export type NotificationKind =
   | "claim_confirmed"
   | "claim_rejected"
   | "bill_deleted"
-  | "nudge";
+  | "nudge"
+  | "digest";
 
 // What happened to a user, in their inbox. Text is built from kind + payload when it is shown, never stored.
 // `dedupe` makes an event idempotent (a retried save can't notify twice). bill_id goes null when the bill is
@@ -253,6 +254,22 @@ export const notifications = pgTable(
   ],
 );
 
+// A phone or browser that said yes to push, one row per endpoint. The endpoint is unique to the device, so signing
+// in as someone else on the same device moves the row to them. Rows are deleted when the push service says the
+// subscription is gone (404 or 410) and when the user turns notifications off.
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    endpoint: text("endpoint").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("push_subscriptions_user_idx").on(t.userId)],
+);
+
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Friendship = typeof friendships.$inferSelect;
 export type BillShare = typeof billShares.$inferSelect;
