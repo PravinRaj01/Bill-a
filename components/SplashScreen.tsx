@@ -4,14 +4,13 @@ export default function SplashScreen() {
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background">
       <div className="relative">
-        <div className="absolute -inset-10 rounded-full bg-primary/25 blur-3xl animate-pulse" />
-        <div className="relative overflow-hidden rounded-3xl bg-white p-2 shadow-[var(--coral-glow)]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="Bill.a" className="size-20 object-contain" />
-        </div>
+        <div className="absolute inset-4 rounded-full bg-primary/25 blur-3xl animate-pulse" />
+        {/* The dark artwork, with edges that fade into the background: no tile around it. */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-dark.png" alt="Bill.a" className="relative size-40 object-contain" />
       </div>
 
-      <div className="mt-8 text-center space-y-2">
+      <div className="mt-4 text-center space-y-2">
         <h1 className="text-3xl font-black tracking-tighter text-foreground">
           Bill<span className="text-primary">.</span>a
         </h1>
