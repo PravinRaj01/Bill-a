@@ -19,12 +19,12 @@
 const BUILD_ID = "__BUILD_ID__";
 const OCR_VERSION = "__OCR_VERSION__";
 
-const STATIC = "billa-static-v1"; //           content-hashed files: safe to keep across deploys
+const STATIC = "billa-static-v2"; //           content-hashed files: safe to keep across deploys
 const OCR = `billa-ocr-${OCR_VERSION}`; //     ~7 MB: only re-downloaded when the OCR packages change
 const PAGES = `billa-pages-${BUILD_ID}`; //    HTML shells: replaced every deploy
 
 const SHELL_ROUTES = ["/dashboard/new", "/dashboard"];
-const STATIC_FILES = new Set(["/icon.png", "/apple-icon.png", "/favicon.ico", "/manifest.json"]);
+const STATIC_FILES = new Set(["/icon.png", "/icon-192.png", "/logo.png", "/logo-dark.png", "/apple-icon.png", "/favicon.ico", "/manifest.json"]);
 const MAX_STATIC_ENTRIES = 250; // old deploys' chunks would otherwise pile up forever
 const SLOW_NETWORK_MS = 4000; //  with a cached shell in hand, don't make the user wait longer than this
 
