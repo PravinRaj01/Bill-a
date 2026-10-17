@@ -50,14 +50,10 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
           </Link>
 
           {signedIn && (
-            <div className="grid grid-cols-2 gap-3">
-              <Link href="/dashboard/people?add=person" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-add-person" className="flex min-h-14 items-center gap-3 rounded-2xl glass-inset px-4 text-left text-sm font-semibold outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30">
-                <UserRound className="size-5 shrink-0 text-muted-foreground" /> Add a person
-              </Link>
-              <Link href="/dashboard/people?add=friend" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-add-friend" className="flex min-h-14 items-center gap-3 rounded-2xl glass-inset px-4 text-left text-sm font-semibold outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30">
-                <UserPlus className="size-5 shrink-0 text-muted-foreground" /> Add a friend
-              </Link>
-            </div>
+            <Link href="/dashboard/people" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-add-people" className="flex min-h-14 items-center gap-3 rounded-2xl glass-inset px-4 text-left text-sm font-semibold outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30">
+              <UserRound className="size-5 shrink-0 text-muted-foreground" /> Add people
+              <ChevronRight className="ml-auto size-4 text-muted-foreground" />
+            </Link>
           )}
 
           {signedIn && groups.length > 0 && (
