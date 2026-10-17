@@ -317,6 +317,12 @@ export async function suggestPeople(db: Db, userId: string, excludeNames: string
       select btrim(n) as name
         from saved_groups g, jsonb_array_elements_text(g.names) n
        where g.user_id = ${userId}
+    ), mine as (
+      -- however the user was called on their own bills (the name may have changed since): never suggest yourself
+      select lower(btrim(b.data -> 'settlement' ->> 'me')) as key from bill_history b where b.user_id = ${userId}
+      union
+      select lower(btrim(p ->> 'name')) from bill_history b, jsonb_array_elements(coalesce(b.data -> 'participants', '[]'::jsonb)) p
+       where b.user_id = ${userId} and p ->> 'me' = 'true'
     ), counted as (
       select lower(name) as key, name, count(*) as n from seen where name <> '' group by lower(name), name
     ), best as (
@@ -325,6 +331,7 @@ export async function suggestPeople(db: Db, userId: string, excludeNames: string
     select name, count from best
      where key not in (select jsonb_array_elements_text(${JSON.stringify(exclude)}::jsonb))
        and key not in (select name_key from people where user_id = ${userId})
+       and key not in (select key from mine where key is not null)
      order by count desc, name
      limit ${limit}
   `);

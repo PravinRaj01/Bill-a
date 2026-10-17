@@ -111,6 +111,19 @@ describe.skipIf(!hasDb)("people (real Neon DB)", { timeout: 90_000 }, () => {
     expect((await suggestPeople(db, A, [], 1))).toHaveLength(1);
   });
 
+  it("never suggests you, under any name you were called on your own bills", async () => {
+    const own = bill(A, "mine", ["Old Nickname", "Tan", "Quinn"]);
+    await db.insert(billHistory).values([
+      { ...own, data: { ...own.data, settlement: { me: "Old Nickname", paidBy: [], paid: {} } } },
+      { ...bill(A, "hosted-with-me", ["Quinn", "Hana"]), data: { ...bill(A, "x", ["Quinn", "Hana"]).data, participants: [{ name: "Hana", me: true }, { name: "Quinn" }] } },
+    ]);
+    const names = (await suggestPeople(db, A, [])).map((x) => x.name);
+    expect(names).not.toContain("Old Nickname"); // settlement.me
+    expect(names).not.toContain("Hana"); // participants me
+    expect(names).toContain("Quinn");
+    expect(names).toContain("Tan");
+  });
+
   it("a new user with no history gets no suggestions", async () => {
     expect(await suggestPeople(db, B, ["B"])).toEqual([{ name: "Stranger", count: 1 }, { name: "Stranger2", count: 1 }]);
     const empty = await suggestPeople(db, crypto.randomUUID(), []);
