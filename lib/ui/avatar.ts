@@ -17,15 +17,20 @@ export const avatarSeed = (name: string): string => name.trim().toLowerCase();
 const cache = new Map<string, string>();
 const pending = new Map<string, Promise<string>>();
 
-/** The portrait if it has already been made, for rendering without a flash. */
-export const cachedAvatar = (name: string): string | undefined => cache.get(avatarSeed(name));
+// A portrait is its seed plus the background colour, which follows the person's name (so the ring and the
+// face agree); the same seed on two differently-coloured people is two different pictures.
+const keyOf = (name: string, seed: string) => `${seed}|${personColorIndex(name)}`;
 
-/** A `data:image/svg+xml` URI for this person's portrait. */
-export function avatarDataUri(name: string): Promise<string> {
-  const seed = avatarSeed(name);
-  const hit = cache.get(seed);
+/** The portrait if it has already been made, for rendering without a flash. `seed` overrides the name (a chosen portrait). */
+export const cachedAvatar = (name: string, seed: string = avatarSeed(name)): string | undefined => cache.get(keyOf(name, seed));
+
+/** A `data:image/svg+xml` URI for this person's portrait. `seed` overrides the name (the user's chosen portrait). */
+export function avatarDataUri(name: string, seedOverride?: string): Promise<string> {
+  const seed = seedOverride ?? avatarSeed(name);
+  const key = keyOf(name, seed);
+  const hit = cache.get(key);
   if (hit) return Promise.resolve(hit);
-  const inflight = pending.get(seed);
+  const inflight = pending.get(key);
   if (inflight) return inflight;
   const made = (async () => {
     const [{ createAvatar }, style] = await Promise.all([import("@dicebear/core"), import("@dicebear/notionists")]);
@@ -34,16 +39,19 @@ export function avatarDataUri(name: string): Promise<string> {
       backgroundColor: [PASTELS[personColorIndex(name) - 1]],
       scale: 110,
     }).toDataUri();
-    cache.set(seed, uri);
-    pending.delete(seed);
+    cache.set(key, uri);
+    pending.delete(key);
     return uri;
   })();
-  pending.set(seed, made);
+  pending.set(key, made);
   return made;
 }
 
-/** Portraits for everyone, by exact name (for the receipt image, which must have them before it is captured). */
-export async function avatarsFor(names: string[]): Promise<Record<string, string>> {
-  const entries = await Promise.all(names.map(async (n) => [n, await avatarDataUri(n)] as const));
+/**
+ * Portraits for everyone, by exact name (for the receipt image, which must have them before it is captured).
+ * `seedFor` gives a chosen portrait for a name (the user's own), or undefined for the usual name-derived one.
+ */
+export async function avatarsFor(names: string[], seedFor?: (name: string) => string | undefined): Promise<Record<string, string>> {
+  const entries = await Promise.all(names.map(async (n) => [n, await avatarDataUri(n, seedFor?.(n))] as const));
   return Object.fromEntries(entries);
 }

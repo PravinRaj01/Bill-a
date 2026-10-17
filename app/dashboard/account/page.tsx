@@ -1,36 +1,58 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Bot, CreditCard, History, LogOut, Mail, User, Wallet } from "lucide-react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { CreditCard, History, LogOut, Mail, Wallet } from "lucide-react";
 
 import { signOutAction } from "@/app/auth/actions";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { PageTransition } from "@/components/page-transition";
+import { ProfileEditor } from "@/components/account/ProfileEditor";
+import { PersonAvatar } from "@/components/person-avatar";
+import { useProfile } from "@/components/profile-provider";
 import { PaymentDetailsForm } from "@/components/payment/PaymentDetailsForm";
 import { Segmented } from "@/components/ui/segmented";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { usePaymentDetails } from "@/hooks/use-payment-details";
 import { getAccountStats } from "@/lib/actions/history";
 import { getCurrentUser } from "@/lib/actions/user";
 import { fromCents } from "@/lib/money";
 
-type Tab = "overview" | "pay" | "ai";
+type Tab = "overview" | "profile" | "pay" | "ai";
 
 /** Whole units with the bill's own currency, e.g. "RM1,234". */
 const whole = (currency: string, cents: number) => `${currency}${Math.round(fromCents(cents)).toLocaleString()}`;
 
+const TABS: Tab[] = ["overview", "profile", "pay", "ai"];
+const asTab = (v: string | null): Tab | null => (TABS as string[]).includes(v ?? "") ? (v as Tab) : null;
+
+// useSearchParams needs a Suspense boundary (the page is prerendered), hence the thin wrapper.
 export default function AccountPage() {
+  return (
+    <Suspense fallback={null}>
+      <AccountContent />
+    </Suspense>
+  );
+}
+
+function AccountContent() {
   const [user, setUser] = useState<Awaited<ReturnType<typeof getCurrentUser>>>(null);
   const [stats, setStats] = useState<Awaited<ReturnType<typeof getAccountStats>>>({ count: 0, totals: [] });
   // The Account page is sign-in only, so payment details come from the account.
   const payment = usePaymentDetails(true);
+  const profile = useProfile();
   // The page is split into tabs so a phone never has to scroll through everything at once.
-  const [tab, setTab] = useState<Tab>("overview");
+  // Links open straight on a tab (?tab=profile from the header avatar, ?tab=pay from the Home checklist), and
+  // following another such link while already on this page switches tab too, so the URL is followed, not just read once.
+  const urlTab = useSearchParams().get("tab");
+  const [tab, setTab] = useState<Tab>(asTab(urlTab) ?? "overview");
+  const [seenUrlTab, setSeenUrlTab] = useState(urlTab);
+  if (urlTab !== seenUrlTab) {
+    setSeenUrlTab(urlTab);
+    const next = asTab(urlTab);
+    if (next) setTab(next);
+  }
 
   useEffect(() => {
-    // Linked from the Home checklist (?tab=pay): open straight on that tab. After mount, so the server render agrees.
-    const want = new URLSearchParams(window.location.search).get("tab")
-    if (want === "pay" || want === "ai") queueMicrotask(() => setTab(want))
     Promise.all([getCurrentUser(), getAccountStats()]).then(([u, s]) => {
       setUser(u);
       setStats(s);
@@ -51,23 +73,26 @@ export default function AccountPage() {
           value={tab}
           onValueChange={setTab}
           options={[
-            { value: "overview", label: "Overview", icon: <User className="size-4" /> },
-            { value: "pay", label: "Get paid", icon: <CreditCard className="size-4" /> },
-            { value: "ai", label: "AI", icon: <Bot className="size-4" /> },
+            { value: "overview", label: "Overview" },
+            { value: "profile", label: "Profile" },
+            { value: "pay", label: "Get paid" },
+            { value: "ai", label: "AI" },
           ]}
         />
 
         {tab === "overview" && (
           <div data-testid="account-overview" className="space-y-4">
             <div className="flex items-center gap-4 rounded-3xl glass p-5">
-              <div className="size-16 shrink-0 rounded-full bg-white/10 p-1 ring-1 ring-white/10">
-                <Avatar className="size-full rounded-full">
-                  <AvatarImage src={user?.image ?? undefined} />
-                  <AvatarFallback className="bg-background text-xl font-bold text-muted-foreground">{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-              </div>
+              <PersonAvatar name={profile.meName} className="size-16" />
               <div className="min-w-0 space-y-1">
-                <h2 className="truncate text-lg font-bold tracking-tight text-foreground">{user?.name || "Bill.a User"}</h2>
+                <h2 className="truncate text-lg font-bold tracking-tight text-foreground">{profile.name || user?.name || "Bill.a User"}</h2>
+                {profile.username ? (
+                  <p data-testid="account-username" className="truncate text-sm text-primary">@{profile.username}</p>
+                ) : (
+                  <button type="button" onClick={() => setTab("profile")} className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground">
+                    Choose a username
+                  </button>
+                )}
                 <p className="flex items-center gap-1.5 truncate font-mono text-xs text-muted-foreground">
                   <Mail size={12} className="shrink-0" />
                   <span className="truncate">{user?.email}</span>
@@ -118,6 +143,8 @@ export default function AccountPage() {
             <p className="text-center font-mono text-xs text-muted-foreground/60 uppercase">User ID: {user?.id?.slice(0, 8)}...</p>
           </div>
         )}
+
+        {tab === "profile" && <ProfileEditor />}
 
         {tab === "pay" && (
           <section className="space-y-3" data-testid="account-payment">
