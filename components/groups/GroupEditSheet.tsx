@@ -63,7 +63,7 @@ export function GroupEditSheet({
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="border-white/10 bg-surface text-white" data-testid="group-edit">
+      <DrawerContent data-testid="group-edit">
         <DrawerHeader>
           <DrawerTitle className="text-white">Edit group</DrawerTitle>
           <DrawerDescription className="text-muted-foreground">Rename it, or change who is in it.</DrawerDescription>

@@ -105,7 +105,7 @@ export function ShareSheet({
       )}
 
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent className="border-white/10 bg-surface text-white">
+        <DrawerContent>
           <DrawerHeader>
             <DrawerTitle className="text-white">Share as image</DrawerTitle>
             <DrawerDescription className="text-muted-foreground">One picture with who owes what{withPayment ? " and how to pay you" : ""}.</DrawerDescription>

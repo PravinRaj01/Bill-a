@@ -46,7 +46,7 @@ function BillSplitterContent() {
       )}
 
       <Sheet open={s.keySheetOpen} onOpenChange={s.setKeySheetOpen}>
-        <SheetContent side="bottom" className="max-h-[88vh] overflow-y-auto border-white/10 bg-surface text-white sm:mx-auto sm:max-w-xl">
+        <SheetContent side="bottom" className="glass-strong max-h-[88vh] overflow-y-auto rounded-t-[28px] text-foreground sm:mx-auto sm:max-w-xl">
           <SheetHeader>
             <SheetTitle className="text-white">AI settings</SheetTitle>
             <SheetDescription className="text-muted-foreground">Bring your own free API key for smarter splits.</SheetDescription>

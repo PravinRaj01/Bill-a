@@ -54,7 +54,7 @@ export default function AuthPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4 animate-in fade-in duration-700">
+    <div className="flex min-h-screen items-center justify-center p-4 animate-in fade-in duration-700">
       <div className="w-full max-w-md space-y-6 overflow-hidden rounded-3xl border border-white/5 bg-surface p-8 text-white shadow-2xl ring-1 ring-white/5">
         <header className="space-y-2 text-center">
           <h1 className="text-3xl font-black tracking-tighter italic">{isLogin ? "Welcome back" : "Join Bill.a"}</h1>
