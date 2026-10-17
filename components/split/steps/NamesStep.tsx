@@ -24,7 +24,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold tracking-tight text-white">Who&apos;s splitting?</h2>
+        <h2 className="type-title">Who&apos;s splitting?</h2>
         <p className="text-sm text-muted-foreground">Step {s.quick ? 2 : 1} of 3 · add everyone at the table</p>
       </div>
 
@@ -36,25 +36,25 @@ export function NamesStep({ s }: { s: SplitSession }) {
           <Input
             id="session-name"
             placeholder="e.g. Friday Dinner"
-            className="h-12 rounded-xl border-white/5 bg-surface text-base font-semibold text-white"
+            className="font-semibold"
             value={s.sessionName}
             onChange={(e) => s.setSessionName(e.target.value)}
           />
         </div>
 
         {!s.isGuest && s.savedGroups.length > 0 && (
-          <div className="overflow-hidden rounded-2xl border border-white/5 bg-surface">
+          <div className="overflow-hidden rounded-2xl glass">
             <button
               type="button"
               onClick={() => setShowGroupList(!showGroupList)}
               aria-expanded={showGroupList}
-              className="flex min-h-12 w-full items-center justify-between px-4 text-sm font-semibold text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
+              className="flex min-h-12 w-full items-center justify-between px-4 text-sm font-semibold text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
             >
               <span className="flex items-center gap-2"><Users size={16} /> Load a saved group</span>
               {showGroupList ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
             </button>
             {showGroupList && (
-              <div className="max-h-56 overflow-y-auto border-t border-white/5 bg-black/30">
+              <div className="max-h-56 overflow-y-auto border-t border-white/8 glass-inset">
                 {s.savedGroups.map((group) => (
                   <button
                     key={group.id}
@@ -63,7 +63,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
                       s.loadSavedGroup(group);
                       setShowGroupList(false);
                     }}
-                    className="flex min-h-12 w-full items-center justify-between border-b border-white/5 px-4 text-left text-sm text-zinc-200 last:border-0 hover:bg-white/10"
+                    className="flex min-h-12 w-full items-center justify-between border-b border-white/8 px-4 text-left text-sm text-foreground last:border-0 hover:bg-white/10"
                   >
                     <span className="font-medium">{group.groupName}</span>
                     <span className="text-xs text-muted-foreground">{group.names.length} people</span>
@@ -75,11 +75,11 @@ export function NamesStep({ s }: { s: SplitSession }) {
         )}
       </div>
 
-      <div className="space-y-4 rounded-3xl border border-white/5 bg-surface p-5 shadow-2xl">
+      <div className="space-y-4 rounded-3xl glass p-5">
         <div className="flex gap-2">
           <Input
             aria-label="Person's name"
-            className="h-12 border-white/5 bg-surface-2 text-base text-white"
+           
             placeholder="Enter name…"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -91,16 +91,16 @@ export function NamesStep({ s }: { s: SplitSession }) {
             aria-label="Add person"
             onClick={add}
             disabled={!newName.trim()}
-            className="size-12 shrink-0 rounded-xl bg-coral text-coral-foreground hover:bg-coral/90"
+            className="size-12 shrink-0"
           >
             <Plus size={20} />
           </Button>
         </div>
 
-        <div className="flex min-h-14 flex-wrap gap-2 rounded-xl border border-white/5 bg-black/20 p-2">
+        <div className="flex min-h-14 flex-wrap gap-2 rounded-xl border border-white/8 glass-inset p-2">
           {s.people.length === 0 && <p className="self-center px-2 text-sm text-muted-foreground">Nobody yet</p>}
           {s.people.map((p) => (
-            <span key={p} className="flex items-center gap-2 rounded-full bg-white/5 py-1 pl-1 pr-1 text-sm text-slate-200">
+            <span key={p} className="flex items-center gap-2 rounded-full bg-white/5 py-1 pl-1 pr-1 text-sm text-foreground">
               <PersonAvatar name={p} compact className="size-7" />
               {p}
               <button
@@ -118,12 +118,12 @@ export function NamesStep({ s }: { s: SplitSession }) {
         {!s.isGuest && (
           <div className="space-y-3 pt-1">
             {s.activeGroupId && s.hasGroupChanged() ? (
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+              <div className="rounded-xl border border-warning/20 bg-warning/10 p-3">
                 <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold text-amber-400">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-warning">
                     <RefreshCw size={14} /> Update saved group?
                   </div>
-                  <Switch checked={s.updateGroup} onCheckedChange={s.setUpdateGroup} aria-label="Update saved group" className="data-[state=checked]:bg-amber-500" />
+                  <Switch checked={s.updateGroup} onCheckedChange={s.setUpdateGroup} aria-label="Update saved group" className="data-[state=checked]:bg-warning" />
                 </div>
                 <p className="mt-1 pl-6 text-xs text-muted-foreground">
                   Update <strong>{s.groupName}</strong> with these changes?
@@ -132,7 +132,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
             ) : !s.activeGroupId ? (
               <>
                 <div className="flex min-h-11 items-center justify-between px-1">
-                  <span className="text-sm font-medium text-slate-300">Save this group?</span>
+                  <span className="text-sm font-medium text-foreground/80">Save this group?</span>
                   <Switch checked={s.saveThisGroup} onCheckedChange={s.setSaveThisGroup} aria-label="Save this group" />
                 </div>
                 {s.saveThisGroup && (
@@ -141,11 +141,11 @@ export function NamesStep({ s }: { s: SplitSession }) {
                     placeholder="Group name (e.g. Weekend Crew)"
                     value={s.groupName}
                     onChange={(e) => s.setGroupName(e.target.value)}
-                    className="h-11 border-white/5 bg-surface-2 text-base text-white"
+                   
                   />
                 )}
                 {duplicateGroupName && (
-                  <p data-testid="group-exists" className="px-1 text-xs text-amber-400">
+                  <p data-testid="group-exists" className="px-1 text-xs text-warning">
                     You already have a group called “{s.groupName.trim()}” — saving will update its members, not add another.
                   </p>
                 )}
@@ -160,7 +160,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
 
         <Button
           type="button"
-          className="h-12 w-full rounded-xl bg-coral text-base font-bold text-coral-foreground shadow-[var(--coral-glow)] hover:bg-coral/90"
+          className="h-12 w-full"
           disabled={s.people.length < 1 || s.starting}
           onClick={s.startScanning}
         >

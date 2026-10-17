@@ -38,10 +38,10 @@ export function ReceiptPhoto({ url, onHide }: { url: string; onHide: () => void 
 
   return (
     <>
-      <div data-testid="receipt-photo" className="overflow-hidden rounded-3xl border border-white/10 bg-[#0c0c0e]">
-        <div className="flex items-center justify-between border-b border-white/5 bg-white/5 px-4 py-3">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Your receipt · tap to enlarge</span>
-          <button type="button" aria-label="Hide photo" onClick={onHide} className="text-zinc-500 hover:text-white">
+      <div data-testid="receipt-photo" className="overflow-hidden rounded-3xl glass">
+        <div className="flex items-center justify-between border-b border-white/8 bg-white/5 px-4 py-3">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Your receipt · tap to enlarge</span>
+          <button type="button" aria-label="Hide photo" onClick={onHide} className="text-muted-foreground hover:text-foreground">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -54,10 +54,10 @@ export function ReceiptPhoto({ url, onHide }: { url: string; onHide: () => void 
       {open && (
         <div role="dialog" aria-modal="true" aria-label="Receipt photo" data-testid="receipt-photo-viewer" className="fixed inset-0 z-[100] bg-black/95">
           <div className="absolute right-3 top-3 z-10 flex gap-2">
-            <Button type="button" variant="ghost" aria-label={zoomed ? "Fit to screen" : "Zoom in"} onClick={() => setZoomed((z) => !z)} className="h-10 rounded-full bg-white/10 px-3 text-white hover:bg-white/20 hover:text-white">
+            <Button type="button" variant="ghost" aria-label={zoomed ? "Fit to screen" : "Zoom in"} onClick={() => setZoomed((z) => !z)} className="h-10 rounded-full bg-white/10 px-3 text-foreground hover:bg-white/20 hover:text-foreground">
               {zoomed ? <ZoomOut className="h-4 w-4" /> : <ZoomIn className="h-4 w-4" />}
             </Button>
-            <Button type="button" variant="ghost" aria-label="Close" onClick={() => setOpen(false)} className="h-10 rounded-full bg-white/10 px-3 text-white hover:bg-white/20 hover:text-white">
+            <Button type="button" variant="ghost" aria-label="Close" onClick={() => setOpen(false)} className="h-10 rounded-full bg-white/10 px-3 text-foreground hover:bg-white/20 hover:text-foreground">
               <X className="h-4 w-4" />
             </Button>
           </div>

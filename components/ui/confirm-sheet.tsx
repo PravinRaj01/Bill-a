@@ -37,8 +37,9 @@ export function ConfirmSheet({
         <DrawerFooter className="mx-auto w-full max-w-md">
           <Button
             type="button"
+            variant="destructive"
+            size="lg"
             data-testid="confirm-yes"
-            className="h-12 rounded-xl bg-red-500 text-base font-bold text-white hover:bg-red-500/90"
             onClick={async () => {
               onOpenChange(false);
               await onConfirm();
@@ -46,7 +47,7 @@ export function ConfirmSheet({
           >
             {confirmLabel}
           </Button>
-          <Button type="button" variant="outline" className="h-12 rounded-xl border-white/10 text-base text-zinc-200" onClick={() => onOpenChange(false)}>
+          <Button type="button" variant="glass" size="lg" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
         </DrawerFooter>

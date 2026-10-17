@@ -26,13 +26,13 @@ export function ScanStep({ s }: { s: SplitSession }) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold tracking-tight text-white">Scan the receipt</h2>
+        <h2 className="type-title">Scan the receipt</h2>
         <p className="text-sm text-muted-foreground">Step 2 of 3 · read on your device, nothing is uploaded</p>
       </div>
 
-      <div className="rounded-3xl border border-dashed border-white/10 bg-surface px-6 py-12 text-center">
+      <div className="rounded-3xl border border-dashed border-white/10 glass px-6 py-12 text-center">
         <div className="mx-auto mb-6 flex size-16 items-center justify-center rounded-full border border-white/10 bg-white/5">
-          <Receipt className="size-7 text-white opacity-50" />
+          <Receipt className="size-7 text-foreground opacity-50" />
         </div>
 
         <input type="file" accept="image/*" capture="environment" ref={cameraRef} className="hidden" onChange={onFile} onClick={(e) => ((e.target as HTMLInputElement).value = "")} />
@@ -41,7 +41,7 @@ export function ScanStep({ s }: { s: SplitSession }) {
         <div className="flex flex-col gap-2">
           <Button
             type="button"
-            className="h-14 w-full rounded-xl bg-coral text-base font-bold text-coral-foreground shadow-[var(--coral-glow)] hover:bg-coral/90"
+            className="h-14 w-full"
             onClick={() => cameraRef.current?.click()}
             disabled={s.loading}
           >
@@ -50,7 +50,7 @@ export function ScanStep({ s }: { s: SplitSession }) {
           <Button
             type="button"
             variant="ghost"
-            className="h-12 text-sm font-semibold text-muted-foreground hover:text-white"
+            className="h-12 text-sm font-semibold text-muted-foreground hover:text-foreground"
             onClick={() => galleryRef.current?.click()}
             disabled={s.loading}
           >

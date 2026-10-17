@@ -4,6 +4,7 @@ import { AnimatePresence, m } from "motion/react";
 import { Camera, Scale, Wallet } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 const SLIDES = [
   {
@@ -53,7 +54,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
   return (
     <div role="dialog" aria-modal="true" aria-label="Welcome to Bill.a" data-testid="intro" className="fixed inset-0 z-[70] flex flex-col bg-background/80 text-foreground backdrop-blur-2xl">
       <div className="flex justify-end p-4">
-        <button type="button" data-testid="intro-skip" onClick={onDone} className="min-h-11 rounded-full px-4 text-sm font-semibold text-muted-foreground transition-colors hover:text-white">
+        <button type="button" data-testid="intro-skip" onClick={onDone} className="min-h-11 rounded-full px-4 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground">
           Skip
         </button>
       </div>
@@ -82,7 +83,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
               <slide.icon className="size-12" strokeWidth={1.75} />
             </span>
             <div className="space-y-3">
-              <h2 className="text-3xl font-black tracking-tight">{slide.title}</h2>
+              <h2 className="type-title">{slide.title}</h2>
               <p className="text-base leading-relaxed text-muted-foreground">{slide.body}</p>
             </div>
           </m.div>
@@ -105,15 +106,9 @@ export function Intro({ onDone }: { onDone: () => void }) {
             </button>
           ))}
         </div>
-        <button
-          type="button"
-          data-testid="intro-next"
-          autoFocus
-          onClick={advance}
-          className="flex min-h-14 w-full items-center justify-center rounded-2xl bg-coral text-base font-bold text-coral-foreground shadow-[var(--coral-glow)] transition-transform active:scale-[0.98]"
-        >
+        <Button type="button" size="lg" data-testid="intro-next" autoFocus onClick={advance} className="h-14 w-full text-base">
           {last ? "Get started" : "Next"}
-        </button>
+        </Button>
       </div>
     </div>
   );

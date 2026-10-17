@@ -107,7 +107,7 @@ export function ShareSheet({
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle className="text-white">Share as image</DrawerTitle>
+            <DrawerTitle className="text-foreground">Share as image</DrawerTitle>
             <DrawerDescription className="text-muted-foreground">One picture with who owes what{withPayment ? " and how to pay you" : ""}.</DrawerDescription>
           </DrawerHeader>
 
@@ -134,7 +134,7 @@ export function ShareSheet({
             {paysMe && !payment.details && payment.signedIn && (
               <p className="px-1 text-sm text-muted-foreground">
                 Want friends to be able to pay from this picture?{" "}
-                <Link href="/dashboard/account" className="font-semibold text-white underline underline-offset-4">
+                <Link href="/dashboard/account" className="font-semibold text-foreground underline underline-offset-4">
                   Add payment details
                 </Link>
               </p>
@@ -146,7 +146,7 @@ export function ShareSheet({
                 data-testid="image-share"
                 disabled={!ready}
                 onClick={share}
-                className="h-12 flex-1 rounded-xl bg-coral text-base font-bold text-coral-foreground hover:bg-coral/90"
+                className="h-12 flex-1"
               >
                 <Share2 className="mr-2 size-4" /> Share
               </Button>
@@ -156,7 +156,7 @@ export function ShareSheet({
                 data-testid="image-save"
                 disabled={!ready}
                 onClick={save}
-                className="h-12 flex-1 rounded-xl border-white/10 text-base font-semibold text-zinc-200"
+                className="h-12 flex-1 rounded-xl border-white/10 text-base font-semibold text-foreground"
               >
                 <Download className="mr-2 size-4" /> Save
               </Button>

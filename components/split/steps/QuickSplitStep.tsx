@@ -11,7 +11,7 @@ export function QuickSplitStep({ s }: { s: SplitSession }) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold tracking-tight text-white">How should it be split?</h2>
+        <h2 className="type-title">How should it be split?</h2>
         <p className="text-sm text-muted-foreground">
           Step 3 of 3 · {formatMoney(s.displayedTotal, s.symbol)}
           {item && item !== "Quick split" ? ` · ${item}` : ""}

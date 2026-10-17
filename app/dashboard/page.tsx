@@ -17,6 +17,7 @@ import { formatMoney } from "@/lib/money"
 import { localDate, shortDate } from "@/lib/split/settle"
 import { settlePill } from "@/lib/ui/settle-pill"
 import { cn } from "@/lib/utils"
+import { Button } from "@/components/ui/button";
 
 // The shader colours: graphite into a warm coral glow (the same coral as the primary buttons).
 const SCAN_COLORS = ["#0e0f12", "#3a1b22", "#ff6b57", "#1f2228"]
@@ -78,7 +79,7 @@ export default function DashboardPage() {
       {intro.show && <Intro onDone={intro.finish} />}
       <div className="mx-auto min-h-screen max-w-6xl space-y-8 p-6 pb-24 text-foreground md:p-10">
         <header className="space-y-1">
-          <h1 data-testid="greeting" className="text-3xl font-black tracking-tight">
+          <h1 data-testid="greeting" className="type-title">
             {greeting(now?.hour ?? null)}
             {firstName ? `, ${firstName}` : ""}
           </h1>
@@ -105,7 +106,7 @@ export default function DashboardPage() {
           </Link>
 
           <Link href="/dashboard/new?mode=quick" transitionTypes={["nav-forward"]} data-testid="tile-quick" className="group block rounded-[2rem] outline-none focus-visible:ring-4 focus-visible:ring-white/20">
-            <div className="flex h-40 flex-col justify-between rounded-[2rem] border border-white/10 bg-surface p-4 transition-all duration-200 group-hover:border-white/25 group-active:scale-[0.98] sm:h-52 sm:p-6">
+            <div className="flex h-40 flex-col justify-between rounded-[2rem] glass p-4 transition-all duration-200 group-hover:border-white/25 group-active:scale-[0.98] sm:h-52 sm:p-6">
               <div className="flex items-start justify-between">
                 <span className="flex size-11 items-center justify-center rounded-full bg-coral/15 text-coral">
                   <Calculator className="size-5" />
@@ -133,7 +134,7 @@ export default function DashboardPage() {
         )}
 
         {owed.length > 0 && (
-          <Link href="/dashboard/balances" transitionTypes={["nav-forward"]} data-testid="home-owed" className="flex min-h-16 items-center justify-between gap-4 rounded-3xl border border-white/5 bg-surface p-5 transition-colors hover:border-white/20">
+          <Link href="/dashboard/balances" transitionTypes={["nav-forward"]} data-testid="home-owed" className="flex min-h-16 items-center justify-between gap-4 rounded-3xl glass p-5 transition-colors hover:border-white/20">
             <div className="space-y-0.5 text-sm text-muted-foreground">
               {owed.map(([cur, t]) => (
                 <div key={cur}>
@@ -147,30 +148,32 @@ export default function DashboardPage() {
         )}
 
         {signedIn === false && (
-          <section data-testid="home-guest" className="flex flex-col gap-4 rounded-3xl border border-white/5 bg-surface p-6 sm:flex-row sm:items-center sm:justify-between">
+          <section data-testid="home-guest" className="flex flex-col gap-4 rounded-3xl glass p-6 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1">
               <h2 className="text-base font-bold">Keep your splits</h2>
               <p className="text-sm text-muted-foreground">Log in to save your history, see who owes you, and reuse your groups.</p>
             </div>
-            <Link href="/" className="flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl bg-coral px-6 font-bold text-coral-foreground">
-              <LogIn className="size-4" /> Log in
-            </Link>
+            <Button asChild size="lg" className="shrink-0">
+              <Link href="/">
+                <LogIn className="size-4" /> Log in
+              </Link>
+            </Button>
           </section>
         )}
 
         {latest && (
           <section aria-label="Pick up where you left off" className="space-y-3">
-            <h2 className="px-1 text-xs font-semibold tracking-widest text-muted-foreground uppercase">Pick up where you left off</h2>
+            <h2 className="px-1 type-eyebrow">Pick up where you left off</h2>
             <Link
               href={`/dashboard/history/${latest.id}`}
               transitionTypes={["nav-forward"]}
               data-testid="home-latest"
-              className="block space-y-3 rounded-3xl border border-white/5 bg-surface p-5 transition-colors hover:border-white/20"
+              className="block space-y-3 rounded-3xl glass p-5 transition-colors hover:border-white/20"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <h3 className="truncate text-lg font-bold">{latest.billTitle}</h3>
-                  <p className="font-mono text-xs tracking-wider text-muted-foreground uppercase">{shortDate(latest.createdAt)}</p>
+                  <p className="type-eyebrow">{shortDate(latest.createdAt)}</p>
                 </div>
                 <p className="shrink-0 text-xl font-black tabular-nums">{formatMoney(latest.totalAmount, latest.currency || "RM")}</p>
               </div>
@@ -193,10 +196,10 @@ export default function DashboardPage() {
         {signedIn !== false && (
           <section aria-label="Saved groups" className="space-y-3">
             <div className="flex items-center justify-between px-1">
-              <h2 className="flex items-center gap-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+              <h2 className="flex items-center gap-2 type-eyebrow">
                 <Users size={14} /> Your groups
               </h2>
-              <Link href="/dashboard/groups" transitionTypes={["nav-forward"]} className="flex min-h-11 items-center text-xs font-semibold tracking-widest text-muted-foreground uppercase transition-colors hover:text-white">
+              <Link href="/dashboard/groups" transitionTypes={["nav-forward"]} className="flex min-h-11 items-center type-eyebrow transition-colors hover:text-foreground">
                 Manage
               </Link>
             </div>
@@ -209,21 +212,21 @@ export default function DashboardPage() {
                       href={`/dashboard/new?group_id=${group.id}`}
                       transitionTypes={["nav-forward"]}
                       data-testid="home-group"
-                      className="flex h-full flex-col justify-between gap-4 rounded-3xl border border-white/5 bg-surface p-5 transition-colors hover:border-white/20"
+                      className="flex h-full flex-col justify-between gap-4 rounded-3xl glass p-5 transition-colors hover:border-white/20"
                     >
                       <AvatarStack names={group.names} max={4} />
                       <div className="min-w-0">
                         <h3 className="truncate text-base font-bold">{group.groupName}</h3>
                         <p className="truncate text-sm text-muted-foreground">{group.names.join(", ")}</p>
                       </div>
-                      <span className="flex min-h-11 items-center justify-center rounded-xl bg-surface-2 text-sm font-semibold text-zinc-200">Split</span>
+                      <span className="flex min-h-11 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-foreground">Split</span>
                     </Link>
                   </li>
                 ))}
               </ul>
             ) : (
               signedIn && (
-                <div data-testid="home-no-groups" className="space-y-1 rounded-3xl border-2 border-dashed border-white/5 px-6 py-8 text-center">
+                <div data-testid="home-no-groups" className="space-y-1 rounded-3xl border-2 border-dashed border-white/8 px-6 py-8 text-center">
                   <p className="text-sm font-semibold text-muted-foreground">No saved groups yet</p>
                   <p className="text-xs text-muted-foreground/70">On your next split, choose &ldquo;Save this group&rdquo; and your crew shows up here.</p>
                 </div>

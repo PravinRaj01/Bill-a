@@ -96,7 +96,7 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
   return (
     <div className="space-y-4">
       {owed.length > 0 && (
-        <div data-testid="owed-summary" className="space-y-1 rounded-2xl border border-white/5 bg-surface p-4">
+        <div data-testid="owed-summary" className="space-y-1 rounded-2xl glass p-4">
           {owed.map(([cur, t]) => (
             <div key={cur} className="space-y-0.5 text-sm text-muted-foreground">
               {t.owedToYou > 0 && (
@@ -128,10 +128,10 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
       )}
 
       {/* Toolbar */}
-      <div className="flex items-center justify-between rounded-2xl border border-white/5 bg-surface p-2">
+      <div className="flex items-center justify-between rounded-2xl glass p-2">
         <div className="flex gap-2">
           {!isEditMode ? (
-            <Button variant="ghost" size="sm" onClick={() => setIsEditMode(true)} className="h-10 text-xs font-semibold text-muted-foreground hover:text-white">
+            <Button variant="ghost" size="sm" onClick={() => setIsEditMode(true)} className="h-10 text-xs font-semibold text-muted-foreground hover:text-foreground">
               Edit list
             </Button>
           ) : (
@@ -139,14 +139,14 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
               <Button variant="destructive" size="sm" onClick={() => setConfirm("selected")} disabled={selectedIds.length === 0} className="h-10 rounded-lg text-xs font-semibold">
                 Delete ({selectedIds.length})
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => { setIsEditMode(false); setSelectedIds([]); }} className="h-10 text-xs font-semibold text-zinc-400 hover:text-white">
+              <Button variant="ghost" size="sm" onClick={() => { setIsEditMode(false); setSelectedIds([]); }} className="h-10 text-xs font-semibold text-muted-foreground hover:text-foreground">
                 Cancel
               </Button>
             </>
           )}
         </div>
         {isEditMode && (
-          <Button variant="link" onClick={() => setConfirm("all")} className="h-10 text-xs font-semibold text-red-500 hover:text-red-400">
+          <Button variant="link" onClick={() => setConfirm("all")} className="h-10 text-xs font-semibold text-destructive hover:text-destructive">
             Clear all
           </Button>
         )}
@@ -168,13 +168,13 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
                     className="flex size-11 shrink-0 items-center justify-center"
                   >
                     {selectedIds.includes(bill.id) ? (
-                      <span className="flex size-6 items-center justify-center rounded-md bg-white"><Check className="size-4 text-black" strokeWidth={4} /></span>
+                      <span className="flex size-6 items-center justify-center rounded-md bg-primary"><Check className="size-4 text-primary-foreground" strokeWidth={4} /></span>
                     ) : (
-                      <span className="size-6 rounded-md border-2 border-zinc-700" />
+                      <span className="size-6 rounded-md border-2 border-white/15" />
                     )}
                   </button>
                 )}
-                <Card className={cn("group flex-1 gap-0 overflow-hidden rounded-2xl border-white/5 bg-surface py-0", selectedIds.includes(bill.id) && "opacity-50")}>
+                <Card className={cn("group flex-1 gap-0 overflow-hidden rounded-2xl border-white/8 glass py-0", selectedIds.includes(bill.id) && "opacity-50")}>
                   <CardContent className="p-0">
                     <Link
                       href={`/dashboard/history/${bill.id}`}
@@ -184,11 +184,11 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
                       onClick={(e) => isEditMode && e.preventDefault()}
                     >
                       <div className="flex items-center gap-4">
-                        <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/5 bg-white/5">
-                          <Receipt className="size-4 text-zinc-500" />
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/5">
+                          <Receipt className="size-4 text-muted-foreground" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="truncate text-base font-bold text-zinc-100">{bill.billTitle}</h3>
+                          <h3 className="truncate text-base font-bold text-foreground">{bill.billTitle}</h3>
                           <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
                             {/* toISOString() on purpose: the server and the browser must print the same date (hydration) */}
                             <p className="flex items-center gap-1.5 whitespace-nowrap">
@@ -200,9 +200,9 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <div className="text-base font-bold tabular-nums text-white">{formatMoney(bill.totalAmount || 0, cur)}</div>
+                          <div className="text-base font-bold tabular-nums text-foreground">{formatMoney(bill.totalAmount || 0, cur)}</div>
                           {!isEditMode && (
-                            <div className="flex items-center justify-end gap-1 text-xs font-semibold text-zinc-600 transition-colors group-hover:text-white">
+                            <div className="flex items-center justify-end gap-1 text-xs font-semibold text-muted-foreground transition-colors group-hover:text-foreground">
                               Details <ArrowRight className="size-3" />
                             </div>
                           )}
@@ -221,7 +221,7 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
                               aria-valuemin={0}
                               aria-valuemax={s.owed}
                               aria-valuenow={s.collected}
-                              className="h-1.5 overflow-hidden rounded-full bg-surface-2"
+                              className="h-1.5 overflow-hidden rounded-full bg-white/10"
                             >
                               <div className="h-full rounded-full bg-success" style={{ width: `${(s.collected / s.owed) * 100}%` }} />
                             </div>
@@ -235,7 +235,7 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
             );
           })
         ) : (
-          <div className="rounded-3xl border-2 border-dashed border-white/5 py-20 text-center">
+          <div className="rounded-3xl border-2 border-dashed border-white/8 py-20 text-center">
             <p className="text-sm text-muted-foreground">
               {history.length === 0 ? "No history yet." : filter === "open" ? "Nothing unsettled. Everyone has paid." : "No settled bills yet."}
             </p>

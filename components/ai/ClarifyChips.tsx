@@ -17,7 +17,7 @@ export type ClarifyAction =
   | { type: "edit" };
 
 const pill =
-  "h-8 rounded-full border border-white/10 bg-white/5 px-3 text-[11px] font-bold text-white hover:bg-white/10 hover:text-white";
+  "h-8 rounded-full border border-white/10 bg-white/5 px-3 text-[11px] font-bold text-foreground hover:bg-white/10 hover:text-foreground";
 
 export function ClarifyChips({
   chips,
@@ -29,14 +29,14 @@ export function ClarifyChips({
   onAction: (a: ClarifyAction) => void;
 }) {
   return (
-    <div data-testid="clarify" className="space-y-3 rounded-2xl border border-indigo-500/30 bg-indigo-500/5 p-4">
-      <div className="flex items-center gap-2 text-indigo-200">
+    <div data-testid="clarify" className="space-y-3 rounded-2xl border border-primary/30 bg-primary/5 p-4">
+      <div className="flex items-center gap-2 text-primary">
         <HelpCircle className="h-4 w-4" />
         <p className="text-xs font-bold">Quick check before I split this</p>
       </div>
 
       {chips.map((chip, i) => (
-        <div key={i} className="space-y-2 text-xs text-zinc-300" data-testid="clarify-chip" data-kind={chip.kind}>
+        <div key={i} className="space-y-2 text-xs text-foreground/80" data-testid="clarify-chip" data-kind={chip.kind}>
           {chip.kind === "possible-typo" && (
             <>
               <p>
@@ -103,7 +103,7 @@ export function ClarifyChips({
         </div>
       ))}
 
-      <div className="flex flex-wrap gap-2 border-t border-white/5 pt-3">
+      <div className="flex flex-wrap gap-2 border-t border-white/8 pt-3">
         <Button type="button" variant="ghost" className={pill} onClick={() => onAction({ type: "edit" })}>
           Edit my instruction
         </Button>

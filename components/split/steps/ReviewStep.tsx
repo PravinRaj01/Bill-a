@@ -11,7 +11,7 @@ import { SplitPanel } from "@/components/split/SplitPanel";
 import { centsToInput, formatMoney, parseMoneyInput } from "@/lib/money";
 import type { SplitSession } from "@/hooks/use-split-session";
 
-const inputBase = "h-11 border-white/5 bg-surface-2 text-base";
+const inputBase = "h-11";
 
 export function ReviewStep({ s }: { s: SplitSession }) {
   const { receipt, scanInfo, symbol } = s;
@@ -39,28 +39,28 @@ export function ReviewStep({ s }: { s: SplitSession }) {
     if (!unsure) {
       // A scan that looks fine still gets a quiet way to get a second opinion.
       return s.keys.gemini ? (
-        <button type="button" data-testid="reread-quiet" onClick={s.enhance} disabled={s.enhancing} className="px-1 text-left text-xs text-muted-foreground hover:text-zinc-300 disabled:opacity-50">
-          {s.enhancing ? "Reading…" : <>Doesn&apos;t look right? <span className="font-bold text-indigo-400">Re-read with Gemini</span> (sends the photo to Google with your key)</>}
+        <button type="button" data-testid="reread-quiet" onClick={s.enhance} disabled={s.enhancing} className="px-1 text-left text-xs text-muted-foreground hover:text-foreground/80 disabled:opacity-50">
+          {s.enhancing ? "Reading…" : <>Doesn&apos;t look right? <span className="font-bold text-primary">Re-read with Gemini</span> (sends the photo to Google with your key)</>}
         </button>
       ) : (
         <p data-testid="reread-nokey" className="px-1 text-xs text-muted-foreground">
           Want a second opinion on this scan?{" "}
-          <button type="button" onClick={() => s.setKeySheetOpen(true)} className="font-bold text-indigo-400 hover:text-indigo-300">Add a free Gemini key</button>
+          <button type="button" onClick={() => s.setKeySheetOpen(true)} className="font-bold text-primary hover:text-primary">Add a free Gemini key</button>
         </p>
       );
     }
     return s.keys.gemini ? (
       <div data-testid="enhance-card" className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-        <p className="text-sm font-bold text-white">Not sure about this scan?</p>
+        <p className="text-sm font-bold text-foreground">Not sure about this scan?</p>
         <p className="text-xs text-muted-foreground">Ask Gemini to re-read the photo. This sends the photo to Google using your own key.</p>
-        <Button type="button" variant="ghost" onClick={s.enhance} disabled={s.enhancing} className="h-10 rounded-full border border-white/10 bg-white/5 px-4 text-xs font-bold text-white hover:bg-white/10 hover:text-white">
+        <Button type="button" variant="ghost" onClick={s.enhance} disabled={s.enhancing} className="h-10 rounded-full border border-white/10 bg-white/5 px-4 text-xs font-bold text-foreground hover:bg-white/10 hover:text-foreground">
           {s.enhancing ? <><Loader2 className="mr-2 size-3 animate-spin" /> Reading…</> : "Re-read with Gemini"}
         </Button>
       </div>
     ) : (
       <p data-testid="enhance-hint" className="px-1 text-xs text-muted-foreground">
         Scan looks shaky.{" "}
-        <button type="button" onClick={() => s.setKeySheetOpen(true)} className="font-bold text-indigo-400 hover:text-indigo-300">Add a free Gemini key</button>{" "}
+        <button type="button" onClick={() => s.setKeySheetOpen(true)} className="font-bold text-primary hover:text-primary">Add a free Gemini key</button>{" "}
         to get a second opinion, or fix the numbers by hand.
       </p>
     );
@@ -84,7 +84,7 @@ export function ReviewStep({ s }: { s: SplitSession }) {
       )}
       <div className="space-y-6">
         {showWarning && scanInfo && (
-          <div data-testid="scan-warning" className="flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4 text-amber-200">
+          <div data-testid="scan-warning" className="flex gap-3 rounded-2xl border border-warning/30 bg-warning/5 p-4 text-warning">
             <TriangleAlert className="mt-0.5 size-4 shrink-0" />
             <div className="space-y-1 text-sm">
               <p className="font-bold">
@@ -102,14 +102,14 @@ export function ReviewStep({ s }: { s: SplitSession }) {
 
         {s.photoUrl && (
           <div className="flex justify-end">
-            <Button type="button" variant="ghost" data-testid="toggle-photo" onClick={s.togglePhoto} className="h-10 rounded-full px-3 text-xs font-semibold text-muted-foreground hover:text-white">
+            <Button type="button" variant="ghost" data-testid="toggle-photo" onClick={s.togglePhoto} className="h-10 rounded-full px-3 text-xs font-semibold text-muted-foreground hover:text-foreground">
               <ImageIcon size={14} className="mr-1.5" /> {s.showPhoto ? "Hide photo" : "Show photo"}
             </Button>
           </div>
         )}
 
-        <div className="overflow-hidden rounded-3xl border border-white/5 bg-surface shadow-2xl">
-          <div className="border-b border-white/5 bg-white/5 px-4 py-3 text-xs font-semibold text-muted-foreground">Extracted items · tap to edit</div>
+        <div className="overflow-hidden rounded-3xl glass">
+          <div className="border-b border-white/8 bg-white/5 px-4 py-3 text-xs font-semibold text-muted-foreground">Extracted items · tap to edit</div>
           <div className="divide-y divide-white/5">
             {receipt?.items.map((item, i) => {
               const unsure = (scanInfo?.itemConf[i] ?? 1) < 0.6;
@@ -118,14 +118,14 @@ export function ReviewStep({ s }: { s: SplitSession }) {
                   key={i}
                   data-testid="review-row"
                   data-unsure={unsure ? "true" : undefined}
-                  className={`flex items-center gap-2 px-4 py-3 ${unsure ? "bg-amber-500/5 ring-1 ring-inset ring-amber-500/30" : ""}`}
+                  className={`flex items-center gap-2 px-4 py-3 ${unsure ? "bg-warning/5 ring-1 ring-inset ring-warning/30" : ""}`}
                 >
                   <Input
                     aria-label="Item name"
                     value={item.name}
                     placeholder="Item"
                     onChange={(e) => s.editItem(i, { name: e.target.value })}
-                    className={`${inputBase} min-w-0 flex-1 text-zinc-200`}
+                    className={`${inputBase} min-w-0 flex-1 text-foreground`}
                   />
                   <Input
                     aria-label="Quantity"
@@ -136,7 +136,7 @@ export function ReviewStep({ s }: { s: SplitSession }) {
                     step={1}
                     defaultValue={item.quantity}
                     onBlur={(e) => s.editItem(i, { quantity: Math.max(1, Math.round(Number(e.target.value)) || 1) })}
-                    className={`${inputBase} w-14 px-1 text-center text-slate-400`}
+                    className={`${inputBase} w-14 px-1 text-center text-muted-foreground`}
                   />
                   <Input
                     aria-label="Price"
@@ -147,13 +147,13 @@ export function ReviewStep({ s }: { s: SplitSession }) {
                     step={0.01}
                     defaultValue={centsToInput(item.totalPrice)}
                     onBlur={(e) => s.editItem(i, { totalPrice: parseMoneyInput(e.target.value) })}
-                    className={`${inputBase} w-24 text-right font-mono tabular-nums text-white`}
+                    className={`${inputBase} w-24 text-right font-mono tabular-nums text-foreground`}
                   />
                   <button
                     type="button"
                     aria-label="Remove item"
                     onClick={() => s.removeItem(i)}
-                    className="flex size-11 shrink-0 items-center justify-center text-zinc-500 transition-colors hover:text-red-400"
+                    className="flex size-11 shrink-0 items-center justify-center text-muted-foreground transition-colors hover:text-destructive"
                   >
                     <Trash2 className="size-4" />
                   </button>
@@ -176,13 +176,13 @@ export function ReviewStep({ s }: { s: SplitSession }) {
           })()}
 
           <div className="px-4 pt-3">
-            <Button type="button" variant="ghost" onClick={s.addItem} className="h-11 text-sm font-semibold text-muted-foreground hover:text-white">
+            <Button type="button" variant="ghost" onClick={s.addItem} className="h-11 text-sm font-semibold text-muted-foreground hover:text-foreground">
               <Plus className="mr-1 size-4" /> Add item
             </Button>
           </div>
 
           <div className="space-y-4 p-5">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-surface-2 p-4">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/10 p-4">
               <div className="space-y-1">
                 <div className="text-sm font-medium text-white/80">Apply tax &amp; service</div>
                 <div className="flex items-center gap-1 text-sm text-muted-foreground">
@@ -196,7 +196,7 @@ export function ReviewStep({ s }: { s: SplitSession }) {
                     step={0.01}
                     defaultValue={centsToInput(receipt?.tax ?? 0)}
                     onBlur={(e) => s.editTax(parseMoneyInput(e.target.value))}
-                    className={`${inputBase} w-24 px-2 font-mono tabular-nums text-zinc-300`}
+                    className={`${inputBase} w-24 px-2 font-mono tabular-nums text-foreground/80`}
                   />
                 </div>
               </div>
@@ -204,7 +204,7 @@ export function ReviewStep({ s }: { s: SplitSession }) {
             </div>
 
             {showRounding ? (
-              <div data-testid="rounding-row" className="flex flex-col gap-3 rounded-xl border border-white/5 bg-surface-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div data-testid="rounding-row" className="flex flex-col gap-3 rounded-xl border border-white/8 bg-white/10 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="space-y-1">
                   <div className="text-sm font-medium text-white/80">Rounding adjustment</div>
                   <p className="text-xs text-muted-foreground">Printed on some receipts. Follows the switch above.</p>
@@ -235,19 +235,19 @@ export function ReviewStep({ s }: { s: SplitSession }) {
                       const abs = parseMoneyInput(e.target.value);
                       s.editRounding(roundingNegative ? -abs : abs);
                     }}
-                    className={`${inputBase} w-full min-w-0 px-2 font-mono tabular-nums text-zinc-300 sm:w-24`}
+                    className={`${inputBase} w-full min-w-0 px-2 font-mono tabular-nums text-foreground/80 sm:w-24`}
                   />
                 </div>
               </div>
             ) : (
-              <Button type="button" variant="ghost" onClick={() => setForceRounding(true)} className="h-11 text-sm font-semibold text-muted-foreground hover:text-white">
+              <Button type="button" variant="ghost" onClick={() => setForceRounding(true)} className="h-11 text-sm font-semibold text-muted-foreground hover:text-foreground">
                 <Plus className="mr-1 size-4" /> Add rounding adjustment
               </Button>
             )}
 
-            <div className="flex items-center justify-between border-t border-white/5 px-1 pt-4">
+            <div className="flex items-center justify-between border-t border-white/8 px-1 pt-4">
               <span className="text-sm font-semibold text-muted-foreground">Total to split</span>
-              <span data-testid="review-total" className="text-2xl font-bold tabular-nums tracking-tight text-white">{formatMoney(s.displayedTotal, symbol)}</span>
+              <span data-testid="review-total" className="text-2xl font-bold tabular-nums tracking-tight text-foreground">{formatMoney(s.displayedTotal, symbol)}</span>
             </div>
           </div>
         </div>

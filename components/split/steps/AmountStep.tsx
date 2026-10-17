@@ -30,11 +30,11 @@ export function AmountStep({ s }: { s: SplitSession }) {
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold tracking-tight text-white">How much?</h2>
+        <h2 className="type-title">How much?</h2>
         <p className="text-sm text-muted-foreground">Step 1 of 3 · no receipt needed</p>
       </div>
 
-      <div className="rounded-3xl border border-white/5 bg-surface p-5 shadow-2xl">
+      <div className="rounded-3xl glass p-5">
         <label htmlFor="quick-amount" className="sr-only">Amount to split</label>
         <div className="flex items-baseline justify-center gap-2 py-4">
           <span className="text-2xl font-semibold text-muted-foreground">RM</span>
@@ -51,7 +51,7 @@ export function AmountStep({ s }: { s: SplitSession }) {
             onKeyDown={(e) => e.key === "Enter" && go()}
             // sized to what is typed so "RM" and the number stay together in the middle
             style={{ width: `${Math.max(text.length, 4)}ch` }}
-            className="min-w-0 max-w-[70%] bg-transparent text-center text-5xl font-bold tabular-nums tracking-tight text-white outline-none placeholder:text-zinc-700"
+            className="min-w-0 max-w-[70%] bg-transparent text-center text-5xl font-bold tabular-nums tracking-tight text-foreground outline-none placeholder:text-muted-foreground/60"
           />
         </div>
         {tooBig && <p role="alert" className="text-center text-sm text-warning">That&apos;s more than RM99,999.99. Try a smaller amount.</p>}
@@ -63,7 +63,7 @@ export function AmountStep({ s }: { s: SplitSession }) {
             value={title}
             maxLength={60}
             onChange={(e) => setTitle(e.target.value)}
-            className="h-12 border-white/5 bg-surface-2 text-base text-white"
+           
           />
 
           <div>
@@ -73,7 +73,7 @@ export function AmountStep({ s }: { s: SplitSession }) {
                 type="button"
                 aria-pressed={service}
                 onClick={() => setService(!service)}
-                className={cn(chip, service ? "border-coral bg-coral/15 text-coral" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10")}
+                className={cn(chip, service ? "border-coral bg-coral/15 text-coral" : "border-white/10 bg-white/5 text-foreground/80 hover:bg-white/10")}
               >
                 + Service charge 10%
               </button>
@@ -81,7 +81,7 @@ export function AmountStep({ s }: { s: SplitSession }) {
                 type="button"
                 aria-pressed={sst}
                 onClick={() => setSst(!sst)}
-                className={cn(chip, sst ? "border-coral bg-coral/15 text-coral" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10")}
+                className={cn(chip, sst ? "border-coral bg-coral/15 text-coral" : "border-white/10 bg-white/5 text-foreground/80 hover:bg-white/10")}
               >
                 + SST 6%
               </button>
@@ -89,10 +89,10 @@ export function AmountStep({ s }: { s: SplitSession }) {
           </div>
 
           {q.tax > 0 && ok && (
-            <div data-testid="quick-breakdown" className="space-y-1 rounded-xl bg-surface-2 p-3 text-sm text-muted-foreground">
+            <div data-testid="quick-breakdown" className="space-y-1 rounded-xl bg-white/10 p-3 text-sm text-muted-foreground">
               {q.service > 0 && <p className="flex justify-between"><span>Service charge 10%</span><span className="tabular-nums">{formatMoney(q.service)}</span></p>}
               {q.sst > 0 && <p className="flex justify-between"><span>SST 6%{q.service > 0 ? " (on amount + service)" : ""}</span><span className="tabular-nums">{formatMoney(q.sst)}</span></p>}
-              <p className="flex justify-between border-t border-white/5 pt-1 font-semibold text-white"><span>Total to split</span><span data-testid="quick-total" className="tabular-nums">{formatMoney(q.total)}</span></p>
+              <p className="flex justify-between border-t border-white/8 pt-1 font-semibold text-foreground"><span>Total to split</span><span data-testid="quick-total" className="tabular-nums">{formatMoney(q.total)}</span></p>
             </div>
           )}
         </div>
@@ -100,7 +100,7 @@ export function AmountStep({ s }: { s: SplitSession }) {
         <Button
           type="button"
           data-testid="quick-continue"
-          className="mt-5 h-12 w-full rounded-xl bg-coral text-base font-bold text-coral-foreground shadow-[var(--coral-glow)] hover:bg-coral/90"
+          className="mt-5 h-12 w-full"
           disabled={!ok}
           onClick={go}
         >

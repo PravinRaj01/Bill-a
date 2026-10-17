@@ -17,6 +17,7 @@ import { getCurrentUser } from "@/lib/actions/user";
 import type { BillHistoryRow } from "@/lib/db/schema";
 import { allOwedToMe, localDate, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
 import { shareMessage, shareText } from "@/lib/ui/share";
+import { Button } from "@/components/ui/button";
 
 export default function BillDetailPage() {
   const params = useParams();
@@ -70,7 +71,7 @@ export default function BillDetailPage() {
 
   if (loading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-background text-white">
+      <div className="flex h-screen items-center justify-center bg-background text-foreground">
         <Loader2 className="animate-spin" />
       </div>
     );
@@ -118,7 +119,7 @@ export default function BillDetailPage() {
           <button
             type="button"
             onClick={goBack}
-            className="flex min-h-11 items-center pr-3 text-sm font-semibold text-muted-foreground transition-colors hover:text-white"
+            className="flex min-h-11 items-center pr-3 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
           >
             <ChevronLeft className="mr-1 size-4" /> Back
           </button>
@@ -127,7 +128,7 @@ export default function BillDetailPage() {
             aria-label="Delete this bill"
             data-testid="delete-bill"
             onClick={() => setConfirmDelete(true)}
-            className="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-red-400"
+            className="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-destructive"
           >
             <Trash2 className="size-5" />
           </button>
@@ -136,33 +137,28 @@ export default function BillDetailPage() {
         <ReceiptTicket title={bill.billTitle} date={bill.createdAt} symbol={symbol} rows={rows}>
           {settle && <SettleUp model={{ ...settle, payment }} />}
 
-          <div className="space-y-3 border-t border-white/5 p-5">
-            <button
-              type="button"
-              data-testid="share-bill"
-              onClick={share}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#25D366] text-base font-bold text-black transition-opacity hover:opacity-90"
-            >
+          <div className="space-y-3 border-t border-white/8 p-5">
+            <Button type="button" variant="whatsapp" size="lg" data-testid="share-bill" onClick={share} className="w-full">
               <Share2 className="size-4" /> Share summary
-            </button>
+            </Button>
             <button
               type="button"
               data-testid="share-image-open"
               onClick={() => setImageOpen(true)}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-base font-semibold text-zinc-200 transition-colors hover:bg-white/5"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-base font-semibold text-foreground transition-colors hover:bg-white/5"
             >
               <ImageIcon className="size-4" /> Share as image
             </button>
             <button
               type="button"
               onClick={handleContinue}
-              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/5"
+              className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-semibold text-foreground transition-colors hover:bg-white/5"
             >
               <Play className="size-4" fill="currentColor" /> Continue this session
             </button>
           </div>
 
-          <div className="border-t border-white/5">
+          <div className="border-t border-white/8">
             <button
               type="button"
               aria-expanded={showReasoning}
@@ -176,7 +172,7 @@ export default function BillDetailPage() {
             </button>
             {showReasoning && (
               <div className="px-5 pb-5">
-                <div className="max-h-60 overflow-y-auto rounded-xl border border-white/5 bg-black/40 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-zinc-400">
+                <div className="max-h-60 overflow-y-auto rounded-xl border border-white/8 glass-inset p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
                   {bill.data.reasoning || "No log recorded."}
                 </div>
               </div>

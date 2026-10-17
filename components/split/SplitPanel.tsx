@@ -42,9 +42,9 @@ export function SplitPanel({ s, modes = ["equal", "custom", "describe"] }: { s: 
   };
 
   return (
-    <section aria-label="How to split" className="rounded-3xl border border-white/5 bg-surface p-5 shadow-2xl">
+    <section aria-label="How to split" className="rounded-3xl glass p-5">
       <div className="mb-4 flex items-baseline justify-between gap-3">
-        <h3 className="text-lg font-bold text-white">How to split</h3>
+        <h3 className="text-lg font-bold text-foreground">How to split</h3>
         <span className="text-sm text-muted-foreground">
           {formatMoney(s.displayedTotal, s.symbol)}
           {s.includeTax ? " incl. tax" : ""}
@@ -70,7 +70,7 @@ export function SplitPanel({ s, modes = ["equal", "custom", "describe"] }: { s: 
               onChange={(e) => s.setInstruction(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !s.loading && s.split()}
               enterKeyHint="go"
-              className="h-12 border-white/5 bg-surface-2 text-base text-white"
+             
             />
             <div className="flex flex-wrap gap-2" aria-label="Examples">
               {exampleInstructions(s.people).map((ex) => (
@@ -78,7 +78,7 @@ export function SplitPanel({ s, modes = ["equal", "custom", "describe"] }: { s: 
                   key={ex}
                   type="button"
                   onClick={() => s.setInstruction(ex)}
-                  className="min-h-9 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-zinc-300 transition-colors hover:bg-white/10 hover:text-white"
+                  className="min-h-9 rounded-full border border-white/10 bg-white/5 px-3 text-xs font-medium text-foreground/80 transition-colors hover:bg-white/10 hover:text-foreground"
                 >
                   {ex}
                 </button>
@@ -96,7 +96,7 @@ export function SplitPanel({ s, modes = ["equal", "custom", "describe"] }: { s: 
         <Button
           type="button"
           data-testid="split-button"
-          className="h-12 w-full rounded-xl bg-coral text-base font-bold text-coral-foreground shadow-[var(--coral-glow)] hover:bg-coral/90"
+          className="h-12 w-full"
           onClick={go}
           disabled={!ready}
         >

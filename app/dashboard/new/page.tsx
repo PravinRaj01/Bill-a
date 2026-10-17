@@ -35,12 +35,12 @@ function BillSplitterContent() {
     <main className={`mx-auto mb-20 flex w-full max-w-xl flex-1 flex-col gap-6 p-6 ${s.step === "REVIEW" ? "lg:max-w-5xl" : ""} ${wide ? "2xl:max-w-7xl" : ""}`}>
       {s.step !== s.firstStep && (
         <div className="flex items-center justify-between">
-          <Button variant="ghost" className="h-11 w-fit px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-white" onClick={s.back}>
+          <Button variant="ghost" className="h-11 w-fit px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={s.back}>
             <ChevronLeft size={16} className="mr-1" /> Back
           </Button>
           {/* AI keys only matter for scanning and describing a split; quick split is plain arithmetic. */}
-          {!s.quick && <Button variant="ghost" data-testid="open-ai-settings" className="h-11 px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-white" onClick={() => s.setKeySheetOpen(true)}>
-            <Sparkles size={14} className="mr-1.5 text-amber-400" /> AI settings{s.keys.groq || s.keys.gemini ? " ✓" : ""}
+          {!s.quick && <Button variant="ghost" data-testid="open-ai-settings" className="h-11 px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => s.setKeySheetOpen(true)}>
+            <Sparkles size={14} className="mr-1.5 text-warning" /> AI settings{s.keys.groq || s.keys.gemini ? " ✓" : ""}
           </Button>}
         </div>
       )}
@@ -48,7 +48,7 @@ function BillSplitterContent() {
       <Sheet open={s.keySheetOpen} onOpenChange={s.setKeySheetOpen}>
         <SheetContent side="bottom" className="glass-strong max-h-[88vh] overflow-y-auto rounded-t-[28px] text-foreground sm:mx-auto sm:max-w-xl">
           <SheetHeader>
-            <SheetTitle className="text-white">AI settings</SheetTitle>
+            <SheetTitle className="text-foreground">AI settings</SheetTitle>
             <SheetDescription className="text-muted-foreground">Bring your own free API key for smarter splits.</SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-6">
@@ -79,7 +79,7 @@ function BillSplitterContent() {
 
 export default function BillSplitter() {
   return (
-    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="size-8 animate-spin text-white opacity-20" /></div>}>
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center bg-background"><Loader2 className="size-8 animate-spin text-foreground opacity-20" /></div>}>
       <BillSplitterContent />
     </Suspense>
   );
