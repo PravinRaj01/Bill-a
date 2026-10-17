@@ -1,6 +1,7 @@
 import {
   boolean,
   check,
+  foreignKey,
   index,
   integer,
   jsonb,
@@ -150,12 +151,77 @@ export const billHistory = pgTable(
     // Which tier produced the plan: "groq" | "gemini" | "fallback".
     providerTier: text("provider_tier"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Bumped on every save, so a friend's view can tell the bill changed.
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [
     unique("bill_history_user_client_uniq").on(t.userId, t.clientId),
     index("bill_history_user_created_idx").on(t.userId, t.createdAt.desc()),
   ],
 );
+
+// --- friends and shared bills (batch 5) ---------------------------------------------------------------
+
+// A friendship between two accounts, stored once with the smaller id first so (a, b) and (b, a) can't both exist.
+// pending: requested_by asked and the other side hasn't answered. declined stays silent to the requester.
+export const friendships = pgTable(
+  "friendships",
+  {
+    userA: text("user_a").notNull().references(() => users.id, { onDelete: "cascade" }),
+    userB: text("user_b").notNull().references(() => users.id, { onDelete: "cascade" }),
+    requestedBy: text("requested_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").$type<"pending" | "accepted" | "declined">().notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userA, t.userB] }),
+    index("friendships_user_b_idx").on(t.userB),
+    check("friendships_ordered", sql`${t.userA} < ${t.userB}`),
+    check("friendships_requester", sql`${t.requestedBy} in (${t.userA}, ${t.userB})`),
+    check("friendships_status", sql`${t.status} in ('pending', 'accepted', 'declined')`),
+  ],
+);
+
+// A bill its owner shares with a friend. `asName` is what the owner calls them on that bill, so the friend's
+// balances and the "I've paid" check can find their line. Hidden = the friend removed it from their own History.
+export const billShares = pgTable(
+  "bill_shares",
+  {
+    billId: uuid("bill_id").notNull().references(() => billHistory.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    asName: text("as_name").notNull(),
+    hidden: boolean("hidden").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.billId, t.userId] }), index("bill_shares_user_idx").on(t.userId)],
+);
+
+// "I've paid", said by a friend on a shared bill and answered by the owner. The server re-checks every claim
+// against the stored bill (the transfer exists, comes from this friend, is unpaid, and the amount matches).
+export const paymentClaims = pgTable(
+  "payment_claims",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    billId: uuid("bill_id").notNull(),
+    userId: text("user_id").notNull(),
+    transferKey: text("transfer_key").notNull(),
+    amount: integer("amount").notNull(),
+    status: text("status").$type<"pending" | "confirmed" | "rejected">().notNull().default("pending"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [
+    unique("payment_claims_uniq").on(t.billId, t.userId, t.transferKey),
+    index("payment_claims_bill_idx").on(t.billId),
+    foreignKey({ columns: [t.billId, t.userId], foreignColumns: [billShares.billId, billShares.userId], name: "payment_claims_share_fk" }).onDelete("cascade"),
+    check("payment_claims_status", sql`${t.status} in ('pending', 'confirmed', 'rejected')`),
+  ],
+);
+
+export type Friendship = typeof friendships.$inferSelect;
+export type BillShare = typeof billShares.$inferSelect;
+export type PaymentClaim = typeof paymentClaims.$inferSelect;
 
 export type User = typeof users.$inferSelect;
 export type SavedGroup = typeof savedGroups.$inferSelect;
