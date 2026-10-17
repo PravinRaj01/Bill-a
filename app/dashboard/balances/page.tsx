@@ -16,6 +16,7 @@ import { balanceNudgeText, localDate, markPersonPaid, type PersonBalance } from 
 import { payloadWithSettlement } from "@/lib/sync/billPayload";
 import { enqueueBill, flushOutbox } from "@/lib/sync/outbox";
 import { shareMessage, shareText } from "@/lib/ui/share";
+import { Button } from "@/components/ui/button";
 
 // What each person owes you (or you them) across every bill you track, so "how much does Riley owe me?"
 // has one answer. Nudging sends one message listing what they owe per bill; Mark all paid updates every
@@ -109,16 +110,16 @@ export default function BalancesPage() {
     <PageTransition>
       <div className="mx-auto mb-20 max-w-4xl space-y-6 p-6 text-foreground md:p-10">
         <header className="space-y-1">
-          <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">Balances</h1>
-          <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Who owes what, across bills</p>
+          <h1 className="type-title">Balances</h1>
+          <p className="type-eyebrow">Who owes what, across bills</p>
         </header>
 
         {result === null ? (
-          <div className="h-40 animate-pulse rounded-3xl bg-surface" aria-label="Loading balances" />
+          <div className="h-40 animate-pulse rounded-3xl glass" aria-label="Loading balances" />
         ) : (
           <>
             {totals.length > 0 && (
-              <div data-testid="balances-total" className="space-y-1 rounded-2xl border border-white/5 bg-surface p-4">
+              <div data-testid="balances-total" className="space-y-1 rounded-2xl glass p-4">
                 {totals.map(([cur, t]) => (
                   <div key={cur} className="space-y-0.5 text-sm text-muted-foreground">
                     {t.owedToYou > 0 && (
@@ -145,24 +146,24 @@ export default function BalancesPage() {
                 ))}
               </ul>
             ) : (
-              <div data-testid="balances-empty" className="space-y-3 rounded-3xl border-2 border-dashed border-white/5 px-6 py-16 text-center">
+              <div data-testid="balances-empty" className="space-y-3 rounded-3xl border-2 border-dashed border-white/8 px-6 py-16 text-center">
                 {result.tracked === 0 ? (
                   <>
-                    <p className="text-base font-semibold text-white">Nothing tracked yet</p>
+                    <p className="text-base font-semibold text-foreground">Nothing tracked yet</p>
                     <p className="mx-auto max-w-sm text-sm text-muted-foreground">
                       On a bill&apos;s Settle up card, say who paid or mark someone as paid, and what people owe you shows up here.
                     </p>
-                    <Link href="/dashboard/new" className="inline-flex min-h-11 items-center rounded-full bg-coral px-5 text-sm font-bold text-coral-foreground">
-                      Start a split
-                    </Link>
+                    <Button asChild>
+                      <Link href="/dashboard/new">Start a split</Link>
+                    </Button>
                   </>
                 ) : result.withoutMe === result.tracked ? (
                   <>
-                    <p className="text-base font-semibold text-white">Which one are you?</p>
+                    <p className="text-base font-semibold text-foreground">Which one are you?</p>
                     <p className="mx-auto max-w-sm text-sm text-muted-foreground">
                       Your tracked bills don&apos;t say which person is you, so there&apos;s nothing to add up yet. Open one in History and choose &ldquo;Which one is you?&rdquo;.
                     </p>
-                    <Link href="/dashboard/history" className="inline-flex min-h-11 items-center rounded-full border border-white/15 px-5 text-sm font-semibold text-zinc-200">
+                    <Link href="/dashboard/history" className="inline-flex min-h-11 items-center rounded-full border border-white/15 px-5 text-sm font-semibold text-foreground">
                       Open History
                     </Link>
                   </>
@@ -178,7 +179,7 @@ export default function BalancesPage() {
             {people.length > 0 && result.withoutMe > 0 && (
               <p data-testid="without-me" className="px-1 text-sm text-muted-foreground">
                 {result.withoutMe} tracked {result.withoutMe === 1 ? "bill doesn't" : "bills don't"} say which person is you, so {result.withoutMe === 1 ? "it isn't" : "they aren't"} counted.{" "}
-                <Link href="/dashboard/history" className="font-semibold text-white underline underline-offset-4">
+                <Link href="/dashboard/history" className="font-semibold text-foreground underline underline-offset-4">
                   Open History
                 </Link>{" "}
                 and choose &ldquo;Which one is you?&rdquo;.

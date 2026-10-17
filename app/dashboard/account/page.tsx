@@ -43,7 +43,7 @@ export default function AccountPage() {
     <PageTransition>
       <div className="mx-auto mb-20 max-w-xl space-y-5 p-6 text-foreground md:p-10">
         <header className="space-y-1">
-          <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">My Account</h1>
+          <h1 className="type-title">My Account</h1>
         </header>
 
         <Segmented
@@ -59,15 +59,15 @@ export default function AccountPage() {
 
         {tab === "overview" && (
           <div data-testid="account-overview" className="space-y-4">
-            <div className="flex items-center gap-4 rounded-3xl border border-white/5 bg-surface p-5">
-              <div className="size-16 shrink-0 rounded-full bg-surface-2 p-1 ring-1 ring-white/10">
+            <div className="flex items-center gap-4 rounded-3xl glass p-5">
+              <div className="size-16 shrink-0 rounded-full bg-white/10 p-1 ring-1 ring-white/10">
                 <Avatar className="size-full rounded-full">
                   <AvatarImage src={user?.image ?? undefined} />
                   <AvatarFallback className="bg-background text-xl font-bold text-muted-foreground">{user?.email?.charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
               </div>
               <div className="min-w-0 space-y-1">
-                <h2 className="truncate text-lg font-bold tracking-tight text-white">{user?.name || "Bill.a User"}</h2>
+                <h2 className="truncate text-lg font-bold tracking-tight text-foreground">{user?.name || "Bill.a User"}</h2>
                 <p className="flex items-center gap-1.5 truncate font-mono text-xs text-muted-foreground">
                   <Mail size={12} className="shrink-0" />
                   <span className="truncate">{user?.email}</span>
@@ -76,18 +76,18 @@ export default function AccountPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="relative overflow-hidden rounded-3xl border border-white/5 bg-surface p-5">
+              <div className="relative overflow-hidden rounded-3xl glass p-5">
                 <History size={44} className="absolute top-3 right-3 opacity-10" />
                 <div className="relative space-y-1">
-                  <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase">Sessions</span>
-                  <div className="text-3xl font-black tracking-tighter text-white tabular-nums">{stats.count}</div>
+                  <span className="type-eyebrow">Sessions</span>
+                  <div className="text-3xl font-black tracking-tighter text-foreground tabular-nums">{stats.count}</div>
                 </div>
               </div>
-              <div data-testid="account-total" className="relative overflow-hidden rounded-3xl border border-white/5 bg-surface p-5">
+              <div data-testid="account-total" className="relative overflow-hidden rounded-3xl glass p-5">
                 <Wallet size={44} className="absolute top-3 right-3 opacity-10" />
                 <div className="relative space-y-1">
-                  <span className="text-xs font-bold tracking-widest text-muted-foreground uppercase">Total value</span>
-                  <div className="text-3xl font-black tracking-tighter text-white tabular-nums">{biggest ? whole(biggest.currency, biggest.cents) : "0"}</div>
+                  <span className="type-eyebrow">Total value</span>
+                  <div className="text-3xl font-black tracking-tighter text-foreground tabular-nums">{biggest ? whole(biggest.currency, biggest.cents) : "0"}</div>
                   {/* Bills in other currencies are listed, never added into the big number. */}
                   {others.length > 0 && <p className="text-xs font-semibold text-muted-foreground tabular-nums">{others.map((t) => whole(t.currency, t.cents)).join(" · ")}</p>}
                 </div>
@@ -97,10 +97,10 @@ export default function AccountPage() {
             <button
               type="button"
               onClick={() => setTab("pay")}
-              className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-white/5 bg-surface px-5 text-left transition-colors hover:bg-surface-2"
+              className="flex min-h-14 w-full items-center justify-between rounded-2xl glass px-5 text-left transition-colors hover:bg-white/10"
             >
               <span>
-                <span className="block text-sm font-bold text-white">Get paid</span>
+                <span className="block text-sm font-bold text-foreground">Get paid</span>
                 <span className="block text-xs text-muted-foreground">{payment.details ? "Payment details saved" : "Add how friends can pay you back"}</span>
               </span>
               <CreditCard size={18} className="text-muted-foreground" />
@@ -109,10 +109,10 @@ export default function AccountPage() {
             <button
               type="button"
               onClick={() => signOutAction()}
-              className="group flex min-h-14 w-full items-center justify-between rounded-2xl border border-white/5 bg-surface px-5 text-xs font-bold tracking-widest uppercase transition-colors hover:bg-surface-2"
+              className="group flex min-h-14 w-full items-center justify-between rounded-2xl glass px-5 text-xs font-bold tracking-widest uppercase transition-colors hover:bg-white/10"
             >
               <span>Sign Out</span>
-              <LogOut size={16} className="text-muted-foreground transition-colors group-hover:text-white" />
+              <LogOut size={16} className="text-muted-foreground transition-colors group-hover:text-foreground" />
             </button>
 
             <p className="text-center font-mono text-xs text-muted-foreground/60 uppercase">User ID: {user?.id?.slice(0, 8)}...</p>
@@ -123,7 +123,7 @@ export default function AccountPage() {
           <section className="space-y-3" data-testid="account-payment">
             <p className="px-1 text-sm text-muted-foreground">Add how friends can pay you back. It&apos;s added to the messages and receipts you share, only when you choose to.</p>
             {payment.details === undefined ? (
-              <div className="h-48 animate-pulse rounded-3xl bg-surface" aria-label="Loading payment details" />
+              <div className="h-48 animate-pulse rounded-3xl glass" aria-label="Loading payment details" />
             ) : (
               <PaymentDetailsForm initial={payment.details} onSave={payment.save} />
             )}

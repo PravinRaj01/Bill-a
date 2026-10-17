@@ -14,8 +14,8 @@ export default async function HistoryPage() {
     <PageTransition>
     <div className="p-6 md:p-10 max-w-4xl mx-auto space-y-8 mb-20">
       <header className="space-y-1">
-        <h1 className="text-3xl font-black tracking-tighter uppercase italic text-white">History</h1>
-        <p className="text-zinc-500 text-xs font-mono uppercase tracking-widest">Past Settlements</p>
+        <h1 className="type-title">History</h1>
+        <p className="text-muted-foreground text-xs font-mono uppercase tracking-widest">Past Settlements</p>
       </header>
 
       <HistoryList initialHistory={history} />
