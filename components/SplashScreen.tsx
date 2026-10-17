@@ -3,14 +3,18 @@
 export default function SplashScreen() {
   return (
     <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background">
-      <div className="relative">
-        <div className="absolute inset-4 rounded-full bg-primary/25 blur-3xl animate-pulse" />
-        {/* The dark artwork, with edges that fade into the background: no tile around it. */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-dark.png" alt="Bill.a" className="relative size-40 object-contain" />
+      <div className="relative grid place-items-center">
+        {/* Coral halo behind the tile */}
+        <div className="absolute size-72 rounded-full bg-[radial-gradient(circle,rgb(255_107_87/0.33),rgb(255_107_87/0)_65%)] animate-pulse" />
+        {/* The app icon: dark tile with the dark artwork and a coral glow inside it */}
+        <div className="relative size-32 overflow-hidden rounded-[28%] bg-background shadow-[0_10px_30px_-8px_rgb(255_107_87/0.6)]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_60%,rgb(255_107_87/0.6)_30%,rgb(255_107_87/0)_78%)]" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-dark.png" alt="Bill.a" className="relative size-full object-contain p-2.5" />
+        </div>
       </div>
 
-      <div className="mt-4 text-center space-y-2">
+      <div className="mt-8 text-center space-y-2">
         <h1 className="text-3xl font-black tracking-tighter text-foreground">
           Bill<span className="text-primary">.</span>a
         </h1>
