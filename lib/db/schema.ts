@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { sql } from "drizzle-orm";
@@ -99,6 +100,35 @@ export const savedGroups = pgTable(
     unique("saved_groups_user_key_uniq").on(t.userId, t.groupKey),
   ],
 );
+
+// People you split with: a name, an optional WhatsApp number, and (later) a link to their Bill.a account. A
+// person is identified by their name ignoring case and spacing, like everywhere else in the app, so
+// "RILEY " and "riley" are one contact. Scoped to the owner by user_id like every app table.
+export const people = pgTable(
+  "people",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    nameKey: text("name_key").generatedAlwaysAs(sql`lower(btrim(name))`),
+    // E.164 ("+60123456789"), validated in lib/people/phone.ts and again by this CHECK.
+    phone: text("phone"),
+    // Reserved for friends who have a Bill.a account (batch 5, friends PR).
+    linkedUserId: text("linked_user_id").references(() => users.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("people_user_name_uniq").on(t.userId, t.nameKey),
+    uniqueIndex("people_user_linked_uniq").on(t.userId, t.linkedUserId).where(sql`${t.linkedUserId} is not null`),
+    index("people_user_idx").on(t.userId),
+    check("people_phone_e164", sql`${t.phone} ~ '^\\+[1-9][0-9]{6,14}$'`),
+    check("people_not_self", sql`${t.linkedUserId} <> ${t.userId}`),
+  ],
+);
+export type Person = typeof people.$inferSelect;
 
 export const billHistory = pgTable(
   "bill_history",

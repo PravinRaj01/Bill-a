@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./client";
-import { billHistory, savedGroups, users } from "./schema";
+import { billHistory, people, savedGroups, users } from "./schema";
 import type { BillData, Participant, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
 
 // THE AUTHORIZATION LAYER — this file is what replaces Supabase RLS.
@@ -244,6 +244,92 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
     })
     .returning({ id: billHistory.id, clientId: billHistory.clientId });
   return row;
+}
+
+// --- people ----------------------------------------------------------------
+// Contacts the user splits with. Every function is keyed by the session's user id; there is no way to read or
+// change another user's contacts through these.
+
+export const listPeople = (db: Db, userId: string) => db.select().from(people).where(eq(people.userId, userId)).orderBy(people.nameKey);
+
+export type PersonInput = { name: string; phone?: string | null };
+
+/**
+ * Adds a contact, or UPDATES the one with the same name (ignoring case and spacing): the (user_id, name_key)
+ * unique constraint makes that race-proof. A phone is only overwritten when one is given.
+ */
+export async function upsertPerson(db: Db, userId: string, input: PersonInput) {
+  const phone = input.phone ?? null;
+  const [row] = await db
+    .insert(people)
+    .values({ userId, name: input.name, phone })
+    .onConflictDoUpdate({
+      target: [people.userId, people.nameKey],
+      set: { ...(phone ? { phone } : {}), updatedAt: sql`now()` },
+    })
+    .returning();
+  return row;
+}
+
+export type UpdatePersonResult = { ok: true; person: typeof people.$inferSelect } | { ok: false; reason: "not-found" | "name-taken" };
+
+/** Renames a contact and/or sets (or clears with null) their number. A rename onto another contact is "name-taken". */
+export async function updatePerson(db: Db, userId: string, id: string, patch: { name?: string; phone?: string | null }): Promise<UpdatePersonResult> {
+  const set: { name?: string; phone?: string | null; updatedAt: ReturnType<typeof sql> } = { updatedAt: sql`now()` };
+  if (patch.name !== undefined) set.name = patch.name;
+  if (patch.phone !== undefined) set.phone = patch.phone;
+  try {
+    const [row] = await db.update(people).set(set).where(and(eq(people.id, id), eq(people.userId, userId))).returning();
+    return row ? { ok: true, person: row } : { ok: false, reason: "not-found" };
+  } catch (e) {
+    const err = e as { code?: string; cause?: { code?: string }; message?: string };
+    const code = err.code ?? err.cause?.code;
+    if (code === "23505" || /duplicate key|unique constraint/i.test(err.message ?? "")) return { ok: false, reason: "name-taken" };
+    throw e;
+  }
+}
+
+/** True if a row was deleted; false if it didn't exist OR belongs to someone else. */
+export async function deletePerson(db: Db, userId: string, id: string) {
+  const rows = await db.delete(people).where(and(eq(people.id, id), eq(people.userId, userId))).returning({ id: people.id });
+  return rows.length > 0;
+}
+
+export interface Suggestion {
+  name: string;
+  /** In how many of the user's bills and groups this name appears. */
+  count: number;
+}
+
+/**
+ * Names the user has split with (in saved bills and groups) who aren't contacts yet, most frequent first.
+ * `excludeNames` are left out too (the user's own name). Names are matched ignoring case and spacing, and the
+ * spelling shown is the most common one.
+ */
+export async function suggestPeople(db: Db, userId: string, excludeNames: string[], limit = 12): Promise<Suggestion[]> {
+  const exclude = excludeNames.map((n) => n.trim().toLowerCase()).filter(Boolean);
+  const rows = await db.execute(sql`
+    with seen as (
+      select btrim(e->>'name') as name
+        from bill_history b, jsonb_array_elements(coalesce(b.data -> 'split', '[]'::jsonb)) e
+       where b.user_id = ${userId}
+      union all
+      select btrim(n) as name
+        from saved_groups g, jsonb_array_elements_text(g.names) n
+       where g.user_id = ${userId}
+    ), counted as (
+      select lower(name) as key, name, count(*) as n from seen where name <> '' group by lower(name), name
+    ), best as (
+      select key, (array_agg(name order by n desc, name))[1] as name, sum(n)::int as count from counted group by key
+    )
+    select name, count from best
+     where key not in (select jsonb_array_elements_text(${JSON.stringify(exclude)}::jsonb))
+       and key not in (select name_key from people where user_id = ${userId})
+     order by count desc, name
+     limit ${limit}
+  `);
+  const list = (Array.isArray(rows) ? rows : (rows as { rows?: unknown[] }).rows ?? []) as { name: string; count: number }[];
+  return list.map((r) => ({ name: r.name, count: Number(r.count) }));
 }
 
 // --- profile ---------------------------------------------------------------
