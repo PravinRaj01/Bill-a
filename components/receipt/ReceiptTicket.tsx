@@ -53,19 +53,19 @@ export function ReceiptTicket({
       <header className="ticket-top space-y-4 rounded-t-3xl bg-surface bg-[linear-gradient(180deg,rgb(255_255_255/0.06),transparent_70%)] px-6 pt-6 pb-8">
         <div className="flex items-center justify-between gap-3">
           <span className="rounded-full bg-coral/15 px-3 py-1 text-xs font-bold tracking-widest text-coral uppercase">Receipt</span>
-          <span className="font-mono text-xs tracking-wider text-muted-foreground uppercase">{shortDate(date)}</span>
+          <span className="type-eyebrow">{shortDate(date)}</span>
         </div>
-        <h2 data-testid="ticket-title" className="text-2xl leading-tight font-black tracking-tight break-words text-white">
+        <h2 data-testid="ticket-title" className="text-2xl leading-tight font-black tracking-tight break-words text-foreground">
           {title}
         </h2>
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Total</p>
-            <Money cents={total} currency={symbol} className="text-4xl font-black tracking-tight text-white" />
+            <p className="type-eyebrow">Total</p>
+            <Money cents={total} currency={symbol} className="text-4xl font-black tracking-tight text-foreground" />
           </div>
           {rows.length > 1 && (
             <div className="space-y-1.5 text-right">
-              <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Splitting with</p>
+              <p className="type-eyebrow">Splitting with</p>
               <div className="flex justify-end">
                 <AvatarStack names={rows.map((r) => r.name)} />
               </div>
@@ -87,12 +87,12 @@ export function ReceiptTicket({
             <>
               <PersonAvatar name={row.name} />
               <div className="min-w-0 flex-1 text-left sm:flex-none">
-                <span className="block truncate text-base font-bold text-white">{row.name}</span>
+                <span className="block truncate text-base font-bold text-foreground">{row.name}</span>
                 {row.note}
               </div>
               {/* The dotted leader from the name to the amount, as on a till receipt. */}
               <span aria-hidden className="mb-2 hidden min-w-3 flex-1 self-end border-b-2 border-dotted border-white/15 sm:block" />
-              <Money cents={row.amount} currency={symbol} className="text-xl font-bold text-white" />
+              <Money cents={row.amount} currency={symbol} className="text-xl font-bold text-foreground" />
               {expandable && <ChevronDown aria-hidden className={cn("size-4 shrink-0 text-muted-foreground transition-transform", isOpen && "rotate-180")} />}
             </>
           );
@@ -122,7 +122,7 @@ export function ReceiptTicket({
                     className="flex flex-wrap gap-2 overflow-hidden px-4"
                   >
                     {chips.map((c, i) => (
-                      <li key={`${c.name}-${i}`} className="rounded-full bg-surface-2 px-3 py-1.5 text-sm text-zinc-200">
+                      <li key={`${c.name}-${i}`} className="rounded-full bg-surface-2 px-3 py-1.5 text-sm text-foreground">
                         {c.name}
                         {c.share && <span className="ml-1.5 text-muted-foreground tabular-nums">{c.share}</span>}
                       </li>

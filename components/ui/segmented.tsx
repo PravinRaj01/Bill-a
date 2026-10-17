@@ -39,7 +39,7 @@ export function Segmented<T extends string>({
       role="radiogroup"
       aria-label={label}
       onKeyDown={onKeyDown}
-      className={cn("relative flex w-full rounded-full bg-surface-2 p-1", className)}
+      className={cn("relative flex w-full glass-inset rounded-full p-1", className)}
     >
       {options.map((o) => {
         const active = o.value === value;

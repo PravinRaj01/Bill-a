@@ -34,11 +34,11 @@ export function BalanceCard({
   const bothWays = person.bills.some((b) => b.amount > 0) && person.bills.some((b) => b.amount < 0);
 
   return (
-    <li data-testid="balance-card" data-person={person.name} className="space-y-4 rounded-3xl border border-white/5 bg-surface p-5">
+    <li data-testid="balance-card" data-person={person.name} className="space-y-4 rounded-3xl glass p-5">
       <div className="flex items-center gap-3">
         <PersonAvatar name={person.name} className="size-11" />
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-lg font-bold text-white">{person.name}</h3>
+          <h3 className="truncate text-lg font-bold text-foreground">{person.name}</h3>
           <p className="text-sm text-muted-foreground">
             across {n} {n === 1 ? "bill" : "bills"}
           </p>
@@ -63,7 +63,7 @@ export function BalanceCard({
             type="button"
             data-testid="balance-nudge"
             onClick={() => onNudge(person)}
-            className={cn(action, "flex-1 border-white/10 text-zinc-200 hover:bg-white/5")}
+            className={cn(action, "flex-1 border-white/10 text-foreground hover:bg-white/5")}
           >
             <Send className="size-4" /> Nudge {person.name}
           </button>
@@ -84,7 +84,7 @@ export function BalanceCard({
         type="button"
         aria-expanded={open}
         onClick={() => setOpen(!open)}
-        className="flex min-h-11 w-full items-center justify-between px-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-white"
+        className="flex min-h-11 w-full items-center justify-between px-1 text-sm font-semibold text-muted-foreground transition-colors hover:text-foreground"
       >
         {open ? "Hide bills" : `Show ${n === 1 ? "the bill" : `${n} bills`}`}
         <ChevronDown className={cn("size-4 transition-transform", open && "rotate-180")} />
@@ -105,10 +105,10 @@ export function BalanceCard({
                 <Link
                   href={`/dashboard/history/${b.id}?from=balances`}
                   transitionTypes={["nav-forward"]}
-                  className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-surface-2/60 px-3 py-2 transition-colors hover:bg-white/5"
+                  className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-white/[0.07] px-3 py-2 transition-colors hover:bg-white/5"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold text-white">{b.title}</span>
+                    <span className="block truncate text-sm font-semibold text-foreground">{b.title}</span>
                     <span className="block text-xs text-muted-foreground">
                       {shortDate(b.createdAt)}
                       {b.dueDate ? ` · due ${shortDate(b.dueDate)}` : ""}

@@ -38,7 +38,7 @@ function Chips({ names, selected, onPick }: { names: string[]; selected: string;
             }}
             className={cn(
               "flex min-h-11 shrink-0 items-center gap-2 rounded-full border py-1 pr-4 pl-1 text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/30",
-              on ? "border-coral bg-coral/15 text-white" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10",
+              on ? "border-coral bg-coral/15 text-foreground" : "border-white/10 bg-white/5 text-foreground/80 hover:bg-white/10",
             )}
           >
             <PersonAvatar name={name} compact className="size-8" />
@@ -76,13 +76,13 @@ function MultiEditor({
   const ok = left === 0 && entered > 0;
 
   return (
-    <div data-testid="multi-payer" className="space-y-3 rounded-2xl bg-surface-2/60 p-3">
+    <div data-testid="multi-payer" className="space-y-3 rounded-2xl bg-white/[0.07] p-3">
       <p className="px-1 text-sm text-muted-foreground">How much did each person pay?</p>
       <ul className="space-y-2">
         {names.map((n) => (
           <li key={n} className="flex items-center gap-2">
             <PersonAvatar name={n} compact className="size-8" />
-            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{n}</span>
+            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">{n}</span>
             {left > 0 && cents(n) === 0 && (
               <button type="button" onClick={() => setDraft({ ...draft, [n]: centsToInput(left) })} className="min-h-9 rounded-full px-3 text-xs font-semibold text-coral hover:bg-coral/10">
                 Rest
@@ -94,7 +94,7 @@ function MultiEditor({
               placeholder="0.00"
               value={draft[n]}
               onChange={(e) => setDraft({ ...draft, [n]: e.target.value.replace(/[^0-9.,]/g, "").slice(0, 10) })}
-              className="h-11 w-24 rounded-lg border border-white/10 bg-black/30 px-2 text-right text-base tabular-nums text-white outline-none focus:border-white/40"
+              className="h-11 w-24 rounded-lg border border-white/10 glass-inset px-2 text-right text-base tabular-nums text-foreground outline-none focus:border-white/40"
             />
           </li>
         ))}
@@ -102,22 +102,22 @@ function MultiEditor({
       <p
         role="status"
         data-testid="multi-left"
-        className={cn("px-1 text-sm font-semibold tabular-nums", left === 0 ? "text-success" : left > 0 ? "text-warning" : "text-red-400")}
+        className={cn("px-1 text-sm font-semibold tabular-nums", left === 0 ? "text-success" : left > 0 ? "text-warning" : "text-destructive")}
       >
         {left === 0 ? `✓ Adds up to ${formatMoney(total, symbol)}` : left > 0 ? `${formatMoney(left, symbol)} left to assign` : `${formatMoney(-left, symbol)} too much`}
       </p>
-      <button type="button" data-testid="everyone-own" onClick={onEveryoneOwn} className="min-h-11 w-full rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 hover:bg-white/5">
+      <button type="button" data-testid="everyone-own" onClick={onEveryoneOwn} className="min-h-11 w-full rounded-xl border border-white/10 text-sm font-semibold text-foreground hover:bg-white/5">
         Everyone paid their own share
       </button>
       <div className="flex gap-2">
-        <Button type="button" variant="outline" className="h-11 flex-1 rounded-xl border-white/10 text-sm text-zinc-300" onClick={onCancel}>
+        <Button type="button" variant="outline" className="h-11 flex-1 rounded-xl border-white/10 text-sm text-foreground/80" onClick={onCancel}>
           Cancel
         </Button>
         <Button
           type="button"
           data-testid="multi-apply"
           disabled={!ok}
-          className="h-11 flex-1 rounded-xl bg-coral text-sm font-bold text-coral-foreground hover:bg-coral/90"
+          className="h-11 flex-1 text-sm"
           onClick={() => onApply(names.filter((n) => cents(n) > 0).map((n) => ({ name: n, amount: cents(n) })))}
         >
           Apply
@@ -190,9 +190,9 @@ export function PayerPicker({
           }}
         />
       ) : (
-        <div data-testid="multi-summary" className="flex flex-wrap items-center gap-2 rounded-2xl bg-surface-2/60 p-3 text-sm">
+        <div data-testid="multi-summary" className="flex flex-wrap items-center gap-2 rounded-2xl bg-white/[0.07] p-3 text-sm">
           {paidBy.map((p) => (
-            <span key={p.name} className="flex items-center gap-1.5 rounded-full bg-white/5 py-1 pr-3 pl-1 font-semibold text-white">
+            <span key={p.name} className="flex items-center gap-1.5 rounded-full bg-white/5 py-1 pr-3 pl-1 font-semibold text-foreground">
               <PersonAvatar name={p.name} compact className="size-7" />
               {p.name} <span className="tabular-nums text-muted-foreground">{formatMoney(p.amount, symbol)}</span>
             </span>
@@ -200,11 +200,11 @@ export function PayerPicker({
         </div>
       )}
       <div className="flex flex-wrap gap-x-4">
-        <button type="button" data-testid="open-multi" onClick={() => setEditing(true)} className="min-h-11 px-1 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-white hover:underline">
+        <button type="button" data-testid="open-multi" onClick={() => setEditing(true)} className="min-h-11 px-1 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           {multi ? "Edit amounts" : "Several people paid"}
         </button>
         {multi && !choosing && (
-          <button type="button" data-testid="one-paid" onClick={() => setChoosing(true)} className="min-h-11 px-1 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-white hover:underline">
+          <button type="button" data-testid="one-paid" onClick={() => setChoosing(true)} className="min-h-11 px-1 text-sm font-semibold text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
             One person paid it all
           </button>
         )}

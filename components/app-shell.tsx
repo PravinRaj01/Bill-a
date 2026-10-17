@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { StartSheet } from "@/components/nav/StartSheet"
 import { signOutAction } from "@/app/auth/actions"
+import { Button } from "@/components/ui/button";
 
 type NavItem = { name: string; href: string; icon: typeof Home }
 
@@ -48,7 +49,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
         aria-current={active ? "page" : undefined}
         className={cn(
           "relative flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-2xl outline-none transition-colors focus-visible:ring-2 focus-visible:ring-white/30",
-          active ? "text-white" : "text-muted-foreground hover:text-white"
+          active ? "text-foreground" : "text-muted-foreground hover:text-foreground"
         )}
       >
         {active && <m.span layoutId="nav-pill" className="absolute inset-x-2 inset-y-1 -z-10 rounded-2xl bg-white/10" transition={{ type: "spring", stiffness: 500, damping: 40 }} />}
@@ -75,14 +76,9 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
       <div className="flex flex-1">
         {/* Desktop sidebar */}
         <aside className="hidden md:flex w-64 flex-col border-r border-white/8 bg-white/[0.035] p-6 backdrop-blur-xl">
-          <button
-            type="button"
-            data-testid="new-split"
-            onClick={() => setStartOpen(true)}
-            className="mb-6 flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-coral font-bold text-coral-foreground shadow-[var(--coral-glow)] transition-transform active:scale-[0.98]"
-          >
+          <Button type="button" size="lg" data-testid="new-split" onClick={() => setStartOpen(true)} className="mb-6 w-full">
             <Plus className="size-5" strokeWidth={3} /> New split
-          </button>
+          </Button>
           <nav className="flex-1 space-y-2">
             {navItems.map((item) => (
               <Link
@@ -101,11 +97,11 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
             ))}
           </nav>
           {signedIn ? (
-            <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 mt-auto text-zinc-500 hover:text-red-400">
+            <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 mt-auto text-muted-foreground hover:text-destructive">
               <LogOut className="w-5 h-5" /> Logout
             </button>
           ) : (
-            <Link href="/" className="flex items-center gap-3 px-3 py-2 mt-auto text-zinc-500 hover:text-white">
+            <Link href="/" className="flex items-center gap-3 px-3 py-2 mt-auto text-muted-foreground hover:text-foreground">
               <LogIn className="w-5 h-5" /> Log in
             </Link>
           )}
@@ -137,7 +133,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
           {signedIn ? (
             right.map(tab)
           ) : (
-            <Link href="/" className="flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-2xl text-muted-foreground hover:text-white">
+            <Link href="/" className="flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-2xl text-muted-foreground hover:text-foreground">
               <LogIn className="size-5" />
               <span className="text-[10px] font-bold tracking-tight">Log in</span>
             </Link>

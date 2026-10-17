@@ -139,9 +139,9 @@ export function SettleUp({ model }: { model: SettleModel }) {
     });
 
   return (
-    <section aria-label="Settle up" data-testid="settle-up" className="space-y-5 border-t border-white/5 p-5">
+    <section aria-label="Settle up" data-testid="settle-up" className="space-y-5 border-t border-white/8 p-5">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="text-base font-bold text-white">Settle up</h3>
+        <h3 className="text-base font-bold text-foreground">Settle up</h3>
         {model.tracked && <span className="text-xs font-semibold text-success">Tracked in History</span>}
       </div>
 
@@ -163,7 +163,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
           data-testid="me-select"
           value={settlement.me ?? ""}
           onChange={(e) => void model.change((x) => ({ ...x, me: e.target.value || undefined }))}
-          className="h-11 rounded-xl border border-white/10 bg-surface-2 px-3 text-base text-white"
+          className="h-11 glass-inset rounded-xl px-3 text-base text-foreground"
         >
           {!settlement.me && <option value="">Choose…</option>}
           {names.map((n) => (
@@ -173,7 +173,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
       </label>
 
       {view && !view.ok && (
-        <div role="alert" data-testid="paid-mismatch" className="space-y-3 rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-sm text-amber-200">
+        <div role="alert" data-testid="paid-mismatch" className="space-y-3 rounded-xl border border-warning/30 bg-warning/5 p-3 text-sm text-warning">
           <p>
             What was paid ({formatMoney(view.fronted, symbol)}) doesn&apos;t match the bill ({formatMoney(view.owed, symbol)}). That happens when the split changed after you entered who paid.
           </p>
@@ -182,7 +182,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
               type="button"
               data-testid="scale-paid"
               onClick={() => void model.change((x) => withPayers(x, scalePaidBy(x.paidBy, view.owed)))}
-              className="min-h-11 rounded-full border border-amber-400/40 bg-amber-400/10 px-4 text-sm font-semibold text-amber-100 hover:bg-amber-400/20"
+              className="min-h-11 rounded-full border border-warning/40 bg-warning/10 px-4 text-sm font-semibold text-warning hover:bg-warning/20"
             >
               Scale what each paid to {formatMoney(view.owed, symbol)}
             </button>
@@ -190,7 +190,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
               type="button"
               data-testid="one-paid-fix"
               onClick={() => setChoosing(true)}
-              className="min-h-11 rounded-full border border-white/15 px-4 text-sm font-semibold text-zinc-200 hover:bg-white/5"
+              className="min-h-11 rounded-full border border-white/15 px-4 text-sm font-semibold text-foreground hover:bg-white/5"
             >
               One person paid it all
             </button>
@@ -201,20 +201,20 @@ export function SettleUp({ model }: { model: SettleModel }) {
       {view?.ok && (
         <>
           {view.transfers.length === 0 ? (
-            <p data-testid="nothing-owed" className="rounded-xl bg-surface-2/60 p-3 text-sm text-muted-foreground">Nobody owes anybody: everyone paid their own share.</p>
+            <p data-testid="nothing-owed" className="rounded-xl bg-white/[0.07] p-3 text-sm text-muted-foreground">Nobody owes anybody: everyone paid their own share.</p>
           ) : (
             <>
               <div aria-live="polite" data-testid="settle-progress">
                 <div className="mb-2 flex items-baseline justify-between gap-3 text-sm">
                   <span className="text-muted-foreground">
-                    <Money cents={view.collected} currency={symbol} className="font-bold text-white" /> of{" "}
-                    <Money cents={view.owed} currency={symbol} className="font-semibold text-white" /> collected
+                    <Money cents={view.collected} currency={symbol} className="font-bold text-foreground" /> of{" "}
+                    <Money cents={view.owed} currency={symbol} className="font-semibold text-foreground" /> collected
                   </span>
                   <span className={cn("shrink-0 text-xs font-semibold", view.status === "settled" ? "text-success" : "text-muted-foreground")}>
                     {view.status === "settled" ? "✓ All settled" : `${view.paidCount} of ${view.transfers.length} paid`}
                   </span>
                 </div>
-                <div role="progressbar" aria-label="Collected" aria-valuemin={0} aria-valuemax={view.owed} aria-valuenow={view.collected} className="h-2.5 overflow-hidden rounded-full bg-surface-2">
+                <div role="progressbar" aria-label="Collected" aria-valuemin={0} aria-valuemax={view.owed} aria-valuenow={view.collected} className="h-2.5 overflow-hidden rounded-full bg-white/10">
                   <m.div className="h-full rounded-full bg-success" initial={false} animate={{ width: `${(view.collected / view.owed) * 100}%` }} transition={{ type: "spring", stiffness: 300, damping: 36 }} />
                 </div>
               </div>
@@ -227,17 +227,17 @@ export function SettleUp({ model }: { model: SettleModel }) {
                     data-testid="transfer"
                     data-paid={t.paid ? "true" : undefined}
                     transition={{ type: "spring", stiffness: 500, damping: 40 }}
-                    className={cn("flex items-center gap-2 rounded-2xl bg-surface-2/60 p-2 pl-3", t.paid && "opacity-60")}
+                    className={cn("flex items-center gap-2 rounded-2xl bg-white/[0.07] p-2 pl-3", t.paid && "opacity-60")}
                   >
                     {/* One avatar (who owes); the sentence names both people and may wrap, so it is never cut off. */}
                     <div className="flex min-w-0 flex-1 items-center gap-3">
                       <PersonAvatar name={t.from} compact className="size-9 shrink-0" />
                       <div className="min-w-0">
-                        <p className={cn("text-sm leading-snug font-semibold text-white", t.paid && "line-through")}>
+                        <p className={cn("text-sm leading-snug font-semibold text-foreground", t.paid && "line-through")}>
                           {t.from} <ArrowRight className="inline size-3.5 text-muted-foreground" aria-hidden /> {t.to}
                           <span className="sr-only"> (pays)</span>
                         </p>
-                        <Money cents={t.amount} currency={symbol} className="text-lg font-bold text-white" />
+                        <Money cents={t.amount} currency={symbol} className="text-lg font-bold text-foreground" />
                       </div>
                     </div>
                     {!t.paid && (
@@ -245,7 +245,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
                         type="button"
                         aria-label={`Nudge ${t.from}`}
                         onClick={() => nudge(t.from)}
-                        className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
+                        className="flex size-11 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
                       >
                         <Send className="size-4" />
                       </button>
@@ -257,7 +257,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
                       onClick={() => toggle(t)}
                       className={cn(
                         "flex size-11 shrink-0 items-center justify-center rounded-full border transition-colors",
-                        t.paid ? "border-success bg-success text-black" : "border-white/15 text-zinc-400 hover:border-white/40 hover:text-white",
+                        t.paid ? "border-success bg-success text-background" : "border-white/15 text-muted-foreground hover:border-white/40 hover:text-foreground",
                       )}
                     >
                       <Check className="size-5" strokeWidth={3} />
@@ -271,7 +271,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
                   type="button"
                   data-testid="nudge-all"
                   onClick={nudgeAll}
-                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-semibold text-zinc-200 transition-colors hover:bg-white/5"
+                  className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-white/10 text-sm font-semibold text-foreground transition-colors hover:bg-white/5"
                 >
                   <Send className="size-4" /> Nudge everyone who owes
                 </button>
@@ -291,12 +291,12 @@ export function SettleUp({ model }: { model: SettleModel }) {
                 const date = addDays(today, n as number);
                 const on = settlement.dueDate === date;
                 return (
-                  <button key={label} type="button" aria-pressed={on} onClick={() => setDue(on ? null : date)} className={cn(chip, on ? "border-coral bg-coral/15 text-coral" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10")}>
+                  <button key={label} type="button" aria-pressed={on} onClick={() => setDue(on ? null : date)} className={cn(chip, on ? "border-coral bg-coral/15 text-coral" : "border-white/10 bg-white/5 text-foreground/80 hover:bg-white/10")}>
                     {label}
                   </button>
                 );
               })}
-              <span className={cn(chip, "relative cursor-pointer", custom ? "border-coral bg-coral/15 text-coral" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10", "flex items-center")}>
+              <span className={cn(chip, "relative cursor-pointer", custom ? "border-coral bg-coral/15 text-coral" : "border-white/10 bg-white/5 text-foreground/80 hover:bg-white/10", "flex items-center")}>
                 Pick a date
                 <input
                   type="date"
@@ -313,7 +313,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
                 />
               </span>
               {settlement.dueDate && (
-                <button type="button" onClick={() => { setCustom(false); setDue(null); }} className={cn(chip, "border-transparent text-muted-foreground hover:text-white")}>
+                <button type="button" onClick={() => { setCustom(false); setDue(null); }} className={cn(chip, "border-transparent text-muted-foreground hover:text-foreground")}>
                   Clear
                 </button>
               )}
@@ -328,7 +328,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
       )}
 
       {model.tracked && (
-        <button type="button" onClick={() => void model.stop()} className="min-h-11 px-1 text-sm text-muted-foreground underline-offset-4 hover:text-white hover:underline">
+        <button type="button" onClick={() => void model.stop()} className="min-h-11 px-1 text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">
           Stop tracking this bill
         </button>
       )}

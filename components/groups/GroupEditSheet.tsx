@@ -65,7 +65,7 @@ export function GroupEditSheet({
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent data-testid="group-edit">
         <DrawerHeader>
-          <DrawerTitle className="text-white">Edit group</DrawerTitle>
+          <DrawerTitle className="text-foreground">Edit group</DrawerTitle>
           <DrawerDescription className="text-muted-foreground">Rename it, or change who is in it.</DrawerDescription>
         </DrawerHeader>
 
@@ -74,7 +74,7 @@ export function GroupEditSheet({
             <Label htmlFor="group-name" className="text-xs font-semibold text-muted-foreground">
               Group name
             </Label>
-            <Input id="group-name" data-testid="group-name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} className="h-12 rounded-xl border-white/10 bg-surface-2 text-base text-white" />
+            <Input id="group-name" data-testid="group-name" maxLength={60} value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
           <div className="space-y-2">
@@ -83,14 +83,14 @@ export function GroupEditSheet({
             </p>
             <ul className="flex flex-wrap gap-2" data-testid="group-members">
               {people.map((p) => (
-                <li key={p} className="flex items-center gap-2 rounded-full bg-surface-2 py-1 pr-1 pl-1">
+                <li key={p} className="flex items-center gap-2 rounded-full bg-white/10 py-1 pr-1 pl-1">
                   <PersonAvatar name={p} compact className="size-7" />
                   <span className="text-sm font-semibold">{p}</span>
                   <button
                     type="button"
                     aria-label={`Remove ${p}`}
                     onClick={() => setPeople(people.filter((x) => x !== p))}
-                    className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-white"
+                    className="flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/10 hover:text-foreground"
                   >
                     <X size={14} />
                   </button>
@@ -108,7 +108,7 @@ export function GroupEditSheet({
                 onChange={(e) => setNewPerson(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), add())}
                 enterKeyHint="done"
-                className="h-12 rounded-xl border-white/10 bg-surface-2 text-base text-white"
+               
               />
               <Button type="button" data-testid="group-add" variant="outline" onClick={add} disabled={!newPerson.trim()} className="h-12 rounded-xl border-white/10 px-4" aria-label="Add person">
                 <Plus size={18} />
@@ -123,10 +123,10 @@ export function GroupEditSheet({
           )}
 
           <div className="flex gap-3">
-            <Button type="button" data-testid="group-save" onClick={save} disabled={!canSave} className="h-12 flex-1 rounded-xl bg-coral text-base font-bold text-coral-foreground hover:bg-coral/90">
+            <Button type="button" data-testid="group-save" onClick={save} disabled={!canSave} className="h-12 flex-1">
               {saving && <Loader2 className="mr-2 size-4 animate-spin" />} Save
             </Button>
-            <Button type="button" data-testid="group-delete" variant="outline" onClick={onDelete} aria-label="Delete group" className="h-12 rounded-xl border-white/10 px-4 text-red-400 hover:bg-red-500/10 hover:text-red-300">
+            <Button type="button" data-testid="group-delete" variant="outline" onClick={onDelete} aria-label="Delete group" className="h-12 rounded-xl border-white/10 px-4 text-destructive hover:bg-destructive/10 hover:text-destructive">
               <Trash2 size={18} />
             </Button>
           </div>

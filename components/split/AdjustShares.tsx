@@ -18,13 +18,13 @@ function AdjustPanel({ s, onClose }: { s: SplitSession; onClose: () => void }) {
     <div data-testid="adjust-panel" className="space-y-4">
       <SharesEditor people={names} symbol={s.symbol} editor={editor} />
       <div className="flex gap-2">
-        <Button type="button" variant="outline" className="h-12 flex-1 rounded-xl border-white/10 text-sm font-semibold text-zinc-300" onClick={onClose}>
+        <Button type="button" variant="outline" className="h-12 flex-1 rounded-xl border-white/10 text-sm font-semibold text-foreground/80" onClick={onClose}>
           Cancel
         </Button>
         <Button
           type="button"
           data-testid="adjust-apply"
-          className="h-12 flex-1 rounded-xl bg-coral text-base font-bold text-coral-foreground hover:bg-coral/90"
+          className="h-12 flex-1"
           onClick={async () => {
             await s.applyShares(editor.amounts);
             onClose();
@@ -46,7 +46,7 @@ export function AdjustShares({ s }: { s: SplitSession }) {
       type="button"
       variant="outline"
       data-testid="adjust-open"
-      className="h-12 w-full rounded-xl border-white/10 text-sm font-semibold text-zinc-200"
+      className="h-12 w-full rounded-xl border-white/10 text-sm font-semibold text-foreground"
       onClick={() => setOpen(true)}
     >
       <SlidersHorizontal className="mr-2 size-4" /> Adjust shares

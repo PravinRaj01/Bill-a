@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { updateProfileName } from "@/lib/actions/user";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 
 const KEY = "billa.setup.dismissed.v1";
 
@@ -73,13 +74,13 @@ export function SetupChecklist({
   );
 
   return (
-    <section aria-label="Get set up" data-testid="setup-checklist" className="space-y-2 rounded-3xl border border-white/5 bg-surface p-4">
+    <section aria-label="Get set up" data-testid="setup-checklist" className="space-y-2 rounded-3xl glass p-4">
       <div className="flex items-center justify-between px-3">
         <div>
           <h2 className="text-base font-bold">Get set up</h2>
           <p className="text-xs text-muted-foreground" data-testid="setup-progress">{done} of 3 done</p>
         </div>
-        <button type="button" data-testid="setup-dismiss" aria-label="Dismiss" onClick={dismiss} className="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-white">
+        <button type="button" data-testid="setup-dismiss" aria-label="Dismiss" onClick={dismiss} className="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
           <X size={18} />
         </button>
       </div>
@@ -102,17 +103,11 @@ export function SetupChecklist({
                   onChange={(e) => setName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && saveName()}
                   enterKeyHint="done"
-                  className="h-11 rounded-xl border-white/10 bg-surface-2 text-base text-white"
+                  className="h-11 rounded-xl border-white/10 bg-white/10 text-base text-foreground"
                 />
-                <button
-                  type="button"
-                  data-testid="setup-name-save"
-                  onClick={saveName}
-                  disabled={!name.trim() || saving}
-                  className="flex min-h-11 items-center rounded-xl bg-coral px-4 text-sm font-bold text-coral-foreground disabled:opacity-50"
-                >
+                <Button type="button" data-testid="setup-name-save" onClick={saveName} disabled={!name.trim() || saving}>
                   {saving ? <Loader2 className="size-4 animate-spin" /> : "Save"}
-                </button>
+                </Button>
               </div>
             )}
           </div>

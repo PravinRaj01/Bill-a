@@ -2,7 +2,7 @@
 
 export default function SplashScreen() {
   return (
-    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#09090b]">
+    <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background">
       <div className="relative">
         <div className="absolute -inset-4 bg-white/5 rounded-full blur-2xl animate-pulse" />
         
@@ -17,8 +17,8 @@ export default function SplashScreen() {
       </div>
       
       <div className="mt-8 text-center space-y-2">
-        <h1 className="text-3xl font-black tracking-tighter text-white">Bill.a</h1>
-        <p className="text-[10px] uppercase tracking-[0.5em] text-slate-500 font-bold">The Splitter</p>
+        <h1 className="text-3xl font-black tracking-tighter text-foreground">Bill.a</h1>
+        <p className="text-[10px] uppercase tracking-[0.5em] text-muted-foreground font-bold">The Splitter</p>
       </div>
 
       <div className="absolute bottom-16 w-32 h-[2px] bg-white/5 overflow-hidden rounded-full">

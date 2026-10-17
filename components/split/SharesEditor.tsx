@@ -57,7 +57,7 @@ function InlineValue({
             e.currentTarget.blur();
           }
         }}
-        className={cn("h-10 rounded-lg border border-white/15 bg-black/40 px-2 text-right text-base tabular-nums text-white outline-none focus:border-white/40", width)}
+        className={cn("h-10 rounded-lg border border-white/15 glass-inset px-2 text-right text-base tabular-nums text-foreground outline-none focus:border-white/40", width)}
       />
     );
   }
@@ -118,17 +118,17 @@ export function SharesEditor({
           const pct = percentOf(cents, total);
           const frozen = readOnly || locked[i] || !editor.canMove(i);
           return (
-            <li key={name} data-testid="share-row" data-locked={locked[i] ? "true" : undefined} className="rounded-2xl bg-surface-2/60 px-3 pt-2 pb-0.5">
+            <li key={name} data-testid="share-row" data-locked={locked[i] ? "true" : undefined} className="rounded-2xl bg-white/[0.07] px-3 pt-2 pb-0.5">
               {/* Line 1: who, their amount, the lock. Line 2: the slider with its percent beside it. */}
               <div className="flex items-center gap-2">
                 <PersonAvatar name={name} />
-                <span className="min-w-0 flex-1 truncate text-base font-semibold text-white">{name}</span>
+                <span className="min-w-0 flex-1 truncate text-base font-semibold text-foreground">{name}</span>
                 {readOnly ? (
-                  <Money cents={cents} currency={symbol} className="text-right text-base font-bold text-white" />
+                  <Money cents={cents} currency={symbol} className="text-right text-base font-bold text-foreground" />
                 ) : (
                   <InlineValue
                     label={`${name}'s amount`}
-                    display={<Money cents={cents} currency={symbol} className="text-base font-bold text-white" />}
+                    display={<Money cents={cents} currency={symbol} className="text-base font-bold text-foreground" />}
                     initial={centsToInput(cents)}
                     disabled={locked[i]}
                     width="w-24"
@@ -143,7 +143,7 @@ export function SharesEditor({
                     onClick={() => editor.toggleLock(i)}
                     className={cn(
                       "flex size-11 shrink-0 items-center justify-center rounded-full transition-colors",
-                      locked[i] ? "bg-coral/15 text-coral" : "text-zinc-500 hover:bg-white/5 hover:text-white",
+                      locked[i] ? "bg-coral/15 text-coral" : "text-muted-foreground hover:bg-white/5 hover:text-foreground",
                     )}
                   >
                     {locked[i] ? <Lock className="size-4" /> : <LockOpen className="size-4" />}
@@ -163,7 +163,6 @@ export function SharesEditor({
                     step={step}
                     disabled={frozen}
                     onValueChange={([v]) => onDrag(i, v)}
-                    style={{ ["--slider-color" as string]: personColor(name) }}
                   />
                   <InlineValue
                     label={`${name}'s percent`}
@@ -186,7 +185,7 @@ export function SharesEditor({
 
       <div className="mt-3 flex items-center justify-between gap-3 px-1">
         <div className="flex items-center gap-2 text-sm" aria-live="polite" data-testid="shares-total">
-          <Money cents={amounts.reduce((a, b) => a + b, 0)} currency={symbol} className="font-bold text-white" />
+          <Money cents={amounts.reduce((a, b) => a + b, 0)} currency={symbol} className="font-bold text-foreground" />
           <span className="flex items-center gap-1 font-semibold text-success">
             <Check className="size-3.5" /> 100%
           </span>
@@ -195,7 +194,7 @@ export function SharesEditor({
           <button
             type="button"
             onClick={reset}
-            className="flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-white/5 hover:text-white"
+            className="flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground"
           >
             <RotateCcw className="size-3.5" /> Reset to equal
           </button>

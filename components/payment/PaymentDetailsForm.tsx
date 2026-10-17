@@ -11,6 +11,7 @@ import { validateDuitNowQr } from "@/lib/payment/duitnow";
 import { DUITNOW_ID_LABEL, paymentBlock } from "@/lib/payment/format";
 import { cn } from "@/lib/utils";
 import type { DuitNowIdKind, PaymentDetails } from "@/types/domain";
+import { Button } from "@/components/ui/button";
 
 const BANKS = [
   "Affin Bank", "Alliance Bank", "AmBank", "Bank Islam", "Bank Muamalat", "Bank Rakyat", "BSN", "CIMB", "Hong Leong Bank",
@@ -18,7 +19,7 @@ const BANKS = [
 ];
 const OTHER = "Other";
 
-const field = "h-12 rounded-xl border-white/10 bg-surface-2 text-base text-white md:text-base";
+const field = "glass-inset h-12 rounded-xl text-base text-foreground";
 
 // Everything a friend needs to pay you back, in one editable block: a DuitNow QR read from a bank-app
 // screenshot (kept as its text and redrawn crisply), a DuitNow ID, a bank account and a free note. Nothing
@@ -90,10 +91,10 @@ export function PaymentDetailsForm({
   };
 
   return (
-    <div data-testid="payment-form" className="space-y-6 rounded-3xl border border-white/5 bg-surface p-5">
+    <div data-testid="payment-form" className="space-y-6 rounded-3xl glass p-5">
       {/* DuitNow QR */}
       <section className="space-y-3" aria-labelledby="pay-qr">
-        <h3 id="pay-qr" className="text-sm font-bold text-white">
+        <h3 id="pay-qr" className="text-sm font-bold text-foreground">
           DuitNow QR
         </h3>
         {qr ? (
@@ -102,19 +103,19 @@ export function PaymentDetailsForm({
               <QRCodeSVG value={qr.payload} size={132} level="M" marginSize={1} title="Your DuitNow QR" />
             </div>
             <div className="min-w-0 space-y-2">
-              <p className="text-sm font-semibold text-white">{qr.name ?? "DuitNow QR"}</p>
+              <p className="text-sm font-semibold text-foreground">{qr.name ?? "DuitNow QR"}</p>
               <p className="flex items-center gap-1 text-xs text-success">
                 <Check className="size-3.5" strokeWidth={3} /> Checked: a real DuitNow code
               </p>
               <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={() => fileRef.current?.click()} className="min-h-11 rounded-xl border border-white/10 px-3 text-sm font-semibold text-zinc-200 hover:bg-white/5">
+                <button type="button" onClick={() => fileRef.current?.click()} className="min-h-11 rounded-xl border border-white/10 px-3 text-sm font-semibold text-foreground hover:bg-white/5">
                   Replace
                 </button>
                 <button
                   type="button"
                   data-testid="payment-qr-remove"
                   onClick={() => setQr(null)}
-                  className="flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-muted-foreground hover:text-white"
+                  className="flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-muted-foreground hover:text-foreground"
                 >
                   <Trash2 className="size-4" /> Remove
                 </button>
@@ -127,11 +128,11 @@ export function PaymentDetailsForm({
             data-testid="payment-qr-upload"
             onClick={() => fileRef.current?.click()}
             disabled={reading}
-            className="flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-dashed border-white/10 px-4 text-left text-sm text-muted-foreground transition-colors hover:border-white/25 hover:text-white disabled:opacity-60"
+            className="flex min-h-14 w-full items-center gap-3 rounded-2xl border-2 border-dashed border-white/10 px-4 text-left text-sm text-muted-foreground transition-colors hover:border-white/25 hover:text-foreground disabled:opacity-60"
           >
             {reading ? <Loader2 className="size-5 shrink-0 animate-spin" /> : <ImageUp className="size-5 shrink-0" />}
             <span>
-              <span className="block font-semibold text-white">Upload the QR from your bank app</span>
+              <span className="block font-semibold text-foreground">Upload the QR from your bank app</span>
               <span className="block text-xs">A screenshot of your DuitNow QR. It&apos;s read on this device.</span>
             </span>
           </button>
@@ -146,7 +147,7 @@ export function PaymentDetailsForm({
 
       {/* DuitNow ID */}
       <section className="space-y-3" aria-labelledby="pay-id">
-        <h3 id="pay-id" className="text-sm font-bold text-white">
+        <h3 id="pay-id" className="text-sm font-bold text-foreground">
           DuitNow ID
         </h3>
         <div className="grid gap-3 sm:grid-cols-[11rem_1fr]">
@@ -166,14 +167,14 @@ export function PaymentDetailsForm({
             <Label htmlFor="pay-id-value" className="text-xs text-muted-foreground">
               Number
             </Label>
-            <Input id="pay-id-value" className={field} inputMode={idKind === "passport" ? "text" : "tel"} maxLength={40} placeholder={idKind === "mobile" ? "012-345 6789" : ""} value={idValue} onChange={(e) => setIdValue(e.target.value)} />
+            <Input id="pay-id-value" inputMode={idKind === "passport" ? "text" : "tel"} maxLength={40} placeholder={idKind === "mobile" ? "012-345 6789" : ""} value={idValue} onChange={(e) => setIdValue(e.target.value)} />
           </div>
         </div>
       </section>
 
       {/* Bank */}
       <section className="space-y-3" aria-labelledby="pay-bank">
-        <h3 id="pay-bank" className="text-sm font-bold text-white">
+        <h3 id="pay-bank" className="text-sm font-bold text-foreground">
           Bank account
         </h3>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -196,20 +197,20 @@ export function PaymentDetailsForm({
               <Label htmlFor="pay-bank-other" className="text-xs text-muted-foreground">
                 Bank name
               </Label>
-              <Input id="pay-bank-other" className={field} maxLength={60} value={bankOther} onChange={(e) => setBankOther(e.target.value)} />
+              <Input id="pay-bank-other" maxLength={60} value={bankOther} onChange={(e) => setBankOther(e.target.value)} />
             </div>
           )}
           <div className="space-y-1.5">
             <Label htmlFor="pay-bank-account" className="text-xs text-muted-foreground">
               Account number
             </Label>
-            <Input id="pay-bank-account" className={field} inputMode="numeric" maxLength={30} value={account} onChange={(e) => setAccount(e.target.value.replace(/[^0-9 -]/g, ""))} />
+            <Input id="pay-bank-account" inputMode="numeric" maxLength={30} value={account} onChange={(e) => setAccount(e.target.value.replace(/[^0-9 -]/g, ""))} />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="pay-bank-holder" className="text-xs text-muted-foreground">
               Name on the account
             </Label>
-            <Input id="pay-bank-holder" className={field} maxLength={80} autoComplete="name" value={holder} onChange={(e) => setHolder(e.target.value)} />
+            <Input id="pay-bank-holder" maxLength={80} autoComplete="name" value={holder} onChange={(e) => setHolder(e.target.value)} />
           </div>
         </div>
         {bankHalfDone && <p className="text-xs text-muted-foreground">Add both the bank and the account number, or neither.</p>}
@@ -217,19 +218,19 @@ export function PaymentDetailsForm({
 
       {/* Note */}
       <section className="space-y-1.5" aria-labelledby="pay-note">
-        <Label id="pay-note" htmlFor="pay-note-input" className="text-sm font-bold text-white">
+        <Label id="pay-note" htmlFor="pay-note-input" className="text-sm font-bold text-foreground">
           Anything else
         </Label>
-        <Input id="pay-note-input" className={field} maxLength={200} placeholder="e.g. TnG eWallet 012-345 6789" value={note} onChange={(e) => setNote(e.target.value)} />
+        <Input id="pay-note-input" maxLength={200} placeholder="e.g. TnG eWallet 012-345 6789" value={note} onChange={(e) => setNote(e.target.value)} />
       </section>
 
       {/* What friends see */}
-      <div className="space-y-1.5 rounded-2xl bg-surface-2 p-4">
+      <div className="space-y-1.5 rounded-2xl bg-white/10 p-4">
         <p className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground">
           <QrCode className="size-3.5" /> This is what friends will see
         </p>
         {preview ? (
-          <pre data-testid="payment-preview" className="font-sans text-sm whitespace-pre-wrap text-zinc-200">
+          <pre data-testid="payment-preview" className="font-sans text-sm whitespace-pre-wrap text-foreground">
             {preview}
           </pre>
         ) : (
@@ -244,15 +245,9 @@ export function PaymentDetailsForm({
           {error}
         </p>
       )}
-      <button
-        type="button"
-        data-testid="payment-save"
-        onClick={save}
-        disabled={saving || bankHalfDone}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-coral text-base font-bold text-coral-foreground transition-opacity disabled:opacity-50"
-      >
+      <Button type="button" size="lg" data-testid="payment-save" onClick={save} disabled={saving || bankHalfDone} className="w-full">
         {saving && <Loader2 className="size-4 animate-spin" />} Save payment details
-      </button>
+      </Button>
     </div>
   );
 }

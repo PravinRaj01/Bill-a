@@ -12,7 +12,7 @@ export function PaymentToggle({ payment }: { payment: PaymentShare }) {
     <label data-testid="payment-toggle" className="flex min-h-11 items-center justify-between gap-3 px-1 text-sm">
       <span className="text-muted-foreground">
         Add my payment details to messages{" "}
-        <Link href="/dashboard/account" className="font-semibold text-white underline underline-offset-4">
+        <Link href="/dashboard/account" className="font-semibold text-foreground underline underline-offset-4">
           Edit
         </Link>
       </span>

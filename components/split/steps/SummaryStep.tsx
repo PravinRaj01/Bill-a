@@ -108,13 +108,13 @@ export function SummaryStep({ s }: { s: SplitSession }) {
   const adjustTab: ReactNode = (
     <>
       {several && (
-        <div className="border-t border-white/5 p-5">
+        <div className="border-t border-white/8 p-5">
           <AdjustShares s={s} />
         </div>
       )}
 
       {several && (
-        <div className="space-y-3 border-t border-white/5 p-5">
+        <div className="space-y-3 border-t border-white/8 p-5">
           <div className="text-xs font-semibold text-muted-foreground">Round shares for cash</div>
           <Segmented
             label="Cash rounding"
@@ -129,7 +129,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
                 data-testid="absorber"
                 value={s.finalSplit[s.absorberIndex]?.name}
                 onChange={(e) => void s.chooseCashRounding(s.cashUnit, e.target.value)}
-                className="h-11 rounded-xl border border-white/10 bg-surface-2 px-3 text-base text-white"
+                className="h-11 glass-inset rounded-xl px-3 text-base text-foreground"
               >
                 {s.finalSplit.map((r) => (
                   <option key={r.name} value={r.name}>{r.name}</option>
@@ -140,9 +140,9 @@ export function SummaryStep({ s }: { s: SplitSession }) {
         </div>
       )}
 
-      <div className="space-y-3 border-t border-white/5 p-5">
+      <div className="space-y-3 border-t border-white/8 p-5">
         <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
-          <Sparkles size={14} className="text-amber-400" /> Change something
+          <Sparkles size={14} className="text-warning" /> Change something
         </div>
         <div className="flex gap-2">
           <Input
@@ -154,14 +154,14 @@ export function SummaryStep({ s }: { s: SplitSession }) {
             placeholder={`e.g. ${s.people[0] ?? "Sam"} didn't have the rice`}
             disabled={s.loading}
             enterKeyHint="go"
-            className="h-12 border-white/5 bg-surface-2 text-base text-white"
+            className="h-12 border-white/8 bg-white/10 text-base text-foreground"
           />
           <Button
             data-testid="modify-apply"
             type="button"
             onClick={apply}
             disabled={s.loading || !modifyText.trim()}
-            className="h-12 rounded-xl bg-coral px-5 font-bold text-coral-foreground hover:bg-coral/90"
+            className="h-12 px-5"
           >
             {s.loading ? <Loader2 className="size-4 animate-spin" /> : "Apply"}
           </Button>
@@ -169,7 +169,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
         {s.splitNote && !s.clarify && <p data-testid="split-note" className="text-xs text-muted-foreground">{s.splitNote}</p>}
       </div>
 
-      <div className="border-t border-white/5">
+      <div className="border-t border-white/8">
         <button
           type="button"
           onClick={() => setShowReasoning(!showReasoning)}
@@ -181,7 +181,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
         </button>
         {showReasoning && (
           <div className="px-5 pb-5">
-            <div className="max-h-60 overflow-y-auto rounded-xl border border-white/5 bg-black/40 p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-zinc-400">
+            <div className="max-h-60 overflow-y-auto rounded-xl border border-white/8 glass-inset p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
               {s.splitResult}
             </div>
           </div>
@@ -191,20 +191,20 @@ export function SummaryStep({ s }: { s: SplitSession }) {
   );
 
   const shareTab: ReactNode = (
-    <div className="space-y-3 border-t border-white/5 p-5">
-      <Button type="button" data-testid="share-summary" className="h-12 w-full rounded-xl bg-[#25D366] text-base font-bold text-black hover:bg-[#25D366]/90" onClick={share}>
+    <div className="space-y-3 border-t border-white/8 p-5">
+      <Button type="button" variant="whatsapp" size="lg" data-testid="share-summary" className="w-full" onClick={share}>
         <Share2 className="mr-2 size-4" /> Share summary
       </Button>
       <Button
         type="button"
         variant="outline"
         data-testid="share-image-open"
-        className="h-12 w-full rounded-xl border-white/10 text-base font-semibold text-zinc-200"
+        className="h-12 w-full rounded-xl border-white/10 text-base font-semibold text-foreground"
         onClick={() => setImageOpen(true)}
       >
         <ImageIcon className="mr-2 size-4" /> Share as image
       </Button>
-      <Button type="button" variant="outline" className="h-12 w-full rounded-xl border-white/10 text-sm font-semibold text-zinc-300" onClick={s.finish}>
+      <Button type="button" variant="outline" className="h-12 w-full rounded-xl border-white/10 text-sm font-semibold text-foreground/80" onClick={s.finish}>
         Finish session
       </Button>
     </div>
@@ -214,14 +214,14 @@ export function SummaryStep({ s }: { s: SplitSession }) {
     <div className="space-y-6">
       <ReceiptTicket title={s.billTitle} date={new Date()} symbol={symbol} rows={rows}>
         {(s.clarify || s.disagree) && (
-          <div className="space-y-3 border-t border-white/5 p-5">
+          <div className="space-y-3 border-t border-white/8 p-5">
             {s.clarify && <ClarifyChips chips={s.clarify.chips} hasPreview={!!s.clarify.preview} onAction={s.handleClarify} />}
             {s.disagree && <CrossCheck aiName={s.disagree.tier === "groq" ? "Groq" : "Gemini"} ai={s.disagree.ai.result} rules={s.disagree.rules.result} symbol={symbol} onPick={s.pickReading} />}
           </div>
         )}
 
         {several ? (
-          <div className="border-t border-white/5 px-5 pt-4 pb-1">
+          <div className="border-t border-white/8 px-5 pt-4 pb-1">
             <Segmented
               label="Summary sections"
               value={tab}

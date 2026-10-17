@@ -9,7 +9,7 @@ import { listGroups } from "@/lib/actions/groups";
 import type { SavedGroup } from "@/lib/db/schema";
 
 const tile =
-  "flex min-h-28 flex-col justify-between rounded-3xl border border-white/10 bg-surface-2 p-4 text-left outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30 active:scale-[0.98]";
+  "flex min-h-28 flex-col justify-between rounded-3xl glass-inset p-4 text-left outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30 active:scale-[0.98]";
 
 // "Start a split" from anywhere (the + in the bottom nav and the sidebar button): scan a receipt, type an
 // amount, or begin with a saved group. Groups are an account feature, so guests just see the two tiles.
@@ -33,7 +33,7 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
     <Drawer open={open} onOpenChange={onOpenChange}>
       <DrawerContent data-testid="start-sheet">
         <DrawerHeader>
-          <DrawerTitle className="text-white">Start a split</DrawerTitle>
+          <DrawerTitle className="text-foreground">Start a split</DrawerTitle>
           <DrawerDescription className="text-muted-foreground">How do you want to begin?</DrawerDescription>
         </DrawerHeader>
 
@@ -62,10 +62,10 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
           {signedIn && groups.length > 0 && (
             <section aria-label="With a saved group" className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <h3 className="flex items-center gap-2 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
+                <h3 className="flex items-center gap-2 type-eyebrow">
                   <Users size={14} /> With a group
                 </h3>
-                <Link href="/dashboard/groups" transitionTypes={["nav-forward"]} onClick={close} className="text-xs font-semibold text-muted-foreground hover:text-white">
+                <Link href="/dashboard/groups" transitionTypes={["nav-forward"]} onClick={close} className="text-xs font-semibold text-muted-foreground hover:text-foreground">
                   All groups
                 </Link>
               </div>
@@ -77,7 +77,7 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
                       transitionTypes={["nav-forward"]}
                       onClick={close}
                       data-testid="start-group"
-                      className="flex min-h-16 items-center gap-3 rounded-2xl bg-surface-2 px-4 py-2 transition-colors hover:bg-white/10"
+                      className="flex min-h-16 items-center gap-3 rounded-2xl bg-white/10 px-4 py-2 transition-colors hover:bg-white/10"
                     >
                       <AvatarStack names={g.names} max={3} />
                       <span className="min-w-0 flex-1">
