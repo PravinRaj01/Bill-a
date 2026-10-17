@@ -248,6 +248,49 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
 
 // --- profile ---------------------------------------------------------------
 
+export interface Profile {
+  username: string | null;
+  avatarSeed: string | null;
+  tz: string;
+}
+
+export async function getProfile(db: Db, userId: string): Promise<Profile | null> {
+  const [row] = await db.select({ username: users.username, avatarSeed: users.avatarSeed, tz: users.tz }).from(users).where(eq(users.id, userId)).limit(1);
+  return row ?? null;
+}
+
+/**
+ * Sets the user's username and/or portrait (null clears, undefined leaves alone), for the session's user only.
+ * A username that is already taken comes back as "username-taken" (the unique constraint decides, so two
+ * people claiming the same name at once can't both win) rather than being thrown.
+ */
+export async function setProfile(
+  db: Db,
+  userId: string,
+  patch: { username?: string | null; avatarSeed?: string | null },
+): Promise<{ ok: true; profile: Profile } | { ok: false; reason: "username-taken" | "not-found" }> {
+  const set: { username?: string | null; avatarSeed?: string | null } = {};
+  if (patch.username !== undefined) set.username = patch.username;
+  if (patch.avatarSeed !== undefined) set.avatarSeed = patch.avatarSeed;
+  try {
+    if (Object.keys(set).length > 0) {
+      const rows = await db.update(users).set(set).where(eq(users.id, userId)).returning({ id: users.id });
+      if (rows.length === 0) return { ok: false, reason: "not-found" };
+    }
+  } catch (e) {
+    const err = e as { code?: string; cause?: { code?: string }; message?: string };
+    const code = err.code ?? err.cause?.code;
+    if (code === "23505" || /duplicate key|unique constraint/i.test(err.message ?? "")) return { ok: false, reason: "username-taken" };
+    throw e;
+  }
+  const profile = await getProfile(db, userId);
+  return profile ? { ok: true, profile } : { ok: false, reason: "not-found" };
+}
+
+export async function setTimeZone(db: Db, userId: string, tz: string): Promise<void> {
+  await db.update(users).set({ tz }).where(eq(users.id, userId));
+}
+
 /** The user's display name (null clears it). Keyed by the session's user id only. */
 export async function setUserName(db: Db, userId: string, name: string | null): Promise<string | null> {
   await db.update(users).set({ name }).where(eq(users.id, userId));

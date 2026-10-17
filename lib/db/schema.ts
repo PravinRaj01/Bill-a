@@ -1,5 +1,6 @@
 import {
   boolean,
+  check,
   index,
   integer,
   jsonb,
@@ -43,7 +44,13 @@ export const users = pgTable("user", {
   // How friends can pay this user back (DuitNow QR/ID, bank, note). Validated by lib/validation/payment.ts
   // before it is written; null until the user sets something.
   paymentDetails: jsonb("payment_details").$type<PaymentDetails>(),
-});
+  // How friends find this person: lower-case a-z 0-9 _, 3 to 20 characters, unique. Null until claimed.
+  username: text("username").unique(),
+  // What the portrait is generated from (lib/ui/avatar.ts); null = generated from the name.
+  avatarSeed: text("avatar_seed"),
+  // The person's IANA time zone, so "today" and the daily digest use their own day.
+  tz: text("tz").notNull().default("Asia/Kuala_Lumpur"),
+}, (t) => [check("user_username_format", sql`${t.username} ~ '^[a-z0-9_]{3,20}$'`)]);
 
 export const accounts = pgTable(
   "account",

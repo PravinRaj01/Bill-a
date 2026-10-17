@@ -29,6 +29,13 @@
       "when": 1792204066712,
       "tag": "0003_includes_me",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792205040550,
+      "tag": "0004_profile",
+      "breakpoints": true
     }
   ]
 }

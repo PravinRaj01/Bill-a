@@ -22,6 +22,20 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth(() 
 
   return {
     ...authConfig,
+    callbacks: {
+      ...authConfig.callbacks,
+      // At sign-in only: bring the profile (username, portrait) into the token, so it shows without a reload.
+      // This file runs on the Node runtime and can read the database; the edge config in auth.config.ts can't.
+      async jwt(params) {
+        const token = authConfig.callbacks.jwt(params);
+        if (params.user?.id) {
+          const [row] = await db.select({ username: users.username, avatarSeed: users.avatarSeed }).from(users).where(eq(users.id, params.user.id)).limit(1);
+          token.username = row?.username ?? null;
+          token.avatarSeed = row?.avatarSeed ?? null;
+        }
+        return token;
+      },
+    },
     // Only users + accounts exist in our schema. Sessions/verification tables
     // are for database sessions, which we deliberately don't use.
     adapter: DrizzleAdapter(db, { usersTable: users, accountsTable: accounts }),

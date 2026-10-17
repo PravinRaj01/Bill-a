@@ -35,10 +35,15 @@ export const authConfig = {
       // The signed-in user changed their own name (lib/actions/user.ts updateProfileName): the token is
       // made at sign-in, so without this the old name would stay in the session until the next login.
       if (trigger === "update" && session?.user && "name" in session.user) token.name = session.user.name ?? null;
+      // Same for the profile (lib/actions/user.ts updateProfile): username and portrait.
+      if (trigger === "update" && session?.user && "username" in session.user) token.username = session.user.username ?? null;
+      if (trigger === "update" && session?.user && "avatarSeed" in session.user) token.avatarSeed = session.user.avatarSeed ?? null;
       return token;
     },
     session({ session, token }) {
       if (token.sub) session.user.id = token.sub;
+      session.user.username = token.username ?? null;
+      session.user.avatarSeed = token.avatarSeed ?? null;
       return session;
     },
   },
