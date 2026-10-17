@@ -8,6 +8,8 @@ import { Home, History, Scale, User, LogOut, LogIn, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { StartSheet } from "@/components/nav/StartSheet"
+import { PersonAvatar } from "@/components/person-avatar"
+import { useProfile } from "@/components/profile-provider"
 import { signOutAction } from "@/app/auth/actions"
 import { Button } from "@/components/ui/button";
 
@@ -15,6 +17,7 @@ type NavItem = { name: string; href: string; icon: typeof Home }
 
 export function AppShell({ children, signedIn }: { children: React.ReactNode; signedIn: boolean }) {
   const pathname = usePathname()
+  const profile = useProfile()
   const [startOpen, setStartOpen] = useState(false)
 
   // History, Balances and Account require a login (see lib/auth.config.ts), so guests
@@ -68,9 +71,16 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
           </div>
           <span className="text-sm font-bold tracking-tighter italic">Bill.a</span>
         </div>
-        <Badge variant="outline" className="text-[10px] border-white/10 opacity-50 uppercase tracking-widest">
-          V1.0
-        </Badge>
+        {signedIn ? (
+          // Your own portrait, straight to your profile.
+          <Link href="/dashboard/account?tab=profile" aria-label="Your profile" data-testid="header-avatar" className="flex size-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white/30">
+            <PersonAvatar name={profile.meName} compact className="size-9" />
+          </Link>
+        ) : (
+          <Badge variant="outline" className="text-[10px] border-white/10 opacity-50 uppercase tracking-widest">
+            V1.0
+          </Badge>
+        )}
       </header>
 
       <div className="flex flex-1">

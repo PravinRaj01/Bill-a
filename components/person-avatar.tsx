@@ -1,33 +1,44 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useSeedFor } from "@/components/profile-provider";
 import { avatarDataUri, cachedAvatar } from "@/lib/ui/avatar";
 import { cn } from "@/lib/utils";
 import { initials, personColor } from "@/lib/ui/person-color";
 
+// False on the server and while hydrating, true afterwards (and straight away on client navigations). The portrait
+// cache only exists in the browser, so reading it during hydration would render a picture where the server drew
+// initials: a hydration mismatch.
+const noopSubscribe = () => () => {};
+const useIsClient = () => useSyncExternalStore(noopSubscribe, () => true, () => false);
+
 /** The person's portrait: instantly if it has been made before, else null until it arrives. */
-function usePortrait(name: string): string | null {
-  const [made, setMade] = useState<{ name: string; uri: string } | null>(null);
+function usePortrait(name: string, seed?: string): string | null {
+  const [made, setMade] = useState<{ key: string; uri: string } | null>(null);
+  const key = `${name}|${seed ?? ""}`;
+  const isClient = useIsClient();
   useEffect(() => {
-    if (cachedAvatar(name)) return;
+    if (cachedAvatar(name, seed)) return;
     let cancelled = false;
-    avatarDataUri(name)
-      .then((uri) => !cancelled && setMade({ name, uri }))
+    avatarDataUri(name, seed)
+      .then((uri) => !cancelled && setMade({ key, uri }))
       .catch(() => {
         /* the initials stay */
       });
     return () => {
       cancelled = true;
     };
-  }, [name]);
-  return cachedAvatar(name) ?? (made?.name === name ? made.uri : null);
+  }, [name, seed, key]);
+  if (!isClient) return null;
+  return cachedAvatar(name, seed) ?? (made?.key === key ? made.uri : null);
 }
 
 // A hand-drawn portrait made from the name (lib/ui/avatar.ts) inside the person's stable colour ring. The
 // initials show while the portrait loads, and stay if it can't.
 export function PersonAvatar({ name, className, compact }: { name: string; className?: string; compact?: boolean }) {
-  const portrait = usePortrait(name);
+  // The user's own chosen portrait (Account › Profile) wins over the one generated from their name.
+  const portrait = usePortrait(name, useSeedFor(name));
   return (
     <Avatar
       className={cn("size-9", compact ? "border-2" : "ring-2", className)}

@@ -6,16 +6,42 @@ import { getUserIdOrNull, requireUserId } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import * as q from "@/lib/db/queries";
 import { parsePaymentDetails } from "@/lib/validation/payment";
+import { parseProfileInput, validTimeZone } from "@/lib/validation/profile";
 import type { PaymentDetails } from "@/types/domain";
 
 /** The signed-in user's public profile, or null for guests. */
 export async function getCurrentUser() {
   const u = (await auth())?.user;
   if (!u?.id) return null;
-  return { id: u.id, name: u.name ?? null, email: u.email ?? null, image: u.image ?? null };
+  return { id: u.id, name: u.name ?? null, email: u.email ?? null, image: u.image ?? null, username: u.username ?? null, avatarSeed: u.avatarSeed ?? null };
 }
 
 const nameSchema = z.string().trim().max(80);
+
+export type UpdateProfileResult = { ok: true; username: string | null; avatarSeed: string | null } | { ok: false; error: string };
+
+/**
+ * Saves the signed-in user's @username and/or portrait, and refreshes the live session with them (the token is
+ * made at sign-in). The user id comes from the session only; unknown keys are refused, so this can't write
+ * anything else.
+ */
+export async function updateProfile(input: unknown): Promise<UpdateProfileResult> {
+  const userId = await requireUserId();
+  const parsed = parseProfileInput(input);
+  if (!parsed.ok) return { ok: false, error: parsed.error };
+  const r = await q.setProfile(getDb(), userId, parsed.value);
+  if (!r.ok) return { ok: false, error: r.reason === "username-taken" ? "That username is taken." : "Couldn't find your account." };
+  await unstable_update({ user: { username: r.profile.username, avatarSeed: r.profile.avatarSeed } });
+  return { ok: true, username: r.profile.username, avatarSeed: r.profile.avatarSeed };
+}
+
+/** Remembers the browser's time zone (quietly, for the daily digest). Ignored if it isn't a real zone. */
+export async function setTimezone(tz: string): Promise<void> {
+  const userId = await getUserIdOrNull();
+  const zone = validTimeZone(tz);
+  if (!userId || !zone) return;
+  await q.setTimeZone(getDb(), userId, zone);
+}
 
 /** Saves the signed-in user's display name (empty clears it) and refreshes the current session with it. */
 export async function updateProfileName(input: string): Promise<{ ok: true; name: string | null } | { ok: false; error: string }> {

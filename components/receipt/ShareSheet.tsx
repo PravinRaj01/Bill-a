@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Switch } from "@/components/ui/switch";
 import type { PaymentShare } from "@/hooks/use-payment-share";
+import { useProfile } from "@/components/profile-provider";
+import { samePerson } from "@/lib/split/participants";
 import { avatarsFor } from "@/lib/ui/avatar";
 import { allOwedToMe } from "@/lib/split/settle";
 import { isWebKit, renderPng, saveImage, shareImage } from "@/lib/ui/share-image";
@@ -30,6 +32,10 @@ export function ShareSheet({
   const hostRef = useRef<HTMLDivElement>(null);
   const [png, setPng] = useState<{ blob: Blob; url: string } | null>(null);
   const [failed, setFailed] = useState(false);
+  // Your own chosen portrait goes on the picture too.
+  const profile = useProfile();
+  const mySeed = profile.signedIn ? profile.avatarSeed : null;
+  const myName = profile.meName;
   // Portraits for the people on the receipt; the picture waits for them so it never goes out with blanks.
   const [avatars, setAvatars] = useState<Record<string, string> | null>(null);
   const names = data.shares.map((s) => s.name);
@@ -47,13 +53,13 @@ export function ShareSheet({
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
-    avatarsFor(JSON.parse(namesKey) as string[])
+    avatarsFor(JSON.parse(namesKey) as string[], (n) => (mySeed && samePerson(n, myName) ? mySeed : undefined))
       .then((a) => !cancelled && setAvatars(a))
       .catch(() => !cancelled && setAvatars({})); // no portraits: initials
     return () => {
       cancelled = true;
     };
-  }, [open, namesKey]);
+  }, [open, namesKey, mySeed, myName]);
 
   useEffect(() => {
     if (!open || avatars === null) return;
