@@ -29,7 +29,7 @@ export function ConfirmSheet({
 }) {
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="border-white/10 bg-surface text-white">
+      <DrawerContent>
         <DrawerHeader>
           <DrawerTitle className="text-white">{title}</DrawerTitle>
           <DrawerDescription className="text-muted-foreground">{description}</DrawerDescription>
