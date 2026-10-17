@@ -58,10 +58,14 @@ If the consent screen is still in *Testing*, add testers, or publish it, before 
    Not needed on Vercel: `DATABASE_URL_UNPOOLED` (migrations only), `AUTH_URL` / `AUTH_TRUST_HOST`
    (Vercel sets the host automatically), any AI keys (there are none server-side).
    Leave `ENABLE_DEV_PAGES` unset so `/dev/*` returns 404.
-4. Deploy. `vercel.json` pins functions to `sin1` and schedules `/api/cron/digest` hourly (each user's digest goes out
-   from 09:00 in their own time zone, once a day). Hourly crons need a Vercel Pro plan; on Hobby change the schedule
-   to once a day (e.g. `0 1 * * *`, 09:00 in Malaysia) or the deploy is rejected. Without the VAPID keys the Alerts
-   tab says notifications aren't set up and nothing is pushed.
+4. Deploy. `vercel.json` pins functions to `sin1` and schedules `/api/cron/digest` once a day at 01:00 UTC
+   (09:00 in Malaysia), which fits Vercel's Hobby plan. The route sends each opted-in user at most one summary a
+   day and only once it is past 09:00 in their own time zone; anyone it is too early for gets it the next day.
+   Without the VAPID keys the Alerts tab says notifications aren't set up and nothing is pushed.
+
+   **Later, for exact per-user timing:** keep the route, remove `crons` from `vercel.json`, and have a free
+   scheduler such as cron-job.org call `GET https://<your-domain>/api/cron/digest` every hour with the header
+   `Authorization: Bearer <CRON_SECRET>`. (Vercel Pro also allows an hourly `0 * * * *` cron.)
 
 ## 4. Smoke test the live URL
 
