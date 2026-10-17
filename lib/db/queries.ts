@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { billHistory, savedGroups, users } from "./schema";
-import type { BillData, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
+import type { BillData, Participant, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
 
 // THE AUTHORIZATION LAYER — this file is what replaces Supabase RLS.
 //
@@ -44,20 +44,21 @@ export async function getGroup(db: Db, userId: string, id: string) {
 export async function createGroup(
   db: Db,
   userId: string,
-  input: { groupName: string; names: string[] },
+  input: { groupName: string; names: string[]; includesMe?: boolean },
 ) {
+  const includesMe = input.includesMe ?? true;
   const [row] = await db
     .insert(savedGroups)
-    .values({ userId, groupName: input.groupName, names: input.names })
-    .onConflictDoUpdate({ target: [savedGroups.userId, savedGroups.groupKey], set: { names: input.names } })
+    .values({ userId, groupName: input.groupName, names: input.names, includesMe })
+    .onConflictDoUpdate({ target: [savedGroups.userId, savedGroups.groupKey], set: { names: input.names, includesMe } })
     .returning();
   return row;
 }
 
-export async function updateGroupNames(db: Db, userId: string, id: string, names: string[]) {
+export async function updateGroupNames(db: Db, userId: string, id: string, names: string[], includesMe?: boolean) {
   const [row] = await db
     .update(savedGroups)
-    .set({ names })
+    .set({ names, ...(includesMe === undefined ? {} : { includesMe }) })
     .where(and(eq(savedGroups.id, id), eq(savedGroups.userId, userId)))
     .returning();
   return row ?? null;
@@ -75,12 +76,12 @@ export async function updateGroup(
   db: Db,
   userId: string,
   id: string,
-  input: { groupName: string; names: string[] },
+  input: { groupName: string; names: string[]; includesMe?: boolean },
 ): Promise<UpdateGroupResult> {
   try {
     const [row] = await db
       .update(savedGroups)
-      .set({ groupName: input.groupName, names: input.names })
+      .set({ groupName: input.groupName, names: input.names, ...(input.includesMe === undefined ? {} : { includesMe: input.includesMe }) })
       .where(and(eq(savedGroups.id, id), eq(savedGroups.userId, userId)))
       .returning();
     return row ? { ok: true, group: row } : { ok: false, reason: "not-found" };
@@ -115,6 +116,8 @@ const listColumns = {
   // Two small slices of the jsonb for the list's settle-up status; never the whole bill.
   split: sql<SplitRecord[] | null>`${billHistory.data} -> 'split'`,
   settlement: sql<Settlement | null>`${billHistory.data} -> 'settlement'`,
+  // Who was in it and which one is the user (null on bills saved before batch 5).
+  participants: sql<Participant[] | null>`${billHistory.data} -> 'participants'`,
 };
 
 export const listBills = (db: Db, userId: string) =>
@@ -139,6 +142,7 @@ export const listTrackedBills = (db: Db, userId: string) =>
       createdAt: billHistory.createdAt,
       split: sql<SplitRecord[] | null>`${billHistory.data} -> 'split'`,
       settlement: sql<Settlement | null>`${billHistory.data} -> 'settlement'`,
+      participants: sql<Participant[] | null>`${billHistory.data} -> 'participants'`,
     })
     .from(billHistory)
     .where(and(eq(billHistory.userId, userId), sql`${billHistory.data} -> 'settlement' is not null`))

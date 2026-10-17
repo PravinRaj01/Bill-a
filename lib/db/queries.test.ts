@@ -226,6 +226,32 @@ describe.skipIf(!hasDb)("listBills settle-up slices (real Neon DB)", { timeout: 
 });
 
 // Balances read only the tracked bills, with just the two slices they need.
+describe.skipIf(!hasDb)("participants slice (real Neon DB)", { timeout: 60_000 }, () => {
+  const db = getDb();
+  const tag = crypto.randomUUID().slice(0, 8);
+  let uid = "";
+  beforeAll(async () => {
+    const [u] = await db.insert(users).values({ email: `parts-${tag}@example.invalid`, name: "P" }).returning({ id: users.id });
+    uid = u.id;
+  });
+  afterAll(async () => {
+    if (uid) await db.delete(users).where(eq(users.id, uid));
+  });
+
+  it("listBills and listTrackedBills return the participants (null on older bills)", async () => {
+    const settlement = { me: "Alexis", paidBy: [{ name: "Alexis", amount: 1000 }], paid: {} };
+    const newer: BillData = { ...data, people: ["Alexis", "Riley"], participants: [{ name: "Alexis", me: true }, { name: "Riley" }], settlement };
+    const older: BillData = { ...data, settlement };
+    await upsertBill(db, uid, { ...bill(crypto.randomUUID(), "new format"), data: newer });
+    await upsertBill(db, uid, { ...bill(crypto.randomUUID(), "old format"), data: older });
+    const listed = await listBills(db, uid);
+    expect(listed.find((r) => r.billTitle === "new format")?.participants).toEqual([{ name: "Alexis", me: true }, { name: "Riley" }]);
+    expect(listed.find((r) => r.billTitle === "old format")?.participants).toBeNull();
+    const tracked = await listTrackedBills(db, uid);
+    expect(tracked.find((r) => r.billTitle === "new format")?.participants?.[0]).toEqual({ name: "Alexis", me: true });
+  });
+});
+
 describe.skipIf(!hasDb)("listTrackedBills (real Neon DB)", { timeout: 60_000 }, () => {
   const db = getDb();
   let uid = "";

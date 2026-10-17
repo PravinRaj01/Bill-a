@@ -1,0 +1,1 @@
+ALTER TABLE "saved_groups" ADD COLUMN "includes_me" boolean DEFAULT true NOT NULL;

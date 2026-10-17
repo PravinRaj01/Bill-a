@@ -1,4 +1,5 @@
 import {
+  boolean,
   index,
   integer,
   jsonb,
@@ -80,7 +81,10 @@ export const savedGroups = pgTable(
     // groups with the same key: saving an existing name updates that group instead of
     // creating a lookalike (which is what happened when Start Scanning was pressed twice).
     groupKey: text("group_key").generatedAlwaysAs(sql`lower(btrim(group_name))`),
+    // The people OTHER than the user (Me is never stored in a name list).
     names: jsonb("names").$type<string[]>().notNull(),
+    // Whether the user is part of this group: starting a split from it pre-adds the Me chip when true.
+    includesMe: boolean("includes_me").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

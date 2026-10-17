@@ -55,3 +55,30 @@ describe("billSchema: settlement", () => {
     expect(billSchema.safeParse(withData({ settlement })).success).toBe(false);
   });
 });
+
+describe("billSchema: participants", () => {
+  const me = { name: "Alexis", me: true as const };
+  const settle = (m?: string) => ({ settlement: { ...(m ? { me: m } : {}), paidBy: [{ name: "Alexis", amount: 12360 }], paid: {} } });
+
+  it("accepts a bill with the user marked, and keeps the participants", () => {
+    const out = billSchema.parse(withData({ participants: [me, { name: "Riley" }], ...settle("Alexis") }));
+    expect(out.data.participants).toEqual([me, { name: "Riley" }]);
+  });
+  it("accepts a bill split for others (nobody is me, settlement.me absent)", () => {
+    expect(billSchema.safeParse(withData({ participants: [{ name: "Alexis" }, { name: "Riley" }], ...settle() })).success).toBe(true);
+  });
+  it("still accepts old bills: no participants, and any settlement.me", () => {
+    expect(billSchema.safeParse(withData(settle("Whoever"))).success).toBe(true);
+  });
+  it.each([
+    ["participants that differ from people", { participants: [me, { name: "Sam" }] }],
+    ["a duplicate name ignoring case", { people: ["Alexis", "alexis"], split: [{ name: "Alexis", amount: 1, items: "x" }, { name: "alexis", amount: 1, items: "x" }], participants: [{ name: "Alexis" }, { name: "alexis" }] }],
+    ["a name containing ->", { people: ["A->B", "Riley"], participants: [{ name: "A->B" }, { name: "Riley" }] }],
+    ["two people marked me", { participants: [me, { name: "Riley", me: true as const }] }],
+    ["a me that links another account", { participants: [{ ...me, userId: "u1" }, { name: "Riley" }] }],
+    ["a settlement.me that disagrees", { participants: [me, { name: "Riley" }], ...settle("Riley") }],
+    ["a settlement.me on a split for others", { participants: [{ name: "Alexis" }, { name: "Riley" }], ...settle("Alexis") }],
+  ])("rejects %s", (_label, patch) => {
+    expect(billSchema.safeParse(withData(patch)).success).toBe(false);
+  });
+});

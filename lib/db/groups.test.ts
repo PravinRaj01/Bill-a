@@ -107,6 +107,27 @@ describe.skipIf(!hasDb)("saving a group never duplicates it (real Neon DB)", { t
     expect((await listGroups(db, B)).find((x) => x.id === theirs.id)!.groupName).toBe(theirs.groupName);
   });
 
+  it("a group includes me by default, and can be saved without me", async () => {
+    const withMe = await createGroup(db, A, { groupName: "Me Default", names: ["P"] });
+    expect(withMe.includesMe).toBe(true);
+    const others = await createGroup(db, A, { groupName: "Others Only", names: ["P", "Q"], includesMe: false });
+    expect(others.includesMe).toBe(false);
+    expect((await listGroups(db, A)).find((g) => g.id === others.id)?.includesMe).toBe(false);
+  });
+
+  it("editing a group can flip includes-me, and saving by the same name keeps what was chosen", async () => {
+    const g = (await listGroups(db, A)).find((x) => x.groupName === "Others Only")!;
+    const r = await updateGroup(db, A, g.id, { groupName: "Others Only", names: ["P", "Q"], includesMe: true });
+    expect(r.ok && r.group.includesMe).toBe(true);
+    // an update that doesn't mention includesMe leaves it alone
+    const r2 = await updateGroup(db, A, g.id, { groupName: "Others Only", names: ["P"] });
+    expect(r2.ok && r2.group.includesMe).toBe(true);
+    // re-saving the same name through createGroup (the Start Scanning path) takes the new value
+    const again = await createGroup(db, A, { groupName: " others only ", names: ["P"], includesMe: false });
+    expect(again.id).toBe(g.id);
+    expect(again.includesMe).toBe(false);
+  });
+
   it("the database itself refuses a lookalike, even if the app code were bypassed", async () => {
     await expect(
       db.insert(savedGroups).values({ userId: A, groupName: "BEST COUPLE", names: ["Z"] }),

@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { participantProblem } from "@/lib/split/participants";
+
 // Shared by the save/sync server actions (a 'use server' file may only export
 // async functions, so the schema lives here) and by the client outbox types.
 // Cents are integers everywhere from here down. `data` is bounded so a client
@@ -16,7 +18,7 @@ export const settlementSchema = z.object({
   dueDate: isoDate.optional(),
 });
 
-export const billSchema = z.object({
+const billObject = z.object({
   clientId: z.uuid(),
   billTitle: z.string().trim().min(1).max(120),
   merchantCategory: z.string().trim().max(40).nullish(),
@@ -51,7 +53,18 @@ export const billSchema = z.object({
       .max(50)
       .optional(),
     settlement: settlementSchema.optional(),
+    // Who was in the split and which one is the user. Optional: bills saved before batch 5 don't have it.
+    participants: z
+      .array(z.object({ name: z.string().max(60), me: z.literal(true).optional(), userId: z.string().max(64).optional() }))
+      .max(50)
+      .optional(),
   }),
+});
+
+// The participant rules (unique names, one Me, settlement.me agreeing) apply only when participants are present.
+export const billSchema = billObject.superRefine((bill, ctx) => {
+  const problem = participantProblem(bill.data);
+  if (problem) ctx.addIssue({ code: "custom", message: problem, path: ["data", "participants"] });
 });
 
 export type BillPayload = z.input<typeof billSchema>;
