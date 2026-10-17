@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./client";
-import { billHistory, people, savedGroups, users } from "./schema";
+import { billHistory, billShares, people, savedGroups, users } from "./schema";
+import { notify } from "./notifications";
 import { confirmSatisfiedClaims, syncShares } from "./social";
 import type { BillData, Participant, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
 
@@ -158,21 +159,42 @@ export async function getBill(db: Db, userId: string, id: string) {
   return row ?? null;
 }
 
+/** Friends a bill was shared with, read BEFORE the bill goes (the share rows cascade away with it). */
+async function sharesOf(db: Db, ownerId: string, ids: string[] | null) {
+  return db
+    .select({ billId: billHistory.id, title: billHistory.billTitle, friendId: billShares.userId })
+    .from(billShares)
+    .innerJoin(billHistory, eq(billHistory.id, billShares.billId))
+    .where(and(eq(billHistory.userId, ownerId), ids ? inArray(billHistory.id, ids) : undefined));
+}
+
+/** "Alex deleted 'Dinner out'", to everyone a deleted bill was shared with. The bill is gone, so no bill id. */
+async function tellDeleted(db: Db, ownerId: string, shares: Awaited<ReturnType<typeof sharesOf>>, deleted: string[]) {
+  const gone = new Set(deleted);
+  for (const sh of shares.filter((x) => gone.has(x.billId))) {
+    await notify(db, { userId: sh.friendId, kind: "bill_deleted", actorId: ownerId, payload: { title: sh.title }, dedupe: `bill_deleted:${sh.billId}` });
+  }
+}
+
 /** Returns how many rows were actually deleted — ids owned by others are silently ignored. */
 export async function deleteBills(db: Db, userId: string, ids: string[]) {
   if (ids.length === 0) return 0;
+  const shares = await sharesOf(db, userId, ids);
   const rows = await db
     .delete(billHistory)
     .where(and(eq(billHistory.userId, userId), inArray(billHistory.id, ids)))
     .returning({ id: billHistory.id });
+  await tellDeleted(db, userId, shares, rows.map((r) => r.id));
   return rows.length;
 }
 
 export async function clearBills(db: Db, userId: string) {
+  const shares = await sharesOf(db, userId, null);
   const rows = await db
     .delete(billHistory)
     .where(eq(billHistory.userId, userId))
     .returning({ id: billHistory.id });
+  await tellDeleted(db, userId, shares, rows.map((r) => r.id));
   return rows.length;
 }
 

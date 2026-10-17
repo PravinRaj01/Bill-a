@@ -219,6 +219,41 @@ export const paymentClaims = pgTable(
   ],
 );
 
+// --- notifications (batch 5) --------------------------------------------------------------------------
+
+export type NotificationKind =
+  | "friend_request"
+  | "friend_accepted"
+  | "bill_added"
+  | "claim_made"
+  | "claim_confirmed"
+  | "claim_rejected"
+  | "bill_deleted"
+  | "nudge";
+
+// What happened to a user, in their inbox. Text is built from kind + payload when it is shown, never stored.
+// `dedupe` makes an event idempotent (a retried save can't notify twice). bill_id goes null when the bill is
+// deleted, and the "owner deleted it" message carries the title in its payload.
+export const notifications = pgTable(
+  "notifications",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").$type<NotificationKind>().notNull(),
+    actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+    billId: uuid("bill_id").references(() => billHistory.id, { onDelete: "set null" }),
+    payload: jsonb("payload").$type<Record<string, string | number>>().notNull().default({}),
+    dedupe: text("dedupe").notNull(),
+    readAt: timestamp("read_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("notifications_dedupe").on(t.userId, t.dedupe),
+    index("notifications_user_idx").on(t.userId, t.createdAt),
+  ],
+);
+
+export type Notification = typeof notifications.$inferSelect;
 export type Friendship = typeof friendships.$inferSelect;
 export type BillShare = typeof billShares.$inferSelect;
 export type PaymentClaim = typeof paymentClaims.$inferSelect;

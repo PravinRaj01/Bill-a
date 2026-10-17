@@ -4,7 +4,8 @@ import { billMe } from "@/lib/split/participants";
 import { settleView, localDate } from "@/lib/split/settle";
 import type { BillData, Participant, Settlement, SplitRecord } from "@/types/domain";
 import type { Db } from "./client";
-import { billHistory, billShares, friendships, paymentClaims, people, users } from "./schema";
+import { notify } from "./notifications";
+import { billHistory, billShares, friendships, notifications, paymentClaims, people, users } from "./schema";
 
 // Friends, shared bills and payment claims. Same rule as queries.ts: every function takes the session's
 // userId and scopes by it, and what a friend can reach is limited to rows an accepted friendship or an
@@ -71,6 +72,7 @@ export async function requestFriend(db: Db, me: string, otherId: string): Promis
     // declined
     if (row.requestedBy === me) return { ok: true, status: "requested" }; // stays declined, silently
     await db.update(friendships).set({ status: "pending", requestedBy: me, createdAt: sql`now()` }).where(pairWhere(me, otherId));
+    await notify(db, { userId: otherId, kind: "friend_request", actorId: me, dedupe: `friend_request:${me}`, refresh: true });
     return { ok: true, status: "requested" };
   }
 
@@ -84,6 +86,7 @@ export async function requestFriend(db: Db, me: string, otherId: string): Promis
     .insert(friendships)
     .values({ userA: sql`least(${me}::text, ${otherId}::text)`, userB: sql`greatest(${me}::text, ${otherId}::text)`, requestedBy: me })
     .onConflictDoNothing();
+  await notify(db, { userId: otherId, kind: "friend_request", actorId: me, dedupe: `friend_request:${me}`, refresh: true });
   return { ok: true, status: "requested" };
 }
 
@@ -122,6 +125,7 @@ export async function answerRequest(db: Db, me: string, otherId: string, accept:
       await linkContact(db, me, theirs);
       await linkContact(db, otherId, mine);
     }
+    await notify(db, { userId: otherId, kind: "friend_accepted", actorId: me, dedupe: `friend_accepted:${me}`, refresh: true });
   }
   return true;
 }
@@ -192,6 +196,8 @@ export async function syncShares(db: Db, ownerId: string, billId: string, data: 
   const add = matched.filter((m) => !have.has(m.userId as string) && !before.has(m.nameKey as string));
   if (add.length) {
     await db.insert(billShares).values(add.map((m) => ({ billId, userId: m.userId as string, asName: m.name }))).onConflictDoNothing();
+    const [bill] = await db.select({ title: billHistory.billTitle }).from(billHistory).where(eq(billHistory.id, billId)).limit(1);
+    for (const m of add) await notify(db, { userId: m.userId as string, kind: "bill_added", actorId: ownerId, billId, payload: { title: bill?.title ?? "a bill" }, dedupe: `bill_added:${billId}` });
   }
   for (const m of matched) {
     const cur = have.get(m.userId as string);
@@ -321,6 +327,7 @@ export async function sharePastBills(db: Db, ownerId: string, friendId: string, 
   const [contact] = await db.select({ name: people.name }).from(people).where(and(eq(people.userId, ownerId), eq(people.linkedUserId, friendId))).limit(1);
   if (!contact) return 0;
   await db.insert(billShares).values(ok.map((b) => ({ billId: b.id, userId: friendId, asName: contact.name }))).onConflictDoNothing();
+  for (const b of ok) await notify(db, { userId: friendId, kind: "bill_added", actorId: ownerId, billId: b.id, payload: { title: b.billTitle }, dedupe: `bill_added:${b.id}` });
   return ok.length;
 }
 
@@ -352,6 +359,15 @@ export async function createClaim(db: Db, viewerId: string, billId: string, tran
       set: { status: "pending", amount: t.amount, createdAt: sql`now()`, resolvedAt: null },
     })
     .returning();
+  await notify(db, {
+    userId: bill.owner.id,
+    kind: "claim_made",
+    actorId: viewerId,
+    billId,
+    payload: { title: bill.billTitle, amount: t.amount, currency: bill.currency },
+    dedupe: `claim_made:${claim.id}`,
+    refresh: true,
+  });
   return { ok: true, claim };
 }
 
@@ -417,7 +433,11 @@ export async function rejectClaim(db: Db, ownerId: string, claimId: string): Pro
         inArray(paymentClaims.billId, db.select({ id: billHistory.id }).from(billHistory).where(eq(billHistory.userId, ownerId))),
       ),
     )
-    .returning({ id: paymentClaims.id });
+    .returning({ id: paymentClaims.id, userId: paymentClaims.userId, billId: paymentClaims.billId, amount: paymentClaims.amount });
+  for (const c of rows) {
+    const [bill] = await db.select({ title: billHistory.billTitle, currency: billHistory.currency }).from(billHistory).where(eq(billHistory.id, c.billId)).limit(1);
+    await notify(db, { userId: c.userId, kind: "claim_rejected", actorId: ownerId, billId: c.billId, payload: { title: bill?.title ?? "a bill", amount: c.amount, currency: bill?.currency ?? "" }, dedupe: `claim_rejected:${c.id}`, refresh: true });
+  }
   return rows.length > 0;
 }
 
@@ -425,5 +445,65 @@ export async function rejectClaim(db: Db, ownerId: string, claimId: string): Pro
 export async function confirmSatisfiedClaims(db: Db, billId: string, settlement: Settlement | undefined): Promise<void> {
   const pending = await db.select().from(paymentClaims).where(and(eq(paymentClaims.billId, billId), eq(paymentClaims.status, "pending")));
   const done = pending.filter((c) => settlement?.paid?.[c.transferKey]?.amount === c.amount).map((c) => c.id);
-  if (done.length) await db.update(paymentClaims).set({ status: "confirmed", resolvedAt: sql`now()` }).where(inArray(paymentClaims.id, done));
+  if (done.length === 0) return;
+  await db.update(paymentClaims).set({ status: "confirmed", resolvedAt: sql`now()` }).where(inArray(paymentClaims.id, done));
+  const [bill] = await db.select({ ownerId: billHistory.userId, title: billHistory.billTitle, currency: billHistory.currency }).from(billHistory).where(eq(billHistory.id, billId)).limit(1);
+  for (const c of pending.filter((x) => done.includes(x.id))) {
+    await notify(db, { userId: c.userId, kind: "claim_confirmed", actorId: bill?.ownerId ?? null, billId, payload: { title: bill?.title ?? "a bill", amount: c.amount, currency: bill?.currency ?? "" }, dedupe: `claim_confirmed:${c.id}`, refresh: true });
+  }
+}
+
+// --- nudges ----------------------------------------------------------------------------------------------
+
+/** What this friend still owes the owner on the bill, from the stored data (0 when untracked or settled). */
+function owedToOwner(data: BillData, asName: string): number {
+  const view = settleView(data.split ?? [], data.settlement, localDate());
+  const friend = asName.trim().toLowerCase();
+  const owner = (billMe(data) ?? "").trim().toLowerCase();
+  return view && view.ok ? view.transfers.filter((t) => !t.paid && t.from.trim().toLowerCase() === friend && t.to.trim().toLowerCase() === owner).reduce((n, t) => n + t.amount, 0) : 0;
+}
+
+export interface Nudgeable {
+  friend: PublicUser;
+  asName: string;
+  owed: number;
+  nudgedToday: boolean;
+}
+
+/** Friends on MY bill who still owe me, and whether I have already nudged them today. */
+export async function listNudgeable(db: Db, ownerId: string, billId: string, today = new Date().toISOString().slice(0, 10)): Promise<Nudgeable[]> {
+  const rows = await db
+    .select({ asName: billShares.asName, data: billHistory.data, ...publicUser })
+    .from(billShares)
+    .innerJoin(billHistory, eq(billHistory.id, billShares.billId))
+    .innerJoin(users, eq(users.id, billShares.userId))
+    .where(and(eq(billHistory.id, billId), eq(billHistory.userId, ownerId)));
+  const out: Nudgeable[] = [];
+  for (const r of rows) {
+    const owed = owedToOwner(r.data, r.asName);
+    if (owed <= 0) continue;
+    const [sent] = await db.select({ id: notifications.id }).from(notifications).where(and(eq(notifications.userId, r.id), eq(notifications.dedupe, `nudge:${billId}:${today}`))).limit(1);
+    out.push({ friend: { id: r.id, username: r.username, name: r.name, avatarSeed: r.avatarSeed }, asName: r.asName, owed, nudgedToday: !!sent });
+  }
+  return out;
+}
+
+export type NudgeResult = { ok: true } | { ok: false; reason: "not-shared" | "nothing-owed" | "already-today" };
+
+/**
+ * The owner of a shared bill nudges a friend who still owes them on it, in the friend's inbox. Once a day per
+ * bill and friend. What they owe comes from the stored bill (never from the caller), and so does the text.
+ */
+export async function nudgeSharedFriend(db: Db, ownerId: string, billId: string, friendId: string, today = new Date().toISOString().slice(0, 10)): Promise<NudgeResult> {
+  const [row] = await db
+    .select({ asName: billShares.asName, data: billHistory.data, title: billHistory.billTitle, currency: billHistory.currency })
+    .from(billShares)
+    .innerJoin(billHistory, eq(billHistory.id, billShares.billId))
+    .where(and(eq(billHistory.id, billId), eq(billHistory.userId, ownerId), eq(billShares.userId, friendId)))
+    .limit(1);
+  if (!row) return { ok: false, reason: "not-shared" };
+  const owed = owedToOwner(row.data, row.asName);
+  if (owed <= 0) return { ok: false, reason: "nothing-owed" };
+  const fresh = await notify(db, { userId: friendId, kind: "nudge", actorId: ownerId, billId, payload: { title: row.title, amount: owed, currency: row.currency }, dedupe: `nudge:${billId}:${today}` });
+  return fresh ? { ok: true } : { ok: false, reason: "already-today" };
 }
