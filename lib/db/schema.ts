@@ -52,6 +52,8 @@ export const users = pgTable("user", {
   avatarSeed: text("avatar_seed"),
   // The person's IANA time zone, so "today" and the daily digest use their own day.
   tz: text("tz").notNull().default("Asia/Kuala_Lumpur"),
+  // The user's own calendar day (YYYY-MM-DD) of the last daily digest, so it goes out at most once per day.
+  digestOn: text("digest_on"),
 }, (t) => [check("user_username_format", sql`${t.username} ~ '^[a-z0-9_]{3,20}$'`)]);
 
 export const accounts = pgTable(
@@ -253,6 +255,22 @@ export const notifications = pgTable(
   ],
 );
 
+// One row per device that opted in to push. The endpoint is the browser's own address for this device, so it is
+// unique; a user re-subscribing on the same device replaces the row.
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [unique("push_subscriptions_endpoint").on(t.endpoint), index("push_subscriptions_user_idx").on(t.userId)],
+);
+
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 export type Notification = typeof notifications.$inferSelect;
 export type Friendship = typeof friendships.$inferSelect;
 export type BillShare = typeof billShares.$inferSelect;

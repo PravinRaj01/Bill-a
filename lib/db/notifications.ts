@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import type { Db } from "./client";
 import { notifications, users, type NotificationKind } from "./schema";
+import { pushNotification } from "@/lib/push/notification";
 
 // The inbox. Same rule as the rest of lib/db: every read and write is scoped by the session's userId, so one
 // user can never list, count or mark another user's notifications.
@@ -31,7 +32,9 @@ export async function notify(db: Db, n: NotifyInput): Promise<boolean> {
         })
         .returning({ id: notifications.id })
     : await q.onConflictDoNothing().returning({ id: notifications.id });
-  return rows.length > 0;
+  if (rows.length === 0) return false;
+  await pushNotification(db, n);
+  return true;
 }
 
 export async function notifyMany(db: Db, list: NotifyInput[]): Promise<void> {

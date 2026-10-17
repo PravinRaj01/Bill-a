@@ -51,11 +51,17 @@ If the consent screen is still in *Testing*, add testers, or publish it, before 
    | `AUTH_SECRET` | a fresh `openssl rand -base64 32` (do **not** reuse the dev one) |
    | `AUTH_GOOGLE_ID` | from Google Cloud |
    | `AUTH_GOOGLE_SECRET` | from Google Cloud |
+   | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` (once; changing them drops every device's subscription) |
+   | `VAPID_SUBJECT` | `mailto:` address push services can contact |
+   | `CRON_SECRET` | a fresh `openssl rand -base64 32`; Vercel Cron sends it to `/api/cron/digest` |
 
    Not needed on Vercel: `DATABASE_URL_UNPOOLED` (migrations only), `AUTH_URL` / `AUTH_TRUST_HOST`
    (Vercel sets the host automatically), any AI keys (there are none server-side).
    Leave `ENABLE_DEV_PAGES` unset so `/dev/*` returns 404.
-4. Deploy. `vercel.json` pins functions to `sin1`.
+4. Deploy. `vercel.json` pins functions to `sin1` and schedules `/api/cron/digest` hourly (each user's digest goes out
+   from 09:00 in their own time zone, once a day). Hourly crons need a Vercel Pro plan; on Hobby change the schedule
+   to once a day (e.g. `0 1 * * *`, 09:00 in Malaysia) or the deploy is rejected. Without the VAPID keys the Alerts
+   tab says notifications aren't set up and nothing is pushed.
 
 ## 4. Smoke test the live URL
 

@@ -4,9 +4,8 @@ import { z } from "zod";
 import { getDb } from "@/lib/db/client";
 import * as q from "@/lib/db/queries";
 import { getUserIdOrNull, requireUserId } from "@/lib/auth/session";
-import { aggregateBalances, localDate, summarizeSettlement, type PersonBalance } from "@/lib/split/settle";
-import { sharedBalances } from "@/lib/split/shared";
-import { listSharedBills } from "@/lib/db/social";
+import { localDate, summarizeSettlement, type PersonBalance } from "@/lib/split/settle";
+import { balancesFor } from "@/lib/db/balances";
 
 const idSchema = z.uuid();
 
@@ -44,17 +43,8 @@ export interface BalancesResult {
 export async function getBalances(): Promise<BalancesResult> {
   const userId = await getUserIdOrNull();
   if (!userId) return { people: [], tracked: 0, withoutMe: 0 };
-  const db = getDb();
-  const [rows, shared] = await Promise.all([q.listTrackedBills(db, userId), listSharedBills(db, userId)]);
-  const today = localDate();
-  const own = aggregateBalances(
-    rows.map((r) => ({ id: r.id, title: r.billTitle, createdAt: r.createdAt, currency: r.currency, split: r.split ?? [], settlement: r.settlement ?? undefined })),
-    today,
-  );
-  // Friends' bills shared with me count too, but only what runs between me and the friend who owns each one.
-  const fromFriends = sharedBalances(shared.map((b) => ({ id: b.id, title: b.billTitle, createdAt: b.createdAt, currency: b.currency, split: b.split, settlement: b.settlement, participants: b.participants, asName: b.asName, owner: b.owner })), today);
-  const people = [...own, ...fromFriends].sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name));
-  return { people, tracked: rows.length + shared.filter((b) => b.settlement).length, withoutMe: rows.filter((r) => !r.settlement?.me && !r.participants).length };
+  const { people, own, shared, withoutMe } = await balancesFor(getDb(), userId, localDate());
+  return { people, tracked: own + shared, withoutMe };
 }
 
 export async function getBill(id: string) {

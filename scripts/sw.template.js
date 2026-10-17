@@ -14,6 +14,7 @@
  *    requests, or per-user pages (History, Account, History detail). Those must come from the
  *    server, every time, so one person's data can't be served to another on a shared phone.
  *  - The cached shells are wiped on sign-out (the page posts "clear-pages").
+ *  - Shows Web Push notifications and opens the page they point to when tapped.
  */
 
 const BUILD_ID = "__BUILD_ID__";
@@ -49,6 +50,43 @@ self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type === "clear-pages") event.waitUntil(caches.delete(PAGES));
   if (data.type === "cache-page" && SHELL_ROUTES.includes(data.path)) event.waitUntil(cachePage(data.path));
+});
+
+// Web Push (lib/push/send.ts): show the banner, and open the right page when it's tapped.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch (_) {
+    /* not JSON: fall back to the defaults below */
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title || "Bill.a", {
+      body: data.body || "",
+      icon: "/icon.png",
+      badge: "/icon.png",
+      tag: data.tag,
+      data: { url: typeof data.url === "string" && data.url.startsWith("/") ? data.url : "/dashboard/notifications" },
+    }),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.url || "/dashboard/notifications", self.location.origin).href;
+  event.waitUntil(
+    (async () => {
+      const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const client of open) {
+        if (client.url.startsWith(self.location.origin) && "focus" in client) {
+          await client.focus();
+          if ("navigate" in client) await client.navigate(target).catch(() => {});
+          return;
+        }
+      }
+      await self.clients.openWindow(target);
+    })(),
+  );
 });
 
 self.addEventListener("fetch", (event) => {
