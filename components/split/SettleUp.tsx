@@ -27,7 +27,7 @@ import {
 import { haptic } from "@/lib/ui/haptics";
 import { shareMessage, shareText } from "@/lib/ui/share";
 import { cn } from "@/lib/utils";
-import type { Settlement, SplitRecord } from "@/types/domain";
+import type { Participant, Settlement, SplitRecord } from "@/types/domain";
 
 const norm = (s: string) => s.trim().toLowerCase();
 const chip = "min-h-11 rounded-full border px-4 text-sm font-semibold transition-colors outline-none focus-visible:ring-2 focus-visible:ring-white/30";
@@ -58,6 +58,11 @@ export interface SettleModel {
   stop: () => void | Promise<void>;
   /** The user's payment details for messages; added only when what is owed is owed to the user. */
   payment?: PaymentShare;
+  /**
+   * Who was in the bill and which one is the user. When given, the card states who you are (or that the bill
+   * was split for others) instead of asking; null/absent means an older bill that still needs "which one is you?".
+   */
+  participants?: Participant[] | null;
 }
 
 export function SettleUp({ model }: { model: SettleModel }) {
@@ -157,20 +162,28 @@ export function SettleUp({ model }: { model: SettleModel }) {
         setChoosing={setChoosing}
       />
 
-      <label className="flex min-h-11 items-center justify-between gap-3 px-1 text-sm">
-        <span className="text-muted-foreground">{settlement.me ? "You are" : "Which one is you?"}</span>
-        <select
-          data-testid="me-select"
-          value={settlement.me ?? ""}
-          onChange={(e) => void model.change((x) => ({ ...x, me: e.target.value || undefined }))}
-          className="h-11 glass-inset rounded-xl px-3 text-base text-foreground"
-        >
-          {!settlement.me && <option value="">Choose…</option>}
-          {names.map((n) => (
-            <option key={n} value={n}>{n}</option>
-          ))}
-        </select>
-      </label>
+      {model.participants ? (
+        // The bill recorded who you are, so there is nothing to ask.
+        <p data-testid="me-fixed" className="flex min-h-11 items-center justify-between gap-3 px-1 text-sm">
+          <span className="text-muted-foreground">{settlement.me ? "You are" : "Split for others"}</span>
+          <span className="font-semibold text-foreground">{settlement.me ?? "You're not in this bill"}</span>
+        </p>
+      ) : (
+        <label className="flex min-h-11 items-center justify-between gap-3 px-1 text-sm">
+          <span className="text-muted-foreground">{settlement.me ? "You are" : "Which one is you?"}</span>
+          <select
+            data-testid="me-select"
+            value={settlement.me ?? ""}
+            onChange={(e) => void model.change((x) => ({ ...x, me: e.target.value || undefined }))}
+            className="h-11 glass-inset rounded-xl px-3 text-base text-foreground"
+          >
+            {!settlement.me && <option value="">Choose…</option>}
+            {names.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+      )}
 
       {view && !view.ok && (
         <div role="alert" data-testid="paid-mismatch" className="space-y-3 rounded-xl border border-warning/30 bg-warning/5 p-3 text-sm text-warning">

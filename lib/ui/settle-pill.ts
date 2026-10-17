@@ -5,7 +5,9 @@ import { settleStatus, type BillSettleSummary } from "@/lib/split/settle";
  * Settle-up state of one bill as a short pill, for History and Home. `today` is the user's own date (the
  * server's is not), so overdue and due-in-N-days are worked out in the browser. Null for an untracked bill.
  */
-export function settlePill(entry: { settle: BillSettleSummary | null; currency?: string | null }, today: string): { text: string; tone: string } | null {
+export function settlePill(entry: { settle: BillSettleSummary | null; currency?: string | null; hosted?: boolean }, today: string): { text: string; tone: string } | null {
+  // Split for others: it isn't the user's to settle, whatever its tracking says.
+  if (entry.hosted) return { text: "Hosted for others", tone: "border-white/10 bg-white/5 text-muted-foreground" };
   const s = entry.settle;
   if (!s) return null;
   const cur = entry.currency || "RM";

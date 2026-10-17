@@ -16,10 +16,13 @@ export async function listBills() {
   const userId = await getUserIdOrNull();
   if (!userId) return [];
   const rows = await q.listBills(getDb(), userId);
-  return rows.map(({ split, settlement, ...rest }) => ({
+  return rows.map(({ split, settlement, participants, ...rest }) => ({
     ...rest,
     // Who was in it (names only), for avatars on Home and History.
     people: (split ?? []).map((x) => x.name),
+    // Split for others: it knows its participants and the user isn't one of them. (The participants themselves
+    // never reach the list: only this flag.)
+    hosted: !!participants && !participants.some((p) => p.me),
     settle: summarizeSettlement(split, settlement),
   }));
 }
@@ -31,7 +34,7 @@ export interface BalancesResult {
   people: PersonBalance[];
   /** How many bills are tracked at all. */
   tracked: number;
-  /** Tracked bills that don't say which person is you: they can't count towards your balances. */
+  /** Older tracked bills that don't say which person is you: they can't count towards your balances. (Bills split for others are not counted here: they were never yours.) */
   withoutMe: number;
 }
 
@@ -44,7 +47,7 @@ export async function getBalances(): Promise<BalancesResult> {
     rows.map((r) => ({ id: r.id, title: r.billTitle, createdAt: r.createdAt, currency: r.currency, split: r.split ?? [], settlement: r.settlement ?? undefined })),
     localDate(),
   );
-  return { people, tracked: rows.length, withoutMe: rows.filter((r) => !r.settlement?.me).length };
+  return { people, tracked: rows.length, withoutMe: rows.filter((r) => !r.settlement?.me && !r.participants).length };
 }
 
 export async function getBill(id: string) {

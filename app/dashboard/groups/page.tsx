@@ -26,7 +26,7 @@ export default function ManageGroups() {
     })
   }, [])
 
-  const save = async (g: SavedGroup, input: { groupName: string; names: string[] }): Promise<string | null> => {
+  const save = async (g: SavedGroup, input: { groupName: string; names: string[]; includesMe?: boolean }): Promise<string | null> => {
     try {
       const r = await updateGroup(g.id, input)
       if (!r.ok) return r.error
@@ -70,7 +70,7 @@ export default function ManageGroups() {
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate text-base font-bold text-foreground">{group.groupName}</h3>
                   <p className="truncate text-sm text-muted-foreground">
-                    {group.names.length} {group.names.length === 1 ? "person" : "people"} · {group.names.join(", ")}
+                    {group.names.length + (group.includesMe ? 1 : 0)} {group.names.length + (group.includesMe ? 1 : 0) === 1 ? "person" : "people"} · {(group.includesMe ? ["You", ...group.names] : group.names).join(", ")}
                   </p>
                 </div>
                 <button

@@ -209,12 +209,12 @@ export default function HistoryList({ initialHistory }: { initialHistory: BillLi
                         </div>
                       </div>
 
-                      {pill && s && (
+                      {pill && (
                         <div className="space-y-2">
                           <span data-testid="settle-pill" className={cn("inline-flex min-h-7 items-center rounded-full border px-3 text-xs font-semibold", pill.tone)}>
                             {pill.text}
                           </span>
-                          {!s.mismatch && s.owed > 0 && (
+                          {s && !bill.hosted && !s.mismatch && s.owed > 0 && (
                             <div
                               role="progressbar"
                               aria-label="Collected"

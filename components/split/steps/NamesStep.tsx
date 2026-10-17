@@ -16,6 +16,13 @@ export function NamesStep({ s }: { s: SplitSession }) {
   const add = () => {
     if (s.addPerson(newName)) setNewName("");
   };
+  // Why the typed name can't be added (case and spacing don't make a new person; "->" is reserved).
+  const problem = newName.trim() ? s.nameProblem(newName) : null;
+  const problemText: Record<string, string> = {
+    duplicate: "That person is already in the split.",
+    you: "That's you, and you're already in the split.",
+    arrow: "Names can't contain the characters \"->\".",
+  };
   const duplicateGroupName =
     s.saveThisGroup &&
     s.groupName.trim() !== "" &&
@@ -25,7 +32,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
     <div className="space-y-6">
       <div className="space-y-1">
         <h2 className="type-title">Who&apos;s splitting?</h2>
-        <p className="text-sm text-muted-foreground">Step {s.quick ? 2 : 1} of 3 · add everyone at the table</p>
+        <p className="text-sm text-muted-foreground">Step {s.quick ? 2 : 1} of 3 · {s.hasMe ? "you're in; add everyone else" : "add everyone at the table"}</p>
       </div>
 
       <div className="space-y-4">
@@ -66,7 +73,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
                     className="flex min-h-12 w-full items-center justify-between border-b border-white/8 px-4 text-left text-sm text-foreground last:border-0 hover:bg-white/10"
                   >
                     <span className="font-medium">{group.groupName}</span>
-                    <span className="text-xs text-muted-foreground">{group.names.length} people</span>
+                    <span className="text-xs text-muted-foreground">{group.names.length + (group.includesMe ? 1 : 0)} people</span>
                   </button>
                 ))}
               </div>
@@ -90,12 +97,17 @@ export function NamesStep({ s }: { s: SplitSession }) {
             type="button"
             aria-label="Add person"
             onClick={add}
-            disabled={!newName.trim()}
+            disabled={!newName.trim() || !!problem}
             className="size-12 shrink-0"
           >
             <Plus size={20} />
           </Button>
         </div>
+        {problem && problemText[problem] && (
+          <p role="alert" data-testid="name-problem" className="-mt-2 px-1 text-sm text-coral">
+            {problemText[problem]}
+          </p>
+        )}
 
         <div className="flex min-h-14 flex-wrap gap-2 rounded-xl border border-white/8 glass-inset p-2">
           {s.people.length === 0 && <p className="self-center px-2 text-sm text-muted-foreground">Nobody yet</p>}
@@ -103,6 +115,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
             <span key={p} className="flex items-center gap-2 rounded-full bg-white/5 py-1 pl-1 pr-1 text-sm text-foreground">
               <PersonAvatar name={p} compact className="size-7" />
               {p}
+              {s.hasMe && p === s.me && <span data-testid="me-badge" className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-bold tracking-wide text-primary uppercase">You</span>}
               <button
                 type="button"
                 aria-label={`Remove ${p}`}
@@ -114,6 +127,17 @@ export function NamesStep({ s }: { s: SplitSession }) {
             </span>
           ))}
         </div>
+
+        {!s.hasMe && !s.legacy && (
+          <div data-testid="hosted-note" className="space-y-3 rounded-xl border border-white/8 bg-white/5 p-3">
+            <p className="text-sm text-muted-foreground">
+              You&apos;re not in this split. It&apos;s saved as <strong className="text-foreground">hosted for others</strong> and won&apos;t count in your balances.
+            </p>
+            <Button type="button" variant="glass" size="sm" data-testid="add-me" onClick={s.addMe}>
+              <Plus size={14} /> Add me ({s.meName})
+            </Button>
+          </div>
+        )}
 
         {!s.isGuest && (
           <div className="space-y-3 pt-1">

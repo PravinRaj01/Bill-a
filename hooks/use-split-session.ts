@@ -27,6 +27,7 @@ import type { ClarifyAction } from "@/components/ai/ClarifyChips";
 import type { Reading } from "@/components/ai/CrossCheck";
 import type { SavedGroup } from "@/lib/db/schema";
 import { defaultSettlement, guessMe, localDate, normalizeSettlement, settleView } from "@/lib/split/settle";
+import { buildParticipants, meNameFor, nameProblem as checkName, resolveSelfRefs, samePerson } from "@/lib/split/participants";
 import type { Cents, Receipt, ReceiptItem, Settlement, SplitRecord } from "@/types/domain";
 
 // All of the new-session flow's state and behaviour, in one place, so each step is a plain
@@ -82,6 +83,13 @@ export function useSplitSession() {
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<CurrentUser>(null);
   const [isGuest, setIsGuest] = useState(false);
+  // Who the user is in THIS split. `me` is the name used for them in `people` (null = split for others).
+  // `legacy` marks a restored bill saved before batch 5: it has no participants, so it keeps its guessed me
+  // and is never rewritten with participants.
+  const [userLoaded, setUserLoaded] = useState(false);
+  const [me, setMe] = useState<string | null>(null);
+  const [legacy, setLegacy] = useState(false);
+  const startedRef = useRef(false);
   const [sessionClientId, setSessionClientId] = useState(() => crypto.randomUUID());
   const [scanStage, setScanStage] = useState<ScanStage | null>(null);
   // The conversation so far ("split equally", then "Aisha didn't have the rice"…): each
@@ -113,6 +121,7 @@ export function useSplitSession() {
   const [groupName, setGroupName] = useState("");
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [originalPeople, setOriginalPeople] = useState<string[]>([]);
+  const [originalIncludesMe, setOriginalIncludesMe] = useState(true);
   const [savedGroups, setSavedGroups] = useState<SavedGroup[]>([]);
   // True while Start Scanning is saving the group: a second tap must not save it again.
   const [starting, setStarting] = useState(false);
@@ -121,6 +130,14 @@ export function useSplitSession() {
   const subtotal = receipt?.items.reduce((sum, item) => sum + item.totalPrice, 0) ?? 0;
   const displayedTotal = includeTax ? receipt?.total ?? 0 : subtotal;
   const symbol = receipt?.currency || "RM";
+  // What the user is called in a split (first name, or "Me"), and whether they are in this one.
+  const meName = meNameFor(user?.name);
+  const hasMe = !!me && people.some((p) => samePerson(p, me));
+  /** The group's people with the user put first (or left out), never listed twice. */
+  const withMe = (names: string[], includeMe: boolean) => {
+    const rest = names.filter((n) => !samePerson(n, meName));
+    return includeMe ? [meName, ...rest] : rest;
+  };
 
   // ---- lifecycle --------------------------------------------------------------------
   // Load the (self-hosted) reader while the user is still lining up the photo. While the scan
@@ -161,15 +178,19 @@ export function useSplitSession() {
       if (u) {
         setUser(u);
         setIsGuest(false);
+        setUserLoaded(true);
         setSavedGroups(await listGroups().catch(() => []));
       } else {
         setIsGuest(true);
+        setUserLoaded(true);
       }
     })();
   }, []);
 
-  // Restore / start params
+  // Restore / start params. Runs once, after we know who the user is (their Me chip is named after them).
   useEffect(() => {
+    if (!userLoaded || startedRef.current) return;
+    startedRef.current = true;
     const restoreId = searchParams.get("restore");
     const namesParam = searchParams.get("names");
     const groupId = searchParams.get("group_id");
@@ -186,6 +207,10 @@ export function useSplitSession() {
         }
         setReceipt(bill.data.items);
         setPeople(bill.data.people);
+        // A bill saved with participants knows who the user is (or that it was split for others); an older one
+        // only has a guess, so it keeps the old behaviour.
+        setLegacy(!bill.data.participants);
+        setMe(bill.data.participants?.find((p) => p.me)?.name ?? null);
         if (bill.data.exactSplit && bill.data.cashRounding) {
           // Keep the exact shares so the rounding can still be changed or undone.
           setStructuredSplit(bill.data.exactSplit);
@@ -204,42 +229,71 @@ export function useSplitSession() {
     }
 
     if (namesParam) {
-      setPeople(decodeURIComponent(namesParam).split(","));
+      setPeople(withMe(decodeURIComponent(namesParam).split(","), true));
+      setMe(meName);
     } else if (groupId) {
       (async () => {
         const data = await getGroup(groupId).catch(() => null);
         if (data) {
-          setPeople(data.names);
+          setPeople(withMe(data.names, data.includesMe));
+          setMe(data.includesMe ? meName : null);
           setGroupName(data.groupName);
           setActiveGroupId(data.id);
           setOriginalPeople(data.names);
+          setOriginalIncludesMe(data.includesMe);
+        } else {
+          setPeople([meName]);
+          setMe(meName);
         }
       })();
+    } else {
+      // A fresh split starts with you in it.
+      setPeople([meName]);
+      setMe(meName);
     }
-  }, [searchParams, router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, when the user becomes known
+  }, [userLoaded, searchParams, router, meName]);
 
   // ---- people & groups --------------------------------------------------------------
+  // A saved group holds the people OTHER than the user, plus whether the user is in it.
+  const groupNames = people.filter((p) => !(me && samePerson(p, me)));
   const hasGroupChanged = () => {
     if (!activeGroupId) return false;
-    if (people.length !== originalPeople.length) return true;
-    return JSON.stringify([...people].sort()) !== JSON.stringify([...originalPeople].sort());
+    if (hasMe !== originalIncludesMe) return true;
+    if (groupNames.length !== originalPeople.length) return true;
+    return JSON.stringify([...groupNames].sort()) !== JSON.stringify([...originalPeople].sort());
   };
 
   const loadSavedGroup = (group: SavedGroup) => {
-    setPeople(group.names);
+    setPeople(withMe(group.names, group.includesMe));
+    setMe(group.includesMe ? meName : null);
     setGroupName(group.groupName);
     setActiveGroupId(group.id);
     setOriginalPeople(group.names);
+    setOriginalIncludesMe(group.includesMe);
   };
 
+  /** Why this name can't be added (shown under the input), or null. Case and spacing don't make a new person. */
+  const nameProblem = (raw: string) => checkName(raw, people, hasMe ? me : null);
   /** Returns true if the name was added (so the input can clear). */
   const addPerson = (raw: string): boolean => {
+    if (nameProblem(raw)) return false;
     const name = raw.trim();
-    if (!name || people.includes(name)) return false;
     setPeople((prev) => [...prev, name]);
+    // Typing your own name while you're out of the split is the same as putting yourself back in.
+    if (!legacy && !me && samePerson(name, meName)) setMe(name);
     return true;
   };
-  const removePerson = (name: string) => setPeople((prev) => prev.filter((p) => p !== name));
+  const removePerson = (name: string) => {
+    setPeople((prev) => prev.filter((p) => p !== name));
+    if (me && samePerson(name, me)) setMe(null);
+  };
+  /** Put yourself back in after removing the Me chip. */
+  const addMe = () => {
+    if (hasMe) return;
+    setPeople((prev) => [meName, ...prev.filter((p) => !samePerson(p, meName))]);
+    setMe(meName);
+  };
 
   const startScanning = async () => {
     if (starting) return; // a second tap while the first is still saving
@@ -249,16 +303,18 @@ export function useSplitSession() {
         // Saving a group is a nicety, never a reason to block scanning.
         try {
           if (activeGroupId && hasGroupChanged() && updateGroup) {
-            await updateGroupNames(activeGroupId, people);
-            setOriginalPeople(people); // it matches the saved group now
+            await updateGroupNames(activeGroupId, groupNames, hasMe);
+            setOriginalPeople(groupNames); // it matches the saved group now
+            setOriginalIncludesMe(hasMe);
           } else if (!activeGroupId && saveThisGroup && groupName.trim()) {
-            const saved = await saveGroup({ groupName, names: people });
+            const saved = await saveGroup({ groupName, names: groupNames, includesMe: hasMe });
             // Remember it. Otherwise Back -> Start Scanning would save the same group AGAIN
             // (the "Best Couple" x2 bug). The server also refuses a lookalike name, updating
             // the existing group instead, so we adopt whatever it returns.
             setActiveGroupId(saved.id);
             setGroupName(saved.groupName);
             setOriginalPeople(saved.names);
+            setOriginalIncludesMe(saved.includesMe);
             setSavedGroups(await listGroups().catch(() => savedGroups));
           }
         } catch (e) {
@@ -413,6 +469,10 @@ export function useSplitSession() {
     // "Session N" needs the server's count; offline we fall back to a date.
     const finalTitle =
       sessionName.trim() || (await nextSessionTitle().catch(() => `Session ${new Date().toLocaleDateString()}`));
+    // Who was in it and which one is the user. settlement.me stays written for older readers, so it must agree.
+    const participants = legacy ? null : buildParticipants(people, hasMe ? me : null);
+    const meInBill = participants?.find((p) => p.me)?.name;
+    const settleOut = settle && participants ? { ...settle, me: meInBill } : settle;
     try {
       await enqueueBill(user?.id ?? null, {
         clientId: sessionClientId,
@@ -427,7 +487,8 @@ export function useSplitSession() {
           people,
           reasoning: rounded.changed ? log + roundingNote(rounded, unit) : log,
           ...(rounded.changed ? { exactSplit: exact, cashRounding: { unit, absorber: exact[rounded.absorber].name } } : {}),
-          ...(settle ? { settlement: settle } : {}),
+          ...(participants ? { participants } : {}),
+          ...(settleOut ? { settlement: settleOut } : {}),
         },
       });
     } catch (e) {
@@ -458,9 +519,11 @@ export function useSplitSession() {
   // if we can tell who that is, fronted it. Transfers are derived from the shares people actually pay.
   const settlement = useMemo(() => {
     if (rounded.splits.length === 0) return null;
-    const me = guessMe(rounded.splits.map((s) => s.name), user?.name);
-    return normalizeSettlement(savedSettlement ?? defaultSettlement(rounded.splits, me), rounded.splits);
-  }, [savedSettlement, rounded.splits, user?.name]);
+    // New bills know who the user is; a restored older bill keeps its first-name guess.
+    const meForSettle = legacy ? guessMe(rounded.splits.map((s) => s.name), user?.name) : hasMe && me ? me : undefined;
+    const base = savedSettlement ?? defaultSettlement(rounded.splits, meForSettle);
+    return normalizeSettlement(legacy ? base : { ...base, me: meForSettle }, rounded.splits);
+  }, [savedSettlement, rounded.splits, user?.name, legacy, hasMe, me]);
 
   /** Change the settlement and save it with the bill. The first change is what starts tracking it. */
   const changeSettlementNow = async (change: (s: Settlement) => Settlement) => {
@@ -546,12 +609,12 @@ export function useSplitSession() {
     }
   };
 
-  const split = () => runPlan([instruction]);
+  const split = () => runPlan([resolveSelfRefs(instruction, hasMe ? me : null, people)]);
 
   /** A follow-up on the SUMMARY page, applied on top of everything said so far. */
   const modify = (text: string) => {
     const t = text.trim();
-    if (t) void runPlan([...instructions, t]);
+    if (t) void runPlan([...instructions, resolveSelfRefs(t, hasMe ? me : null, people)]);
   };
 
   /**
@@ -658,7 +721,11 @@ export function useSplitSession() {
     // flow
     step, setStep, finish, quick, back, startQuick, firstStep: (quick ? "AMOUNT" : "NAMES") as Step,
     // people & groups
-    people, addPerson, removePerson, sessionName, setSessionName,
+    people, addPerson, removePerson, nameProblem, me, meName, hasMe, addMe, legacy,
+    // who was in it (null for an older bill): handed to Settle up, which then stops asking "which one is you?"
+    participants: legacy ? null : buildParticipants(people, hasMe ? me : null),
+    hosted: !legacy && !hasMe,
+    sessionName, setSessionName,
     isGuest, savedGroups, loadSavedGroup, activeGroupId, groupName, setGroupName,
     saveThisGroup, setSaveThisGroup, updateGroup, setUpdateGroup, hasGroupChanged,
     starting, startScanning,

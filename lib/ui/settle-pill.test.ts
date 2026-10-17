@@ -19,6 +19,11 @@ describe("settlePill", () => {
     expect(settlePill({ settle: { ...base, dueDate: today } }, today)?.text).toMatch(/due today$/);
     expect(settlePill({ settle: { ...base, dueDate: "2026-10-18" } }, today)?.text).toMatch(/due in 1 day$/);
   });
+  it("says hosted for others, whatever the tracking says", () => {
+    expect(settlePill({ settle: null, hosted: true }, today)?.text).toBe("Hosted for others");
+    expect(settlePill({ settle: base, hosted: true }, today)?.text).toBe("Hosted for others");
+    expect(settlePill({ settle: base, hosted: false }, today)?.text).toMatch(/outstanding/);
+  });
   it("flags a mismatch, and uses the bill's own currency", () => {
     expect(settlePill({ settle: { ...base, mismatch: true } }, today)?.text).toBe("Check who paid");
     expect(settlePill({ settle: base, currency: "Euro" }, today)?.text).toMatch(/^Euro 40\.00/);

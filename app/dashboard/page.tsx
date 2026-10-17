@@ -217,7 +217,7 @@ export default function DashboardPage() {
                       <AvatarStack names={group.names} max={4} />
                       <div className="min-w-0">
                         <h3 className="truncate text-base font-bold">{group.groupName}</h3>
-                        <p className="truncate text-sm text-muted-foreground">{group.names.join(", ")}</p>
+                        <p className="truncate text-sm text-muted-foreground">{(group.includesMe ? ["You", ...group.names] : group.names).join(", ")}</p>
                       </div>
                       <span className="flex min-h-11 items-center justify-center rounded-xl bg-white/10 text-sm font-semibold text-foreground">Split</span>
                     </Link>

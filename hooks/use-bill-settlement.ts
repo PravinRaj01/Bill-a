@@ -6,6 +6,7 @@ import type { BillHistoryRow } from "@/lib/db/schema";
 import { payloadWithSettlement } from "@/lib/sync/billPayload";
 import { enqueueBill } from "@/lib/sync/outbox";
 import { defaultSettlement, guessMe, localDate, normalizeSettlement, settleView } from "@/lib/split/settle";
+import { billMe } from "@/lib/split/participants";
 import type { Settlement } from "@/types/domain";
 
 // Settle-up for a bill that is already saved (the History detail page). Same rules as the Summary: what
@@ -21,8 +22,11 @@ export function useBillSettlement(bill: BillHistoryRow | null, user: { id: strin
   const shares = useMemo(() => bill?.data.split ?? [], [bill]);
   const settlement = useMemo(() => {
     if (!bill || shares.length < 2) return null;
-    const me = guessMe(shares.map((s) => s.name), user?.name);
-    return normalizeSettlement(saved ?? defaultSettlement(shares, me), shares);
+    // A bill that recorded its participants knows who the user is; an older one falls back to the first-name guess.
+    const participants = bill.data.participants;
+    const me = participants ? billMe({ participants }) : guessMe(shares.map((s) => s.name), user?.name);
+    const base = saved ?? defaultSettlement(shares, me);
+    return normalizeSettlement(participants ? { ...base, me } : base, shares);
   }, [bill, shares, saved, user?.name]);
 
   const save = async (next: Settlement | null) => {
@@ -54,6 +58,7 @@ export function useBillSettlement(bill: BillHistoryRow | null, user: { id: strin
     symbol: bill.currency || "RM",
     billTitle: bill.billTitle,
     tracked: saved !== null,
+    participants: bill.data.participants ?? null,
     change,
     stop: async () => {
       setEdited({ billId: bill.id, value: null });
