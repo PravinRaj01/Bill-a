@@ -1,5 +1,5 @@
 {
-  "id": "86a9557a-f072-48a5-97e9-53432e839213",
+  "id": "03c20f02-8fd6-4f7c-8c7e-39c5087849d2",
   "prevId": "ce91f86b-98ba-4c7a-86a8-9ad509f3a3d1",
   "version": "7",
   "dialect": "postgresql",
@@ -863,21 +863,14 @@
       "name": "push_subscriptions",
       "schema": "",
       "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
+        "endpoint": {
+          "name": "endpoint",
+          "type": "text",
           "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
+          "notNull": true
         },
         "user_id": {
           "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "endpoint": {
-          "name": "endpoint",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -935,15 +928,7 @@
         }
       },
       "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "push_subscriptions_endpoint": {
-          "name": "push_subscriptions_endpoint",
-          "nullsNotDistinct": false,
-          "columns": [
-            "endpoint"
-          ]
-        }
-      },
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false
@@ -1119,12 +1104,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'Asia/Kuala_Lumpur'"
-        },
-        "digest_on": {
-          "name": "digest_on",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {},

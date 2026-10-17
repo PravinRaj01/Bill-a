@@ -5,7 +5,7 @@ import { BellRing, Share } from "lucide-react";
 import { toast } from "sonner";
 
 import { Switch } from "@/components/ui/switch";
-import { getPushState, removePushSubscription, savePushSubscription } from "@/lib/actions/push";
+import { getPushState, removePushSubscription, savePushSubscription, sendTestPush } from "@/lib/actions/push";
 
 type Status = "loading" | "unavailable" | "unsupported" | "needs-install" | "blocked" | "off" | "on";
 
@@ -75,6 +75,19 @@ export function NotificationSettings() {
     }
   }
 
+  async function test() {
+    setBusy(true);
+    try {
+      const n = await sendTestPush();
+      if (n > 0) toast.success("Test sent");
+      else toast.error("No device got it. Switch notifications off and on again.");
+    } catch {
+      toast.error("Couldn't send a test. Try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const note: Partial<Record<Status, string>> = {
     unavailable: "Notifications aren't set up on this server yet.",
     unsupported: "This browser can't show notifications. Try the installed app.",
@@ -86,7 +99,7 @@ export function NotificationSettings() {
       <div className="flex items-center justify-between gap-4 rounded-2xl glass p-5">
         <div className="min-w-0 space-y-1">
           <h2 className="flex items-center gap-2 text-sm font-bold text-foreground"><BellRing size={16} /> Notifications on this device</h2>
-          <p className="text-xs text-muted-foreground">Friend requests, shared bills and payments, plus a short summary each morning.</p>
+          <p className="text-xs text-muted-foreground">Friend requests, shared bills and payments, plus a short summary each morning when money is still owed.</p>
         </div>
         <Switch
           aria-label="Notifications on this device"
@@ -95,6 +108,12 @@ export function NotificationSettings() {
           onCheckedChange={toggle}
         />
       </div>
+
+      {status === "on" && (
+        <button type="button" onClick={test} disabled={busy} className="px-1 text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground disabled:opacity-50">
+          Send me a test notification
+        </button>
+      )}
 
       {status === "needs-install" && (
         <div className="space-y-2 rounded-2xl glass p-5 text-sm text-muted-foreground">

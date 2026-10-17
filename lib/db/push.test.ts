@@ -3,14 +3,15 @@ import { config } from "dotenv";
 import { inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import { users } from "./schema";
-import { claimDigest, listDigestCandidates, listSubscriptions, removeEndpoints, removeSubscription, saveSubscription } from "./push";
+import { dropDeadSubscription, listSubscriptions, removeSubscription, saveSubscription } from "./push";
+import { pushToUser } from "@/lib/push/send";
 
-// Push devices and the once-a-day digest claim, on the real Neon test branch.
+// Push devices on the real Neon test branch, including the cross-user cases.
 config({ path: ".env.test.local", quiet: true });
 const hasDb = !!process.env.DATABASE_URL;
 
 describe.skipIf(!hasDb)("push subscriptions (real Neon DB)", { timeout: 60_000 }, () => {
-  const db = getDb();
+  const db = hasDb ? getDb() : (null as never);
   const tag = crypto.randomUUID().slice(0, 8);
   let A = "";
   let B = "";
@@ -37,22 +38,23 @@ describe.skipIf(!hasDb)("push subscriptions (real Neon DB)", { timeout: 60_000 }
     expect(await listSubscriptions(db, B)).toHaveLength(1);
   });
 
-  it("only lets a user remove their own device; dead endpoints are dropped by endpoint", async () => {
-    await removeSubscription(db, A, ep("1"));
+  it("only lets a user remove their own device", async () => {
+    expect(await removeSubscription(db, A, ep("1"))).toBe(false);
     expect(await listSubscriptions(db, B)).toHaveLength(1);
-    await saveSubscription(db, B, { endpoint: ep("2"), p256dh: "k", auth: "a" });
-    await removeEndpoints(db, [ep("1"), ep("2")]);
+    await dropDeadSubscription(db, ep("1"));
     expect(await listSubscriptions(db, B)).toHaveLength(0);
   });
 
-  it("lists only users with a device as digest candidates, and claims a day once", async () => {
-    await saveSubscription(db, A, { endpoint: ep("3"), p256dh: "k", auth: "a" });
-    const ids = (await listDigestCandidates(db)).map((u) => u.id);
-    expect(ids).toContain(A);
-    expect(ids).not.toContain(B);
-    expect(await claimDigest(db, A, "2026-10-17")).toBe(true);
-    expect(await claimDigest(db, A, "2026-10-17")).toBe(false);
-    expect(await claimDigest(db, A, "2026-10-16")).toBe(false);
-    expect(await claimDigest(db, A, "2026-10-18")).toBe(true);
+  it("pushes to every device and drops the ones the push service says are gone", async () => {
+    await saveSubscription(db, A, { endpoint: ep("live"), p256dh: "k", auth: "a" });
+    await saveSubscription(db, A, { endpoint: ep("gone"), p256dh: "k", auth: "a" });
+    const sent: string[] = [];
+    const n = await pushToUser(db, A, { title: "t", body: "b", url: "https://evil.example", tag: "x" }, async (sub, payload) => {
+      if (sub.endpoint.endsWith("gone")) throw Object.assign(new Error("gone"), { statusCode: 410 });
+      sent.push(payload);
+    });
+    expect(n).toBe(1);
+    expect(JSON.parse(sent[0]).url).toBe("/dashboard/notifications");
+    expect((await listSubscriptions(db, A)).map((s) => s.endpoint)).toEqual([ep("live")]);
   });
 });

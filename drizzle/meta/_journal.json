@@ -61,8 +61,8 @@
     {
       "idx": 8,
       "version": "7",
-      "when": 1792221855868,
-      "tag": "0008_push_digest",
+      "when": 1792221262919,
+      "tag": "0008_push_subscriptions",
       "breakpoints": true
     }
   ]

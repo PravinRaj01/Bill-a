@@ -14,7 +14,6 @@
  *    requests, or per-user pages (History, Account, History detail). Those must come from the
  *    server, every time, so one person's data can't be served to another on a shared phone.
  *  - The cached shells are wiped on sign-out (the page posts "clear-pages").
- *  - Shows Web Push notifications and opens the page they point to when tapped.
  */
 
 const BUILD_ID = "__BUILD_ID__";
@@ -52,39 +51,41 @@ self.addEventListener("message", (event) => {
   if (data.type === "cache-page" && SHELL_ROUTES.includes(data.path)) event.waitUntil(cachePage(data.path));
 });
 
-// Web Push (lib/push/send.ts): show the banner, and open the right page when it's tapped.
+// Web Push: the server sends { title, body, url, tag }. Tapping the notification opens (or focuses) the app at
+// that path. Only same-site paths are followed.
 self.addEventListener("push", (event) => {
   let data = {};
   try {
     data = event.data ? event.data.json() : {};
   } catch (_) {
-    /* not JSON: fall back to the defaults below */
+    /* not JSON: show the generic message */
   }
   event.waitUntil(
     self.registration.showNotification(data.title || "Bill.a", {
-      body: data.body || "",
+      body: data.body || "You have a new notification",
       icon: "/icon.png",
       badge: "/icon.png",
-      tag: data.tag,
-      data: { url: typeof data.url === "string" && data.url.startsWith("/") ? data.url : "/dashboard/notifications" },
+      tag: data.tag || "billa",
+      data: { url: typeof data.url === "string" ? data.url : "/dashboard/notifications" },
     }),
   );
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || "/dashboard/notifications", self.location.origin).href;
+  const raw = (event.notification.data && event.notification.data.url) || "/dashboard/notifications";
+  const url = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard/notifications";
   event.waitUntil(
     (async () => {
-      const open = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      for (const client of open) {
-        if (client.url.startsWith(self.location.origin) && "focus" in client) {
-          await client.focus();
-          if ("navigate" in client) await client.navigate(target).catch(() => {});
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      for (const w of windows) {
+        if (new URL(w.url).origin === self.location.origin && "focus" in w) {
+          await w.focus();
+          if ("navigate" in w) await w.navigate(url).catch(() => {});
           return;
         }
       }
-      await self.clients.openWindow(target);
+      await self.clients.openWindow(url);
     })(),
   );
 });

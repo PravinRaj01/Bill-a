@@ -51,7 +51,7 @@ If the consent screen is still in *Testing*, add testers, or publish it, before 
    | `AUTH_SECRET` | a fresh `openssl rand -base64 32` (do **not** reuse the dev one) |
    | `AUTH_GOOGLE_ID` | from Google Cloud |
    | `AUTH_GOOGLE_SECRET` | from Google Cloud |
-   | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` (once; changing them drops every device's subscription) |
+   | `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | `npx web-push generate-vapid-keys` (once; changing them drops every device's subscription) |
    | `VAPID_SUBJECT` | `mailto:` address push services can contact |
    | `CRON_SECRET` | a fresh `openssl rand -base64 32`; Vercel Cron sends it to `/api/cron/digest` |
 
@@ -59,13 +59,13 @@ If the consent screen is still in *Testing*, add testers, or publish it, before 
    (Vercel sets the host automatically), any AI keys (there are none server-side).
    Leave `ENABLE_DEV_PAGES` unset so `/dev/*` returns 404.
 4. Deploy. `vercel.json` pins functions to `sin1` and schedules `/api/cron/digest` once a day at 01:00 UTC
-   (09:00 in Malaysia), which fits Vercel's Hobby plan. The route sends each opted-in user at most one summary a
-   day and only once it is past 09:00 in their own time zone; anyone it is too early for gets it the next day.
+   (09:00 in Malaysia), which fits Vercel's Hobby plan. Each user with money still owed gets one summary for their
+   own date (in the inbox, and pushed to devices that turned notifications on); a second run that day is a no-op.
    Without the VAPID keys the Alerts tab says notifications aren't set up and nothing is pushed.
 
-   **Later, for exact per-user timing:** keep the route, remove `crons` from `vercel.json`, and have a free
-   scheduler such as cron-job.org call `GET https://<your-domain>/api/cron/digest` every hour with the header
-   `Authorization: Bearer <CRON_SECRET>`. (Vercel Pro also allows an hourly `0 * * * *` cron.)
+   **Later, for per-user local timing:** remove `crons` from `vercel.json` and have a free scheduler such as
+   cron-job.org call `GET https://<your-domain>/api/cron/digest` with the header
+   `Authorization: Bearer <CRON_SECRET>` (Vercel Pro also allows more frequent crons).
 
 ## 4. Smoke test the live URL
 
