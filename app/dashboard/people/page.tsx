@@ -34,6 +34,14 @@ export default function PeoplePage() {
   const [deleting, setDeleting] = useState<PersonView | null>(null);
   const payment = usePaymentShare();
 
+  // The + sheet opens this page ready to add: ?add=person opens the new-person sheet, ?add=friend goes to the @username box.
+  const [focusFriend, setFocusFriend] = useState(false);
+  useEffect(() => {
+    const add = new URLSearchParams(window.location.search).get("add");
+    if (add === "person") queueMicrotask(() => setEditing("new"));
+    if (add === "friend") queueMicrotask(() => setFocusFriend(true));
+  }, []);
+
   useEffect(() => {
     getCurrentUser().then((u) => setSignedIn(!!u)).catch(() => setSignedIn(false));
     getBalances().then(setBalances).catch(() => setBalances({ people: [], tracked: 0, withoutMe: 0 }));
@@ -118,7 +126,7 @@ export default function PeoplePage() {
           )}
         </header>
 
-        {signedIn && <FriendsSection onChanged={() => void reload()} />}
+        {signedIn && <FriendsSection onChanged={() => void reload()} focusSearch={focusFriend} />}
 
         {signedIn && suggestions.length > 0 && (
           <section aria-label="People from your bills" className="space-y-2">

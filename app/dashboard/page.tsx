@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowUpRight, Calculator, Camera, ChevronRight, LogIn, UserRound, Users } from "lucide-react"
+import { ArrowUpRight, Calculator, Camera, ChevronRight, LogIn, Users } from "lucide-react"
 
 import { Intro, useIntro } from "@/components/onboarding/Intro"
 import { SetupChecklist } from "@/components/onboarding/SetupChecklist"
@@ -43,21 +43,25 @@ export default function DashboardPage() {
   const [owed, setOwed] = useState<[string, { owedToYou: number; youOwe: number }][]>([])
   // The date and hour are the user's own, so they wait for the browser.
   const [now, setNow] = useState<{ hour: number; today: string } | null>(null)
+  // Everything below the tiles waits until all of it has loaded, so the setup card never shows for a moment and
+  // then gives way to the latest session.
+  const [ready, setReady] = useState(false)
 
   useEffect(() => {
     // After mount, so the server-rendered page (which can't know the user's clock) never disagrees with it.
     queueMicrotask(() => setNow({ hour: new Date().getHours(), today: localDate() }))
+    const loads = [
     getCurrentUser()
       .then((u) => {
         setSignedIn(!!u)
         setFirstName(u?.name?.trim().split(/\s+/)[0] || null)
         setHasName(!!u?.name?.trim())
       })
-      .catch(() => setSignedIn(false))
-    getPaymentDetails().then((d) => setHasPayment(!!d)).catch(() => setHasPayment(false))
+      .catch(() => setSignedIn(false)),
+    getPaymentDetails().then((d) => setHasPayment(!!d)).catch(() => setHasPayment(false)),
     // Resolved on the server from the session: guests simply get empty results.
-    listGroups().then(setGroups).catch(() => setGroups([]))
-    listBills().then((b) => setLatest(b[0] ?? null)).catch(() => setLatest(null))
+    listGroups().then(setGroups).catch(() => setGroups([])),
+    listBills().then((b) => setLatest(b[0] ?? null)).catch(() => setLatest(null)),
     getBalances()
       .then((r) => {
         const by = new Map<string, { owedToYou: number; youOwe: number }>()
@@ -69,7 +73,9 @@ export default function DashboardPage() {
         }
         setOwed([...by])
       })
-      .catch(() => setOwed([]))
+      .catch(() => setOwed([])),
+    ]
+    void Promise.allSettled(loads).then(() => setReady(true))
   }, [])
 
   const pill = latest && now ? settlePill(latest, now.today) : null
@@ -121,7 +127,7 @@ export default function DashboardPage() {
           </Link>
         </section>
 
-        {signedIn === true && (
+        {ready && signedIn === true && (
           <SetupChecklist
             hasName={hasName}
             hasPayment={hasPayment}
@@ -133,7 +139,7 @@ export default function DashboardPage() {
           />
         )}
 
-        {owed.length > 0 && (
+        {ready && owed.length > 0 && (
           <Link href="/dashboard/balances" transitionTypes={["nav-forward"]} data-testid="home-owed" className="flex min-h-16 items-center justify-between gap-4 rounded-3xl glass p-5 transition-colors hover:border-white/20">
             <div className="space-y-0.5 text-sm text-muted-foreground">
               {owed.map(([cur, t]) => (
@@ -161,7 +167,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {latest && (
+        {ready && latest && (
           <section aria-label="Pick up where you left off" className="space-y-3">
             <h2 className="px-1 type-eyebrow">Pick up where you left off</h2>
             <Link
@@ -193,7 +199,7 @@ export default function DashboardPage() {
         )}
 
         {/* Saved groups */}
-        {signedIn !== false && (
+        {ready && signedIn !== false && (
           <section aria-label="Saved groups" className="space-y-3">
             <div className="flex items-center justify-between px-1">
               <h2 className="flex items-center gap-2 type-eyebrow">
@@ -235,24 +241,6 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* People: contacts with WhatsApp numbers, for one-tap nudges */}
-        {signedIn && (
-          <Link
-            href="/dashboard/people"
-            transitionTypes={["nav-forward"]}
-            data-testid="home-people"
-            className="flex min-h-16 items-center gap-3 rounded-3xl glass p-4 transition-colors hover:border-white/20"
-          >
-            <span className="flex size-11 items-center justify-center rounded-full bg-white/10">
-              <UserRound size={20} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-base font-bold">Your people</span>
-              <span className="block truncate text-sm text-muted-foreground">Save WhatsApp numbers so nudges go straight to their chat</span>
-            </span>
-            <ChevronRight size={18} className="text-muted-foreground" />
-          </Link>
-        )}
       </div>
     </PageTransition>
   )

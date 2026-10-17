@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, Copy, Loader2, QrCode, Search, UserPlus, X } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
@@ -18,7 +18,8 @@ const label = (u: { name: string | null; username: string | null }) => (u.name ?
 
 // Friends on Bill.a: find someone by their exact @username (or hand them your invite link / QR), answer requests,
 // and see who you're linked with. Linked friends' bills show up in each other's History.
-export function FriendsSection({ onChanged }: { onChanged: () => void }) {
+export function FriendsSection({ onChanged, focusSearch = false }: { onChanged: () => void; focusSearch?: boolean }) {
+  const handleRef = useRef<HTMLInputElement>(null);
   const profile = useProfile();
   const [state, setState] = useState<FriendsView | null>(null);
   const [handle, setHandle] = useState("");
@@ -41,6 +42,13 @@ export function FriendsSection({ onChanged }: { onChanged: () => void }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load from the server on mount
     void reload();
   }, [reload]);
+
+  // Arriving from "Add a friend" in the + sheet: the @username box is ready to type in.
+  useEffect(() => {
+    if (!focusSearch) return;
+    const t = setTimeout(() => handleRef.current?.focus({ preventScroll: false }), 350);
+    return () => clearTimeout(t);
+  }, [focusSearch]);
 
   const inviteUrl = profile.username && typeof window !== "undefined" ? `${window.location.origin}/dashboard/add/${profile.username}` : null;
 
@@ -138,6 +146,7 @@ export function FriendsSection({ onChanged }: { onChanged: () => void }) {
       <div className="space-y-2 rounded-3xl glass p-4">
         <div className="flex gap-2">
           <Input
+            ref={handleRef}
             aria-label="Friend's @username"
             data-testid="friend-handle"
             placeholder="@username"
