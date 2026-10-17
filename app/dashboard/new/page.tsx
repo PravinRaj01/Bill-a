@@ -8,12 +8,13 @@ import { PageTransition } from "@/components/page-transition";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { AmountStep } from "@/components/split/steps/AmountStep";
+import { HowStep } from "@/components/split/steps/HowStep";
 import { NamesStep } from "@/components/split/steps/NamesStep";
 import { QuickSplitStep } from "@/components/split/steps/QuickSplitStep";
 import { ScanStep } from "@/components/split/steps/ScanStep";
 import { ReviewStep } from "@/components/split/steps/ReviewStep";
 import { SummaryStep } from "@/components/split/steps/SummaryStep";
-import { STEP_ORDER, useSplitSession, type Step } from "@/hooks/use-split-session";
+import { useSplitSession, type Step } from "@/hooks/use-split-session";
 
 // The new-session flow: NAMES -> SCAN -> REVIEW -> SUMMARY. All state and behaviour live in
 // useSplitSession(); each step is a view over it. This file only wires the shell together.
@@ -24,7 +25,7 @@ function BillSplitterContent() {
   // handled globally by <MotionConfig reducedMotion="user">.
   const [nav, setNav] = useState<{ step: Step; dir: 1 | -1 }>({ step: s.step, dir: 1 });
   if (nav.step !== s.step) {
-    setNav({ step: s.step, dir: STEP_ORDER.indexOf(s.step) >= STEP_ORDER.indexOf(nav.step) ? 1 : -1 });
+    setNav({ step: s.step, dir: s.stepOrder.indexOf(s.step) >= s.stepOrder.indexOf(nav.step) ? 1 : -1 });
   }
   const dir = nav.dir;
 
@@ -39,7 +40,7 @@ function BillSplitterContent() {
             <ChevronLeft size={16} className="mr-1" /> Back
           </Button>
           {/* AI keys only matter for scanning and describing a split; quick split is plain arithmetic. */}
-          {!s.quick && <Button variant="ghost" data-testid="open-ai-settings" className="h-11 px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => s.setKeySheetOpen(true)}>
+          {!s.amountFlow && s.step !== "HOW" && <Button variant="ghost" data-testid="open-ai-settings" className="h-11 px-1 text-sm font-semibold text-muted-foreground hover:bg-transparent hover:text-foreground" onClick={() => s.setKeySheetOpen(true)}>
             <Sparkles size={14} className="mr-1.5 text-warning" /> AI settings{s.keys.groq || s.keys.gemini ? " ✓" : ""}
           </Button>}
         </div>
@@ -66,6 +67,7 @@ function BillSplitterContent() {
         >
           {s.step === "AMOUNT" && <AmountStep s={s} />}
           {s.step === "NAMES" && <NamesStep s={s} />}
+          {s.step === "HOW" && <HowStep s={s} />}
           {s.step === "SCAN" && <ScanStep s={s} />}
           {s.step === "REVIEW" && <ReviewStep s={s} />}
           {s.step === "SPLIT" && <QuickSplitStep s={s} />}

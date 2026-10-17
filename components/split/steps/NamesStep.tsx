@@ -7,11 +7,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { PersonAvatar } from "@/components/person-avatar";
+import { usePhoneBook } from "@/hooks/use-phone-book";
 import type { SplitSession } from "@/hooks/use-split-session";
+import { samePerson } from "@/lib/split/participants";
 
 export function NamesStep({ s }: { s: SplitSession }) {
   const [newName, setNewName] = useState("");
   const [showGroupList, setShowGroupList] = useState(false);
+  const { people: contacts } = usePhoneBook();
+  // Saved people who aren't in this split yet: one tap adds them.
+  const yourPeople = (contacts ?? []).filter((c) => !s.people.some((p) => samePerson(p, c.name)) && !(s.hasMe && samePerson(c.name, s.meName)));
 
   const add = () => {
     if (s.addPerson(newName)) setNewName("");
@@ -109,6 +114,27 @@ export function NamesStep({ s }: { s: SplitSession }) {
           </p>
         )}
 
+        {yourPeople.length > 0 && (
+          <div data-testid="your-people" className="space-y-2">
+            <p className="type-eyebrow px-1">Your people</p>
+            <ul className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+              {yourPeople.map((c) => (
+                <li key={c.id} className="shrink-0">
+                  <button
+                    type="button"
+                    data-testid="your-person"
+                    onClick={() => s.addPerson(c.name)}
+                    className="flex min-h-11 items-center gap-2 rounded-full glass py-1 pr-4 pl-1 text-sm font-semibold transition-colors hover:bg-white/10"
+                  >
+                    <PersonAvatar name={c.name} compact className="size-8" />
+                    {c.name}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className="flex min-h-14 flex-wrap gap-2 rounded-xl border border-white/8 glass-inset p-2">
           {s.people.length === 0 && <p className="self-center px-2 text-sm text-muted-foreground">Nobody yet</p>}
           {s.people.map((p) => (
@@ -139,7 +165,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
           </div>
         )}
 
-        {!s.isGuest && (
+        {!s.isGuest && (!s.whoFirst || !!s.activeGroupId) && (
           <div className="space-y-3 pt-1">
             {s.activeGroupId && s.hasGroupChanged() ? (
               <div className="rounded-xl border border-warning/20 bg-warning/10 p-3">
@@ -188,7 +214,7 @@ export function NamesStep({ s }: { s: SplitSession }) {
           disabled={s.people.length < 1 || s.starting}
           onClick={s.startScanning}
         >
-          {s.starting ? <Loader2 className="animate-spin" /> : s.quick ? "Continue" : "Start scanning"}
+          {s.starting ? <Loader2 className="animate-spin" /> : s.quick || s.whoFirst ? "Continue" : "Start scanning"}
         </Button>
       </div>
     </div>

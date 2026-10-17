@@ -34,10 +34,15 @@ import type { Cents, Receipt, ReceiptItem, Settlement, SplitRecord } from "@/typ
 // view over it. Money is integer cents the whole way through: the only floats are what a
 // person types, and those go through parseMoneyInput() at the edge.
 
-// The scan flow is NAMES -> SCAN -> REVIEW -> SUMMARY; quick split is AMOUNT -> NAMES -> SPLIT -> SUMMARY.
-// One order for both, so "forward" is simply a later index (used for the slide direction).
-export type Step = "AMOUNT" | "NAMES" | "SCAN" | "REVIEW" | "SPLIT" | "SUMMARY";
+// Who first, then how: NAMES -> (HOW) -> SCAN -> REVIEW -> SUMMARY, or NAMES -> (HOW) -> AMOUNT -> SPLIT -> SUMMARY.
+// The older amount-first link (?mode=quick) keeps its order: AMOUNT -> NAMES -> SPLIT -> SUMMARY.
+// Each order lists the steps so "forward" is simply a later index (used for the slide direction).
+export type Step = "AMOUNT" | "NAMES" | "HOW" | "SCAN" | "REVIEW" | "SPLIT" | "SUMMARY";
 export const STEP_ORDER: Step[] = ["AMOUNT", "NAMES", "SCAN", "REVIEW", "SPLIT", "SUMMARY"];
+export const WHO_FIRST_ORDER: Step[] = ["NAMES", "HOW", "AMOUNT", "SCAN", "REVIEW", "SPLIT", "SUMMARY"];
+
+/** How a who-first split gets its total: a scanned receipt or a typed amount. */
+export type How = "scan" | "amount";
 
 /** What the local scan was unsure about; drives the amber highlights on REVIEW. */
 export interface ScanInfo {
@@ -73,6 +78,12 @@ export function useSplitSession() {
   // ?mode=quick: split an amount without scanning (never when continuing a saved bill).
   const quick = searchParams.get("mode") === "quick" && !searchParams.get("restore");
   const [step, setStep] = useState<Step>(quick ? "AMOUNT" : "NAMES");
+  // ?how=scan|amount|ask: who first, then how. Absent (an older link) = names then scan, as it always was.
+  // "ask" shows the chooser after the names. A who-first split never asks to save a group up front; the
+  // Summary offers it instead.
+  const howParam = searchParams.get("how");
+  const whoFirst = !quick && (howParam === "scan" || howParam === "amount" || howParam === "ask");
+  const [how, setHow] = useState<How>(howParam === "amount" ? "amount" : "scan");
   const [people, setPeople] = useState<string[]>([]);
   const [sessionName, setSessionName] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -321,9 +332,29 @@ export function useSplitSession() {
           console.error("Could not save group", e);
         }
       }
-      setStep(quick ? "SPLIT" : "SCAN");
+      setStep(quick ? "SPLIT" : howParam === "ask" ? "HOW" : how === "amount" ? "AMOUNT" : "SCAN");
     } finally {
       setStarting(false);
+    }
+  };
+
+  // ---- save the people as a group, after the fact (offered on the Summary) ----------------
+  /** Signed in, with at least two people, and not already from a saved group. */
+  const canSaveAsGroup = !isGuest && !activeGroupId && people.length >= 2 && !legacy;
+  /** Resolves to an error message, or null when saved. */
+  const saveAsGroup = async (name: string): Promise<string | null> => {
+    const trimmed = name.trim();
+    if (!trimmed) return "Give the group a name.";
+    try {
+      const saved = await saveGroup({ groupName: trimmed, names: groupNames, includesMe: hasMe });
+      setActiveGroupId(saved.id);
+      setGroupName(saved.groupName);
+      setOriginalPeople(saved.names);
+      setOriginalIncludesMe(saved.includesMe);
+      setSavedGroups(await listGroups().catch(() => savedGroups));
+      return null;
+    } catch {
+      return "Couldn't save the group. Check your connection and try again.";
     }
   };
 
@@ -341,14 +372,29 @@ export function useSplitSession() {
     );
     if (name) setSessionName(name);
     setIncludeTax(true);
-    setStep("NAMES");
+    setStep(quick ? "NAMES" : "SPLIT");
+  };
+
+  /** The chooser after the names: scan a receipt or type an amount. */
+  const chooseHow = (next: How) => {
+    setHow(next);
+    setStep(next === "amount" ? "AMOUNT" : "SCAN");
   };
 
   /** One step back. Quick split walks its own path; the scan flow has always gone back to the names. */
   const back = () => {
-    if (!quick) return setStep("NAMES");
-    const prev: Partial<Record<Step, Step>> = { NAMES: "AMOUNT", SPLIT: "NAMES", SUMMARY: "SPLIT" };
-    setStep(prev[step] ?? "AMOUNT");
+    if (quick) {
+      const prev: Partial<Record<Step, Step>> = { NAMES: "AMOUNT", SPLIT: "NAMES", SUMMARY: "SPLIT" };
+      return setStep(prev[step] ?? "AMOUNT");
+    }
+    const ask = howParam === "ask";
+    if (how === "amount") {
+      // Typing an amount: the chooser (when it was shown) sits between the names and the amount.
+      const prev: Partial<Record<Step, Step>> = { AMOUNT: ask ? "HOW" : "NAMES", SPLIT: "AMOUNT", SUMMARY: "SPLIT" };
+      return setStep(prev[step] ?? "NAMES");
+    }
+    if (step === "SCAN" && ask) return setStep("HOW");
+    setStep("NAMES");
   };
 
   // ---- scanning ---------------------------------------------------------------------
@@ -720,6 +766,8 @@ export function useSplitSession() {
   return {
     // flow
     step, setStep, finish, quick, back, startQuick, firstStep: (quick ? "AMOUNT" : "NAMES") as Step,
+    // who first, then how
+    canSaveAsGroup, saveAsGroup, whoFirst, how, chooseHow, stepOrder: quick ? STEP_ORDER : WHO_FIRST_ORDER, amountFlow: quick || how === "amount",
     // people & groups
     people, addPerson, removePerson, nameProblem, me, meName, hasMe, addMe, legacy,
     // who was in it (null for an older bill): handed to Settle up, which then stops asking "which one is you?"

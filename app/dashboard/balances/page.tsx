@@ -15,7 +15,8 @@ import { formatMoney } from "@/lib/money";
 import { balanceNudgeText, localDate, markPersonPaid, type PersonBalance } from "@/lib/split/settle";
 import { payloadWithSettlement } from "@/lib/sync/billPayload";
 import { enqueueBill, flushOutbox } from "@/lib/sync/outbox";
-import { shareMessage, shareText } from "@/lib/ui/share";
+import { shareMessage, shareToPerson } from "@/lib/ui/share";
+import { usePhoneBook } from "@/hooks/use-phone-book";
 import { Button } from "@/components/ui/button";
 
 // What each person owes you (or you them) across every bill you track, so "how much does Riley owe me?"
@@ -26,6 +27,7 @@ export default function BalancesPage() {
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const payment = usePaymentShare();
+  const { phoneFor } = usePhoneBook();
 
   const reload = useCallback(async () => {
     setResult(await getBalances());
@@ -64,7 +66,7 @@ export default function BalancesPage() {
       lines: p.bills.filter((b) => b.amount > 0).map((b) => ({ title: b.title, date: b.createdAt, amount: b.amount })),
       payment: payment.block || undefined, // these balances are owed to the user
     });
-    const msg = shareMessage(await shareText(text));
+    const msg = shareMessage(await shareToPerson(text, phoneFor(p.name)));
     if (msg) toast(msg);
   };
 

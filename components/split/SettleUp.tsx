@@ -25,7 +25,8 @@ import {
   type Transfer,
 } from "@/lib/split/settle";
 import { haptic } from "@/lib/ui/haptics";
-import { shareMessage, shareText } from "@/lib/ui/share";
+import { shareMessage, shareToPerson } from "@/lib/ui/share";
+import { usePhoneBook } from "@/hooks/use-phone-book";
 import { cn } from "@/lib/utils";
 import type { Participant, Settlement, SplitRecord } from "@/types/domain";
 
@@ -69,6 +70,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
   const [custom, setCustom] = useState(false);
   // Showing the one-person chips even though several people paid ("One person paid it all").
   const [choosing, setChoosing] = useState(false);
+  const { phoneFor } = usePhoneBook();
   const { settlement, symbol, shares } = model;
   if (!settlement || shares.length < 2) return null;
 
@@ -79,8 +81,9 @@ export function SettleUp({ model }: { model: SettleModel }) {
   const meKey = settlement.me ? norm(settlement.me) : null;
   const payTo = (name: string) => (meKey && norm(name) === meKey ? "me" : name);
 
-  const send = async (text: string) => {
-    const msg = shareMessage(await shareText(text));
+  // To one person: straight into their WhatsApp chat when they are a contact with a number, else the share sheet.
+  const send = async (text: string, to?: string) => {
+    const msg = shareMessage(await shareToPerson(text, to ? phoneFor(to) : null));
     if (msg) toast(msg);
   };
   /**
@@ -104,6 +107,7 @@ export function SettleUp({ model }: { model: SettleModel }) {
         items: wholeShare ? share?.items : undefined,
         payment: open.every((t) => payTo(t.to) === "me") ? model.payment?.block : undefined,
       }),
+      debtor,
     );
   };
 

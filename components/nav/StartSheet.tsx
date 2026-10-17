@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Calculator, Camera, ChevronRight, Users } from "lucide-react";
+import { ChevronRight, UserPlus, Users } from "lucide-react";
 
 import { AvatarStack } from "@/components/person-avatar";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -11,8 +11,9 @@ import type { SavedGroup } from "@/lib/db/schema";
 const tile =
   "flex min-h-28 flex-col justify-between rounded-3xl glass-inset p-4 text-left outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30 active:scale-[0.98]";
 
-// "Start a split" from anywhere (the + in the bottom nav and the sidebar button): scan a receipt, type an
-// amount, or begin with a saved group. Groups are an account feature, so guests just see the two tiles.
+// "Start a split" from anywhere (the + in the bottom nav and the sidebar button). Who first: a new split with
+// whoever is there, or a saved group; then the split asks how (scan a receipt or type an amount) either way.
+// Groups are an account feature, so guests just see the new-split tile.
 export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; onOpenChange: (open: boolean) => void; signedIn: boolean }) {
   const [groups, setGroups] = useState<SavedGroup[]>([]);
 
@@ -34,30 +35,19 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
       <DrawerContent data-testid="start-sheet">
         <DrawerHeader>
           <DrawerTitle className="text-foreground">Start a split</DrawerTitle>
-          <DrawerDescription className="text-muted-foreground">How do you want to begin?</DrawerDescription>
+          <DrawerDescription className="text-muted-foreground">Who&apos;s splitting?</DrawerDescription>
         </DrawerHeader>
 
         <div className="mx-auto w-full max-w-md space-y-5 px-4 pb-8">
-          <div className="grid grid-cols-2 gap-3">
-            <Link href="/dashboard/new" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-scan" className={tile}>
-              <span className="flex size-11 items-center justify-center rounded-full bg-coral/15 text-coral">
-                <Camera className="size-5" />
-              </span>
-              <span>
-                <span className="block text-base font-bold">Scan receipt</span>
-                <span className="block text-xs text-muted-foreground">We read the items</span>
-              </span>
-            </Link>
-            <Link href="/dashboard/new?mode=quick" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-quick" className={tile}>
-              <span className="flex size-11 items-center justify-center rounded-full bg-white/10">
-                <Calculator className="size-5" />
-              </span>
-              <span>
-                <span className="block text-base font-bold">Quick split</span>
-                <span className="block text-xs text-muted-foreground">Just an amount</span>
-              </span>
-            </Link>
-          </div>
+          <Link href="/dashboard/new?how=ask" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-new" className={tile}>
+            <span className="flex size-11 items-center justify-center rounded-full bg-coral/15 text-coral">
+              <UserPlus className="size-5" />
+            </span>
+            <span>
+              <span className="block text-base font-bold">New split</span>
+              <span className="block text-xs text-muted-foreground">Pick who&apos;s in, then scan a receipt or type an amount</span>
+            </span>
+          </Link>
 
           {signedIn && groups.length > 0 && (
             <section aria-label="With a saved group" className="space-y-2">
@@ -73,7 +63,7 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
                 {groups.slice(0, 4).map((g) => (
                   <li key={g.id}>
                     <Link
-                      href={`/dashboard/new?group_id=${g.id}`}
+                      href={`/dashboard/new?group_id=${g.id}&how=ask`}
                       transitionTypes={["nav-forward"]}
                       onClick={close}
                       data-testid="start-group"

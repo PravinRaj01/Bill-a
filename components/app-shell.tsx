@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { m } from "motion/react"
-import { Home, History, Scale, User, LogOut, LogIn, Plus } from "lucide-react"
+import { Home, History, Scale, User, UserRound, LogOut, LogIn, Plus } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
 import { StartSheet } from "@/components/nav/StartSheet"
@@ -106,6 +106,20 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
               </Link>
             ))}
           </nav>
+          {signedIn && (
+            <Link
+              href="/dashboard/people"
+              data-testid="nav-people"
+              aria-current={isActive('/dashboard/people') ? "page" : undefined}
+              className={cn(
+                "mb-2 flex items-center gap-3 px-3 py-2 rounded-xl transition-all",
+                isActive('/dashboard/people') ? "bg-primary/15 text-primary font-bold" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
+              )}
+            >
+              <UserRound className="w-5 h-5" />
+              People
+            </Link>
+          )}
           {signedIn ? (
             <button onClick={handleLogout} className="flex items-center gap-3 px-3 py-2 mt-auto text-muted-foreground hover:text-destructive">
               <LogOut className="w-5 h-5" /> Logout
