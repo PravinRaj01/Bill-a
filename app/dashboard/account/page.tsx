@@ -41,7 +41,7 @@ export default function AccountPage() {
 
   return (
     <PageTransition>
-      <div className="mx-auto mb-20 max-w-xl space-y-5 bg-background p-6 text-white md:p-10">
+      <div className="mx-auto mb-20 max-w-xl space-y-5 p-6 text-foreground md:p-10">
         <header className="space-y-1">
           <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">My Account</h1>
         </header>

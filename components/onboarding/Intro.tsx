@@ -51,7 +51,7 @@ export function Intro({ onDone }: { onDone: () => void }) {
   });
 
   return (
-    <div role="dialog" aria-modal="true" aria-label="Welcome to Bill.a" data-testid="intro" className="fixed inset-0 z-[70] flex flex-col bg-background text-white">
+    <div role="dialog" aria-modal="true" aria-label="Welcome to Bill.a" data-testid="intro" className="fixed inset-0 z-[70] flex flex-col bg-background/80 text-foreground backdrop-blur-2xl">
       <div className="flex justify-end p-4">
         <button type="button" data-testid="intro-skip" onClick={onDone} className="min-h-11 rounded-full px-4 text-sm font-semibold text-muted-foreground transition-colors hover:text-white">
           Skip

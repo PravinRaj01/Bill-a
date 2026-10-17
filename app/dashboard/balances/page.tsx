@@ -107,7 +107,7 @@ export default function BalancesPage() {
 
   return (
     <PageTransition>
-      <div className="mx-auto mb-20 max-w-4xl space-y-6 bg-background p-6 text-white md:p-10">
+      <div className="mx-auto mb-20 max-w-4xl space-y-6 p-6 text-foreground md:p-10">
         <header className="space-y-1">
           <h1 className="text-3xl font-black tracking-tighter text-white uppercase italic">Balances</h1>
           <p className="font-mono text-xs tracking-widest text-muted-foreground uppercase">Who owes what, across bills</p>

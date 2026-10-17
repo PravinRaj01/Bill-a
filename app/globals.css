@@ -59,89 +59,62 @@
   --color-person-6: var(--person-6);
   --color-person-7: var(--person-7);
   --color-person-8: var(--person-8);
+  --color-glass: var(--glass);
+  --color-glass-strong: var(--glass-strong);
+  --color-glass-border: var(--glass-border);
 }
 
-:root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
-}
-
+/* ==== Graphite Glass + Coral ==================================================================
+   The app is dark-only (html.dark), so there is one token set. Neutrals are graphite (a whisper of
+   blue, almost none), coral is the single accent and the primary action colour, and panels are frosted
+   glass over the slow-drifting orbs of <OrbBackdrop>. Use these tokens and the utilities below in new
+   components; do not hard-code colours (see app/dev/ui-kit for every primitive). */
+:root,
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
-}
+  --radius: 1rem;
 
-/* Graphite glass + coral. App is dark-only (html.dark). Use these semantic tokens in new
-   components instead of hard-coded hex. */
-.dark {
   --background: #0e0f12;
+  --foreground: #f4f4f6;
+  --card: #17191e;
+  --card-foreground: #f4f4f6;
+  --popover: #1b1d23;
+  --popover-foreground: #f4f4f6;
+  --primary: #ff6b57;
+  --primary-foreground: #1a0b08;
+  --secondary: #1f2228;
+  --secondary-foreground: #f4f4f6;
+  --muted: #1f2228;
+  --muted-foreground: #8b8f98;
+  --accent: rgb(255 255 255 / 0.08);
+  --accent-foreground: #f4f4f6;
+  --destructive: #f87171;
+  --border: rgb(255 255 255 / 0.08);
+  --input: rgb(255 255 255 / 0.12);
+  --ring: rgb(255 107 87 / 0.55);
+
+  --chart-1: #ff6b57;
+  --chart-2: #34d399;
+  --chart-3: #fbbf24;
+  --chart-4: #8b8f98;
+  --chart-5: #f4f4f6;
+
+  --sidebar: #14161a;
+  --sidebar-foreground: #f4f4f6;
+  --sidebar-primary: #ff6b57;
+  --sidebar-primary-foreground: #1a0b08;
+  --sidebar-accent: rgb(255 255 255 / 0.08);
+  --sidebar-accent-foreground: #f4f4f6;
+  --sidebar-border: rgb(255 255 255 / 0.08);
+  --sidebar-ring: rgb(255 107 87 / 0.55);
+
+  /* Solid layers, for places glass can't go (the receipt image capture, inputs' fallback). */
   --surface: #17191e;
   --surface-2: #1f2228;
-  --muted-foreground: #8b8f98;
   --coral: #ff6b57;
   --coral-foreground: #1a0b08;
   --success: #34d399;
   --warning: #fbbf24;
-  --destructive: #f87171;
+
   --person-1: oklch(0.72 0.15 20);
   --person-2: oklch(0.74 0.14 60);
   --person-3: oklch(0.78 0.14 105);
@@ -150,15 +123,95 @@
   --person-6: oklch(0.72 0.14 255);
   --person-7: oklch(0.72 0.15 305);
   --person-8: oklch(0.74 0.14 350);
-  --glass: rgb(255 255 255 / 0.04);
-  --glass-border: rgb(255 255 255 / 0.06);
-  --coral-glow: 0 8px 24px -6px rgb(255 107 87 / 0.45);
+
+  /* Glass: a translucent fill, a hairline border, a top highlight and a soft drop shadow. */
+  --glass: rgb(255 255 255 / 0.06);
+  --glass-strong: rgb(24 26 31 / 0.72);
+  --glass-border: rgb(255 255 255 / 0.09);
+  --glass-highlight: rgb(255 255 255 / 0.1);
+  --coral-glow: 0 8px 24px -6px rgb(255 107 87 / 0.5);
 }
 
+/* Frosted panel: cards, rows, tiles. */
 @utility glass {
-  background: var(--glass);
+  background: linear-gradient(180deg, rgb(255 255 255 / 0.085), var(--glass));
   border: 1px solid var(--glass-border);
-  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
+  backdrop-filter: blur(24px) saturate(140%);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 12px 32px -14px rgb(0 0 0 / 0.55);
+}
+
+/* Heavier frost for things that float above content: sheets, the nav, the header, toasts. */
+@utility glass-strong {
+  background: var(--glass-strong);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(32px) saturate(150%);
+  backdrop-filter: blur(32px) saturate(150%);
+  box-shadow: inset 0 1px 0 var(--glass-highlight), 0 -12px 40px -12px rgb(0 0 0 / 0.6);
+}
+
+/* A recessed well inside a panel: inputs, code blocks, the receipt log. */
+@utility glass-inset {
+  background: rgb(0 0 0 / 0.28);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  box-shadow: inset 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+/* ---- Typography: one style per role, so pages stop inventing their own ---- */
+@utility type-title {
+  font-size: 1.875rem;
+  line-height: 2.25rem;
+  font-weight: 900;
+  letter-spacing: -0.025em;
+}
+@utility type-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted-foreground);
+}
+@utility type-card-title {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 700;
+}
+
+/* ---- Orb backdrop (components/ui/orb-backdrop.tsx) ----
+   Big soft radial gradients, not blur filters: a gradient that fades to transparent costs nothing to
+   draw, and only `transform` is animated, so it stays on the compositor (cheap on phones). */
+.orb-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+}
+.orb {
+  position: absolute;
+  border-radius: 9999px;
+  background: radial-gradient(closest-side, var(--orb-color), transparent);
+  opacity: var(--orb-opacity, 0.5);
+  animation: orb-drift var(--orb-time, 80s) ease-in-out infinite alternate;
+  will-change: transform;
+}
+.orb-backdrop[data-paused="true"] .orb {
+  animation-play-state: paused;
+}
+@keyframes orb-drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(var(--orb-dx, 6vw), var(--orb-dy, 5vh), 0) scale(1.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .orb {
+    animation: none;
+  }
 }
 
 @keyframes fade-out {

@@ -52,7 +52,7 @@ export default function ManageGroups() {
 
   return (
     <PageTransition>
-      <div className="mx-auto mb-20 min-h-screen max-w-xl space-y-6 bg-background p-6 text-white md:p-10">
+      <div className="mx-auto mb-20 min-h-screen max-w-xl space-y-6 p-6 text-foreground md:p-10">
         <Link href="/dashboard" transitionTypes={["nav-back"]} className="flex min-h-11 items-center text-sm font-semibold text-muted-foreground transition-colors hover:text-white">
           <ChevronLeft size={16} className="mr-1" /> Home
         </Link>

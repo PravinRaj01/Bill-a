@@ -59,8 +59,8 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
   }
 
   return (
-    <div className="flex min-h-screen bg-background text-white flex-col">
-      <header style={{ viewTransitionName: "app-header" }} className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/5 bg-background/70 backdrop-blur-md sticky top-0 z-50">
+    <div className="flex min-h-screen flex-col text-foreground">
+      <header style={{ viewTransitionName: "app-header" }} className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/8 bg-background/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <div className="bg-white p-0.5 rounded shadow-sm">
             <img src="/icon.png" alt="logo" className="w-4 h-4 object-contain" />
@@ -74,7 +74,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
 
       <div className="flex flex-1">
         {/* Desktop sidebar */}
-        <aside className="hidden md:flex w-64 flex-col border-r border-white/5 bg-surface p-6">
+        <aside className="hidden md:flex w-64 flex-col border-r border-white/8 bg-white/[0.035] p-6 backdrop-blur-xl">
           <button
             type="button"
             data-testid="new-split"
@@ -92,7 +92,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
                 aria-current={isActive(item.href) ? "page" : undefined}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2 rounded-xl transition-all",
-                  isActive(item.href) ? "bg-white text-black font-bold" : "text-zinc-400 hover:text-white"
+                  isActive(item.href) ? "bg-primary/15 text-primary font-bold" : "text-muted-foreground hover:bg-white/5 hover:text-foreground"
                 )}
               >
                 <item.icon className="w-5 h-5" />
@@ -119,7 +119,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
       {/* Phone bottom nav: two tabs, the raised + in the middle, two tabs. Guests get Home, +, Log in. */}
       <nav
         aria-label="Main"
-        className="md:hidden fixed inset-x-0 bottom-0 z-50 border-t border-white/5 bg-background/85 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-lg"
+        className="md:hidden fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-background/55 px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] backdrop-blur-2xl"
       >
         <div className={cn("grid items-center", signedIn ? "grid-cols-5" : "grid-cols-3")}>
           {left.map(tab)}

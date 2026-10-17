@@ -113,7 +113,7 @@ export default function BillDetailPage() {
 
   return (
     <PageTransition>
-      <div className="mx-auto mb-20 max-w-2xl space-y-6 bg-background p-6 text-white md:p-10">
+      <div className="mx-auto mb-20 max-w-2xl space-y-6 p-6 text-foreground md:p-10">
         <div className="flex items-center justify-between">
           <button
             type="button"

@@ -76,7 +76,7 @@ export default function DashboardPage() {
   return (
     <PageTransition>
       {intro.show && <Intro onDone={intro.finish} />}
-      <div className="mx-auto min-h-screen max-w-6xl space-y-8 bg-background p-6 pb-24 text-white md:p-10">
+      <div className="mx-auto min-h-screen max-w-6xl space-y-8 p-6 pb-24 text-foreground md:p-10">
         <header className="space-y-1">
           <h1 data-testid="greeting" className="text-3xl font-black tracking-tight">
             {greeting(now?.hour ?? null)}

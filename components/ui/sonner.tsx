@@ -12,9 +12,9 @@ function Toaster(props: ToasterProps) {
       mobileOffset={{ bottom: "calc(5rem + env(safe-area-inset-bottom))" }}
       toastOptions={{
         classNames: {
-          toast: "!bg-surface !text-foreground !border !border-white/10 !rounded-2xl !shadow-2xl",
+          toast: "glass-strong !text-foreground !rounded-2xl !shadow-2xl",
           description: "!text-muted-foreground",
-          actionButton: "!bg-coral !text-coral-foreground !font-bold",
+          actionButton: "!bg-primary !text-primary-foreground !font-bold !rounded-full",
         },
       }}
       {...props}

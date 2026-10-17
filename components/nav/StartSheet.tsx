@@ -31,7 +31,7 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="border-white/10 bg-surface text-white" data-testid="start-sheet">
+      <DrawerContent data-testid="start-sheet">
         <DrawerHeader>
           <DrawerTitle className="text-white">Start a split</DrawerTitle>
           <DrawerDescription className="text-muted-foreground">How do you want to begin?</DrawerDescription>
