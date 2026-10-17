@@ -2,7 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { CreditCard, History, LogOut, Mail, Wallet } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, CreditCard, History, LogOut, Mail, UserRound, Wallet } from "lucide-react";
 
 import { signOutAction } from "@/app/auth/actions";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
@@ -130,6 +131,18 @@ function AccountContent() {
               </span>
               <CreditCard size={18} className="text-muted-foreground" />
             </button>
+
+            <Link
+              href="/dashboard/people"
+              data-testid="account-people"
+              className="flex min-h-14 w-full items-center justify-between rounded-2xl glass px-5 text-left transition-colors hover:bg-white/10"
+            >
+              <span>
+                <span className="block text-sm font-bold text-foreground">People</span>
+                <span className="block text-xs text-muted-foreground">Your contacts, WhatsApp numbers and friends</span>
+              </span>
+              <span className="flex items-center gap-2 text-muted-foreground"><UserRound size={18} /><ChevronRight size={16} /></span>
+            </Link>
 
             <button
               type="button"

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, UserPlus, Users } from "lucide-react";
+import { ChevronRight, UserPlus, UserRound, Users } from "lucide-react";
 
 import { AvatarStack } from "@/components/person-avatar";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
@@ -48,6 +48,17 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
               <span className="block text-xs text-muted-foreground">Pick who&apos;s in, then scan a receipt or type an amount</span>
             </span>
           </Link>
+
+          {signedIn && (
+            <div className="grid grid-cols-2 gap-3">
+              <Link href="/dashboard/people?add=person" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-add-person" className="flex min-h-14 items-center gap-3 rounded-2xl glass-inset px-4 text-left text-sm font-semibold outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30">
+                <UserRound className="size-5 shrink-0 text-muted-foreground" /> Add a person
+              </Link>
+              <Link href="/dashboard/people?add=friend" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-add-friend" className="flex min-h-14 items-center gap-3 rounded-2xl glass-inset px-4 text-left text-sm font-semibold outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30">
+                <UserPlus className="size-5 shrink-0 text-muted-foreground" /> Add a friend
+              </Link>
+            </div>
+          )}
 
           {signedIn && groups.length > 0 && (
             <section aria-label="With a saved group" className="space-y-2">
