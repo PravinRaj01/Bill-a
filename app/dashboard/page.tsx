@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
-import { ArrowUpRight, Calculator, Camera, ChevronRight, LogIn, Users } from "lucide-react"
+import { ArrowUpRight, Calculator, Camera, ChevronRight, LogIn, UserRound, Users } from "lucide-react"
 
 import { Intro, useIntro } from "@/components/onboarding/Intro"
 import { SetupChecklist } from "@/components/onboarding/SetupChecklist"
@@ -233,6 +233,25 @@ export default function DashboardPage() {
               )
             )}
           </section>
+        )}
+
+        {/* People: contacts with WhatsApp numbers, for one-tap nudges */}
+        {signedIn && (
+          <Link
+            href="/dashboard/people"
+            transitionTypes={["nav-forward"]}
+            data-testid="home-people"
+            className="flex min-h-16 items-center gap-3 rounded-3xl glass p-4 transition-colors hover:border-white/20"
+          >
+            <span className="flex size-11 items-center justify-center rounded-full bg-white/10">
+              <UserRound size={20} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-bold">Your people</span>
+              <span className="block truncate text-sm text-muted-foreground">Save WhatsApp numbers so nudges go straight to their chat</span>
+            </span>
+            <ChevronRight size={18} className="text-muted-foreground" />
+          </Link>
         )}
       </div>
     </PageTransition>
