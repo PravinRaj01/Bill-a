@@ -3,6 +3,7 @@ import { Geist_Mono, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { SwRegister } from "@/components/sw-register";
 import { MotionProvider } from "@/components/motion-provider";
+import { OrbBackdrop } from "@/components/ui/orb-backdrop";
 import { Toaster } from "@/components/ui/sonner";
 
 const jakarta = Plus_Jakarta_Sans({ variable: "--font-jakarta", subsets: ["latin"], display: "swap" });
@@ -38,7 +39,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className="dark" style={{ colorScheme: 'dark' }}>
-      <body className={`${jakarta.variable} ${geistMono.variable} antialiased bg-background text-slate-50`}>
+      <body className={`${jakarta.variable} ${geistMono.variable} antialiased bg-background text-foreground`}>
+        <OrbBackdrop />
         <MotionProvider>{children}</MotionProvider>
         <Toaster />
         <SwRegister />
