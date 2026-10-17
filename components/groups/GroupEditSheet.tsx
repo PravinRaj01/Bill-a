@@ -6,6 +6,7 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import type { SavedGroup } from "@/lib/db/schema";
 
@@ -25,11 +26,13 @@ export function GroupEditSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Resolves to an error message, or null when saved. */
-  onSave: (input: { groupName: string; names: string[] }) => Promise<string | null>;
+  onSave: (input: { groupName: string; names: string[]; includesMe: boolean }) => Promise<string | null>;
   onDelete: () => void;
 }) {
   const [name, setName] = useState(group.groupName);
   const [people, setPeople] = useState<string[]>(group.names);
+  // Whether you are in this group: starting a split from it puts the Me chip in (or leaves it out).
+  const [includesMe, setIncludesMe] = useState(group.includesMe);
   const [newPerson, setNewPerson] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,13 +56,13 @@ export function GroupEditSheet({
   const save = async () => {
     setError(null);
     setSaving(true);
-    const message = await onSave({ groupName: name.trim(), names: people });
+    const message = await onSave({ groupName: name.trim(), names: people, includesMe });
     setSaving(false);
     if (message) setError(message);
     else onOpenChange(false);
   };
 
-  const canSave = name.trim().length > 0 && people.length > 0 && !saving;
+  const canSave = name.trim().length > 0 && (people.length > 0 || includesMe) && !saving;
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -96,7 +99,7 @@ export function GroupEditSheet({
                   </button>
                 </li>
               ))}
-              {people.length === 0 && <li className="text-sm text-muted-foreground">Add at least one person.</li>}
+              {people.length === 0 && <li className="text-sm text-muted-foreground">{includesMe ? "Just you for now." : "Add at least one person."}</li>}
             </ul>
             <div className="flex gap-2">
               <Input
@@ -115,6 +118,14 @@ export function GroupEditSheet({
               </Button>
             </div>
           </div>
+
+          <label className="glass flex min-h-14 items-center justify-between gap-3 rounded-2xl px-4">
+            <span className="text-sm">
+              <span className="block font-semibold">I&apos;m in this group</span>
+              <span className="block text-xs text-muted-foreground">Starts a split with you already added</span>
+            </span>
+            <Switch data-testid="group-includes-me" checked={includesMe} onCheckedChange={setIncludesMe} aria-label="I'm in this group" />
+          </label>
 
           {error && (
             <p role="alert" data-testid="group-error" className="text-sm text-coral">

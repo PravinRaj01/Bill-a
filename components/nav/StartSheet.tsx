@@ -82,7 +82,7 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
                       <AvatarStack names={g.names} max={3} />
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-bold">{g.groupName}</span>
-                        <span className="block truncate text-xs text-muted-foreground">{g.names.join(", ")}</span>
+                        <span className="block truncate text-xs text-muted-foreground">{(g.includesMe ? ["You", ...g.names] : g.names).join(", ")}</span>
                       </span>
                       <ChevronRight size={16} className="shrink-0 text-muted-foreground" />
                     </Link>

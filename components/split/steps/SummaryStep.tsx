@@ -101,6 +101,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
         change: s.changeSettlement,
         stop: s.stopTracking,
         payment,
+        participants: s.participants,
       }}
     />
   );

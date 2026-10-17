@@ -94,6 +94,18 @@ export interface BillData {
   exactSplit?: SplitRecord[];
   /** Who paid and who has paid back (batch 2). */
   settlement?: Settlement;
+  /**
+   * Who was in the split, with the owner marked (`me`). Absent on bills saved before batch 5, which only
+   * have `settlement.me` (a guess). Present and with NO `me` means the bill was split for others.
+   */
+  participants?: Participant[];
+}
+
+/** One person in a bill. `userId` links a Bill.a account (a friend); `me` marks the bill's owner. */
+export interface Participant {
+  name: string;
+  me?: true;
+  userId?: string;
 }
 
 /**
