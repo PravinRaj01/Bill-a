@@ -4,6 +4,8 @@ import { z } from "zod";
 import { getUserIdOrNull, requireUserId } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import * as s from "@/lib/db/social";
+import * as q from "@/lib/db/queries";
+import { paymentLines } from "@/lib/payment/format";
 import { billMe } from "@/lib/split/participants";
 import { localDate } from "@/lib/split/settle";
 import { mySharedSummary, ownerLabel } from "@/lib/split/shared";
@@ -17,6 +19,7 @@ const idSchema = z.uuid();
 
 export interface SharedListEntry {
   id: string;
+  hidden: boolean;
   billTitle: string;
   totalAmount: number;
   currency: string;
@@ -26,15 +29,16 @@ export interface SharedListEntry {
   mine: { iOwe: number; theyOwe: number; settled: boolean } | null;
 }
 
-export async function listSharedWithMe(): Promise<SharedListEntry[]> {
+export async function listSharedWithMe(includeHidden = false): Promise<SharedListEntry[]> {
   const userId = await getUserIdOrNull();
   if (!userId) return [];
   const today = localDate();
-  const rows = await s.listSharedBills(getDb(), userId);
+  const rows = await s.listSharedBills(getDb(), userId, { withHidden: includeHidden });
   return rows.map((b) => {
     const m = mySharedSummary(b, today);
     return {
       id: b.id,
+      hidden: b.hidden,
       billTitle: b.billTitle,
       totalAmount: b.totalAmount,
       currency: b.currency,
@@ -63,6 +67,9 @@ export interface SharedDetail {
   open: { key: string; amount: number; direction: "iOwe" | "theyOwe"; claim: "pending" | "rejected" | "confirmed" | null }[];
   /** The owner's payment details are only worth showing when I owe them. */
   owesOwner: boolean;
+  /** How to pay the owner (text lines and their DuitNow QR), only when I owe them something on this bill. */
+  payLines: string[];
+  payQr: { payload: string; name?: string } | null;
 }
 
 export async function getSharedDetail(id: string): Promise<SharedDetail | null> {
@@ -74,6 +81,8 @@ export async function getSharedDetail(id: string): Promise<SharedDetail | null> 
   const summary = mySharedSummary(b, localDate());
   const claims = await s.listMyClaims(db, userId, id);
   const claimFor = (key: string) => claims.find((c) => c.transferKey === key)?.status ?? null;
+  const owes = (summary?.iOwe ?? 0) > 0;
+  const details = owes ? await q.getPaymentDetails(db, b.owner.id) : null;
   return {
     id: b.id,
     billTitle: b.billTitle,
@@ -88,7 +97,9 @@ export async function getSharedDetail(id: string): Promise<SharedDetail | null> 
     items: b.data.items,
     settlement: b.data.settlement ?? null,
     open: (summary?.open ?? []).map((o) => ({ ...o, claim: claimFor(o.key) })),
-    owesOwner: (summary?.iOwe ?? 0) > 0,
+    owesOwner: owes,
+    payLines: paymentLines(details),
+    payQr: details?.duitnowQr ? { payload: details.duitnowQr.payload, name: details.duitnowQr.name } : null,
   };
 }
 

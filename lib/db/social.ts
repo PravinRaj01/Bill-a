@@ -203,6 +203,7 @@ export async function syncShares(db: Db, ownerId: string, billId: string, data: 
 
 export interface SharedBillListItem {
   id: string;
+  hidden: boolean;
   billTitle: string;
   merchantCategory: string | null;
   totalAmount: number;
@@ -226,6 +227,7 @@ const sharedColumns = {
   settlement: sql<Settlement | null>`${billHistory.data} -> 'settlement'`,
   participants: sql<Participant[] | null>`${billHistory.data} -> 'participants'`,
   asName: billShares.asName,
+  hidden: billShares.hidden,
   ownerId: users.id,
   ownerUsername: users.username,
   ownerName: users.name,
@@ -233,13 +235,13 @@ const sharedColumns = {
 };
 
 type SharedRow = {
-  id: string; billTitle: string; merchantCategory: string | null; totalAmount: number; currency: string; createdAt: Date;
+  id: string; hidden: boolean; billTitle: string; merchantCategory: string | null; totalAmount: number; currency: string; createdAt: Date;
   split: SplitRecord[] | null; settlement: Settlement | null; participants: Participant[] | null; asName: string;
   ownerId: string; ownerUsername: string | null; ownerName: string | null; ownerAvatarSeed: string | null;
 };
 
 const toShared = (r: SharedRow): SharedBillListItem => ({
-  id: r.id, billTitle: r.billTitle, merchantCategory: r.merchantCategory, totalAmount: r.totalAmount, currency: r.currency, createdAt: r.createdAt,
+  id: r.id, hidden: r.hidden, billTitle: r.billTitle, merchantCategory: r.merchantCategory, totalAmount: r.totalAmount, currency: r.currency, createdAt: r.createdAt,
   split: r.split, settlement: r.settlement, participants: r.participants, asName: r.asName,
   owner: { id: r.ownerId, username: r.ownerUsername, name: r.ownerName, avatarSeed: r.ownerAvatarSeed },
 });
@@ -258,7 +260,6 @@ export async function listSharedBills(db: Db, viewerId: string, opts: { withHidd
 
 export interface SharedBillDetail extends SharedBillListItem {
   data: BillData;
-  hidden: boolean;
   updatedAt: Date;
 }
 
@@ -268,14 +269,14 @@ export interface SharedBillDetail extends SharedBillListItem {
  */
 export async function getSharedBill(db: Db, viewerId: string, billId: string): Promise<SharedBillDetail | null> {
   const [row] = await db
-    .select({ ...sharedColumns, data: billHistory.data, hidden: billShares.hidden, updatedAt: billHistory.updatedAt })
+    .select({ ...sharedColumns, data: billHistory.data, updatedAt: billHistory.updatedAt })
     .from(billShares)
     .innerJoin(billHistory, eq(billHistory.id, billShares.billId))
     .innerJoin(users, eq(users.id, billHistory.userId))
     .where(and(eq(billShares.userId, viewerId), eq(billShares.billId, billId)))
     .limit(1);
   if (!row) return null;
-  return { ...toShared(row), data: row.data, hidden: row.hidden, updatedAt: row.updatedAt };
+  return { ...toShared(row), data: row.data, updatedAt: row.updatedAt };
 }
 
 /** Hide (or show again) a shared bill in MY history. False when it isn't shared with me. */
