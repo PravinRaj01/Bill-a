@@ -68,9 +68,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
     <div className="flex min-h-screen flex-col text-foreground">
       <header style={{ viewTransitionName: "app-header" }} className="flex h-14 shrink-0 items-center justify-between px-6 border-b border-white/8 bg-background/50 backdrop-blur-xl sticky top-0 z-50">
         <div className="flex items-center gap-2">
-          <div className="bg-white p-0.5 rounded shadow-sm">
-            <img src="/icon.png" alt="logo" className="w-4 h-4 object-contain" />
-          </div>
+          <img src="/logo.png" alt="" className="size-6 rounded-md bg-white object-contain" />
           <span className="text-sm font-bold tracking-tighter italic">Bill.a</span>
         </div>
         {signedIn ? (
