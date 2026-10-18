@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { billHistory, billShares, people, savedGroups, users } from "./schema";
 import { notify } from "./notifications";
+import { propagateRename } from "./rename";
 import { confirmSatisfiedClaims, syncShares } from "./social";
 import type { BillData, Participant, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
 
@@ -418,9 +419,14 @@ export async function setTimeZone(db: Db, userId: string, tz: string): Promise<v
   await db.update(users).set({ tz }).where(eq(users.id, userId));
 }
 
-/** The user's display name (null clears it). Keyed by the session's user id only. */
+/**
+ * The user's display name (null clears it). Keyed by the session's user id only. Friends' bills, contacts and
+ * groups that name them by their old name follow the change (lib/db/rename.ts).
+ */
 export async function setUserName(db: Db, userId: string, name: string | null): Promise<string | null> {
+  const [before] = await db.select({ name: users.name }).from(users).where(eq(users.id, userId)).limit(1);
   await db.update(users).set({ name }).where(eq(users.id, userId));
+  await propagateRename(db, userId, before?.name ?? null, name);
   return name;
 }
 
