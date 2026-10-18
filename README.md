@@ -145,6 +145,21 @@ walkthrough, including the production smoke-test checklist.
   (which AI tier answered, an OCR confidence bucket), never receipt contents, names, amounts,
   or key material. Free-text error messages are redacted before logging.
 
+## Planned
+
+Ideas we've agreed on but not built yet. Each has a GitHub issue with the full plan.
+
+- **Daily digest at 9am in each user's own time zone** ([#72](https://github.com/PravinRaj01/Bill-a/issues/72)).
+  Today the digest runs once a day at 01:00 UTC (09:00 Malaysia), the most the Vercel Hobby plan
+  allows. Later: drop the `crons` entry and have a free scheduler such as cron-job.org call
+  `/api/cron/digest` hourly with `Authorization: Bearer <CRON_SECRET>` (or use an hourly cron on
+  Vercel Pro), sending to each user at 9am their time.
+- **Users choose their portrait colour, orange by default** ([#73](https://github.com/PravinRaj01/Bill-a/issues/73)).
+  Today a portrait's colour is derived from the name, so it changes with how the name is written
+  ("Pravin" and "Pravin Raj" differ). Later: a colour picker in Account › Profile, stored on the
+  account (migration `0009`) and shown everywhere the app knows it's that user. Names typed into a
+  split keep the automatic colours.
+
 ## License
 
 No license file yet — all rights reserved by default until one is added.
