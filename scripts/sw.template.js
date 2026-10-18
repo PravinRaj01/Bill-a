@@ -24,7 +24,7 @@ const OCR = `billa-ocr-${OCR_VERSION}`; //     ~7 MB: only re-downloaded when th
 const PAGES = `billa-pages-${BUILD_ID}`; //    HTML shells: replaced every deploy
 
 const SHELL_ROUTES = ["/dashboard/new", "/dashboard"];
-const STATIC_FILES = new Set(["/icon.png", "/icon-192.png", "/logo.png", "/splash-logo.png", "/apple-icon.png", "/favicon.ico", "/manifest.json"]);
+const STATIC_FILES = new Set(["/icon.png", "/icon-192.png", "/logo.png", "/splash-logo.png", "/badge.png", "/apple-icon.png", "/favicon.ico", "/manifest.json"]);
 const MAX_STATIC_ENTRIES = 250; // old deploys' chunks would otherwise pile up forever
 const SLOW_NETWORK_MS = 4000; //  with a cached shell in hand, don't make the user wait longer than this
 
@@ -64,7 +64,7 @@ self.addEventListener("push", (event) => {
     self.registration.showNotification(data.title || "Bill.a", {
       body: data.body || "You have a new notification",
       icon: "/icon.png",
-      badge: "/icon.png",
+      badge: "/badge.png", // Android draws the status-bar icon from transparency only: a white silhouette, not the square app icon
       tag: data.tag || "billa",
       data: { url: typeof data.url === "string" ? data.url : "/dashboard/notifications" },
     }),
