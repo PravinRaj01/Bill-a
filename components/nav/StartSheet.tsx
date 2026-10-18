@@ -51,7 +51,7 @@ export function StartSheet({ open, onOpenChange, signedIn }: { open: boolean; on
 
           {signedIn && (
             <Link href="/dashboard/people" transitionTypes={["nav-forward"]} onClick={close} data-testid="start-add-people" className="flex min-h-14 items-center gap-3 rounded-2xl glass-inset px-4 text-left text-sm font-semibold outline-none transition-colors hover:border-white/25 focus-visible:ring-2 focus-visible:ring-white/30">
-              <UserRound className="size-5 shrink-0 text-muted-foreground" /> Add people
+              <UserRound className="size-5 shrink-0 text-muted-foreground" /> Add pals
               <ChevronRight className="ml-auto size-4 text-muted-foreground" />
             </Link>
           )}

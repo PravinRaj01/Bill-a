@@ -33,9 +33,12 @@ export function PastBillsSheet({ friend, onClose }: { friend: { id: string; name
     };
   }, [friend]);
 
-  // Nothing to offer: close quietly instead of showing an empty sheet.
+  // Nothing to offer: say so (a sheet that never opens looks like a broken button), then close.
   useEffect(() => {
-    if (friend && bills && bills.length === 0) onClose();
+    if (friend && bills && bills.length === 0) {
+      toast(`No past bills with ${friend.name} to share`, { description: "Bills that name them by their name, first name or @username show up here." });
+      onClose();
+    }
   }, [friend, bills, onClose]);
 
   const toggle = (id: string) =>

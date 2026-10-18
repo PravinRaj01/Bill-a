@@ -203,7 +203,9 @@ export async function syncShares(db: Db, ownerId: string, billId: string, data: 
     const cur = have.get(m.userId as string);
     if (cur && cur.asName !== m.name) await db.update(billShares).set({ asName: m.name }).where(and(eq(billShares.billId, billId), eq(billShares.userId, m.userId as string)));
   }
-  const gone = existing.filter((s) => !matchedIds.has(s.userId)).map((s) => s.userId);
+  // A share also stays while the bill still names the friend as it was shared (a past bill shared under their
+  // first name, say, which isn't their contact's name).
+  const gone = existing.filter((s) => !matchedIds.has(s.userId) && !names.includes(s.asName.trim().toLowerCase())).map((s) => s.userId);
   if (gone.length) await db.delete(billShares).where(and(eq(billShares.billId, billId), inArray(billShares.userId, gone)));
 }
 
@@ -297,36 +299,50 @@ export interface PastBill {
   totalAmount: number;
   currency: string;
   createdAt: Date;
+  /** How the friend is written on this bill (the name the share points at). */
+  asName: string;
 }
 
-/** My bills that name this linked friend's contact and aren't shared with them yet. */
+/**
+ * My bills that name this linked friend and aren't shared with them yet. The friend may be written as their
+ * contact's name, their first name or their @username (the contact is created from the full account name, while
+ * bills usually say the first name). The bill's own "me" never counts, in case we share a first name. The owner
+ * confirms each bill before it is shared, so a looser match only ever offers more.
+ */
 export async function listSharablePastBills(db: Db, ownerId: string, friendId: string): Promise<PastBill[]> {
   if (!(await areFriends(db, ownerId, friendId))) return [];
   const [contact] = await db.select({ nameKey: people.nameKey }).from(people).where(and(eq(people.userId, ownerId), eq(people.linkedUserId, friendId))).limit(1);
   if (!contact?.nameKey) return [];
-  return db
-    .select({ id: billHistory.id, billTitle: billHistory.billTitle, totalAmount: billHistory.totalAmount, currency: billHistory.currency, createdAt: billHistory.createdAt })
+  const [friend] = await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, friendId)).limit(1);
+  const firstName = (friend?.name ?? "").trim().split(/\s+/)[0]?.toLowerCase();
+  const keys = [...new Set([contact.nameKey, firstName, friend?.username?.toLowerCase()].filter((k): k is string => !!k))];
+  const keyList = sql.join(keys.map((k) => sql`${k}`), sql`, `);
+  const entries = sql`jsonb_array_elements(coalesce(${billHistory.data} -> 'split', '[]'::jsonb))`;
+  const named = sql`lower(btrim(e ->> 'name')) in (${keyList}) and lower(btrim(e ->> 'name')) <> lower(btrim(coalesce(${billHistory.data} -> 'settlement' ->> 'me', '')))`;
+  const rows = await db
+    .select({
+      id: billHistory.id,
+      billTitle: billHistory.billTitle,
+      totalAmount: billHistory.totalAmount,
+      currency: billHistory.currency,
+      createdAt: billHistory.createdAt,
+      // The contact's own name wins when a bill has more than one candidate.
+      asName: sql<string>`(select e ->> 'name' from ${entries} e where ${named} order by (lower(btrim(e ->> 'name')) = ${contact.nameKey}) desc limit 1)`,
+    })
     .from(billHistory)
-    .where(
-      and(
-        eq(billHistory.userId, ownerId),
-        sql`exists (select 1 from jsonb_array_elements(coalesce(${billHistory.data} -> 'split', '[]'::jsonb)) e where lower(btrim(e ->> 'name')) = ${contact.nameKey})`,
-        sql`not exists (select 1 from ${billShares} s where s.bill_id = ${billHistory.id} and s.user_id = ${friendId})`,
-      ),
-    )
+    .where(and(eq(billHistory.userId, ownerId), sql`exists (select 1 from ${entries} e where ${named})`, sql`not exists (select 1 from ${billShares} s where s.bill_id = ${billHistory.id} and s.user_id = ${friendId})`))
     .orderBy(desc(billHistory.createdAt))
     .limit(100);
+  return rows.map((r) => ({ ...r, asName: r.asName.trim() }));
 }
 
-/** Shares the chosen past bills (each must be mine and name that friend's contact) with the friend. */
+/** Shares the chosen past bills (each must be mine and name that friend) with the friend. */
 export async function sharePastBills(db: Db, ownerId: string, friendId: string, billIds: string[]): Promise<number> {
   if (billIds.length === 0) return 0;
   const allowed = await listSharablePastBills(db, ownerId, friendId);
   const ok = allowed.filter((b) => billIds.includes(b.id));
   if (ok.length === 0) return 0;
-  const [contact] = await db.select({ name: people.name }).from(people).where(and(eq(people.userId, ownerId), eq(people.linkedUserId, friendId))).limit(1);
-  if (!contact) return 0;
-  await db.insert(billShares).values(ok.map((b) => ({ billId: b.id, userId: friendId, asName: contact.name }))).onConflictDoNothing();
+  await db.insert(billShares).values(ok.map((b) => ({ billId: b.id, userId: friendId, asName: b.asName }))).onConflictDoNothing();
   for (const b of ok) await notify(db, { userId: friendId, kind: "bill_added", actorId: ownerId, billId: b.id, payload: { title: b.billTitle }, dedupe: `bill_added:${b.id}` });
   return ok.length;
 }

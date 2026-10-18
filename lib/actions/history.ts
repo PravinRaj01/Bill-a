@@ -63,14 +63,6 @@ export async function clearHistory() {
   return q.clearBills(getDb(), userId);
 }
 
-export async function getAccountStats() {
-  const userId = await getUserIdOrNull();
-  if (!userId) return { count: 0, totals: [] as { currency: string; cents: number }[] };
-  const db = getDb();
-  const [{ count }, totals] = await Promise.all([q.billStats(db, userId), q.billTotalsByCurrency(db, userId)]);
-  return { count, totals };
-}
-
 /** "Session N" numbering: computed server-side from the caller's own count. */
 export async function nextSessionTitle() {
   const userId = await getUserIdOrNull();
