@@ -7,10 +7,10 @@ export default function SplashScreen() {
       <div className="relative grid place-items-center">
         {/* Coral halo behind the tile */}
         <div className="halo absolute -translate-y-[17px] size-[442px] rounded-full bg-[radial-gradient(circle,rgb(255_107_87/0.33),rgb(255_107_87/0)_65%)]" />
-        {/* The app icon: the dark artwork on a dark tile */}
+        {/* The navy artwork as the tile */}
         <div className="relative size-[129px] overflow-hidden rounded-[26.3%] bg-background shadow-[0_17px_51px_-14px_rgb(255_107_87/0.6)]">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-dark.png" alt="Bill.a" className="relative size-full object-contain p-2.5" />
+          <img src="/splash-logo.png" alt="Bill.a" className="relative size-full object-cover" />
         </div>
       </div>
 
