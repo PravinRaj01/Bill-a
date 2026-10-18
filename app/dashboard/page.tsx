@@ -10,6 +10,7 @@ import { AvatarStack } from "@/components/person-avatar"
 import { PageTransition } from "@/components/page-transition"
 import { MeshHero } from "@/components/ui/mesh-hero"
 import { listGroups } from "@/lib/actions/groups"
+import { listPeople } from "@/lib/actions/people"
 import { getBalances, listBills, type BillListEntry } from "@/lib/actions/history"
 import { getCurrentUser, getPaymentDetails } from "@/lib/actions/user"
 import type { SavedGroup } from "@/lib/db/schema"
@@ -38,6 +39,8 @@ export default function DashboardPage() {
   const [hasPayment, setHasPayment] = useState(false)
   const intro = useIntro()
   const [groups, setGroups] = useState<SavedGroup[]>([])
+  // Your pals (People): names only, for the row under the tiles. Guests have none.
+  const [pals, setPals] = useState<string[]>([])
   const [latest, setLatest] = useState<BillListEntry | null>(null)
   // What people owe you / you owe, per currency, from tracked bills (empty for guests and when all square).
   const [owed, setOwed] = useState<[string, { owedToYou: number; youOwe: number }][]>([])
@@ -61,6 +64,7 @@ export default function DashboardPage() {
     getPaymentDetails().then((d) => setHasPayment(!!d)).catch(() => setHasPayment(false)),
     // Resolved on the server from the session: guests simply get empty results.
     listGroups().then(setGroups).catch(() => setGroups([])),
+    listPeople().then((p) => setPals(p.map((x) => x.name).sort((a, b) => a.localeCompare(b)))).catch(() => setPals([])),
     listBills().then((b) => setLatest(b[0] ?? null)).catch(() => setLatest(null)),
     getBalances()
       .then((r) => {
@@ -126,6 +130,22 @@ export default function DashboardPage() {
             </div>
           </Link>
         </section>
+
+        {/* Your pals: everyone you split with, one tap from Home (phones have no sidebar). */}
+        {ready && signedIn === true && (
+          <Link href="/dashboard/people" transitionTypes={["nav-forward"]} data-testid="home-pals" className="flex min-h-16 items-center justify-between gap-4 rounded-3xl glass p-4 pl-5 transition-colors hover:border-white/20">
+            <span className="min-w-0">
+              <span className="block text-base font-bold">Pals</span>
+              <span className="block text-xs text-muted-foreground">
+                {pals.length === 0 ? "Add the people you split with" : `${pals.length} ${pals.length === 1 ? "pal" : "pals"}`}
+              </span>
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              {pals.length > 0 ? <AvatarStack names={pals} max={5} /> : <Users className="size-5 text-muted-foreground" />}
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </span>
+          </Link>
+        )}
 
         {ready && signedIn === true && (
           <SetupChecklist

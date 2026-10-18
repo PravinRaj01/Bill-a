@@ -116,7 +116,7 @@ export default function PeoplePage() {
 
         <header className="flex items-end justify-between gap-3">
           <div className="space-y-1">
-            <h1 className="type-title">People</h1>
+            <h1 className="type-title">Pals</h1>
             <p className="type-eyebrow">Who you split with</p>
           </div>
           {signedIn && (

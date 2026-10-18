@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ChevronRight, CreditCard, History, LogOut, Mail, UserRound, Wallet } from "lucide-react";
+import { ChevronRight, CreditCard, LogOut, Mail, UserRound } from "lucide-react";
 
 import { signOutAction } from "@/app/auth/actions";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
@@ -15,14 +15,9 @@ import { useProfile } from "@/components/profile-provider";
 import { PaymentDetailsForm } from "@/components/payment/PaymentDetailsForm";
 import { Segmented } from "@/components/ui/segmented";
 import { usePaymentDetails } from "@/hooks/use-payment-details";
-import { getAccountStats } from "@/lib/actions/history";
 import { getCurrentUser } from "@/lib/actions/user";
-import { fromCents } from "@/lib/money";
 
 type Tab = "overview" | "profile" | "pay" | "ai";
-
-/** Whole units with the bill's own currency, e.g. "RM1,234". */
-const whole = (currency: string, cents: number) => `${currency}${Math.round(fromCents(cents)).toLocaleString()}`;
 
 const TABS: Tab[] = ["overview", "profile", "pay", "ai"];
 const asTab = (v: string | null): Tab | null => (TABS as string[]).includes(v ?? "") ? (v as Tab) : null;
@@ -38,12 +33,11 @@ export default function AccountPage() {
 
 function AccountContent() {
   const [user, setUser] = useState<Awaited<ReturnType<typeof getCurrentUser>>>(null);
-  const [stats, setStats] = useState<Awaited<ReturnType<typeof getAccountStats>>>({ count: 0, totals: [] });
   // The Account page is sign-in only, so payment details come from the account.
   const payment = usePaymentDetails(true);
   const profile = useProfile();
   // The page is split into tabs so a phone never has to scroll through everything at once.
-  // Links open straight on a tab (?tab=profile from the header avatar, ?tab=pay from the Home checklist), and
+  // Links open straight on a tab (?tab=pay from the Home checklist), and
   // following another such link while already on this page switches tab too, so the URL is followed, not just read once.
   const urlTab = useSearchParams().get("tab");
   const [tab, setTab] = useState<Tab>(asTab(urlTab) ?? "overview");
@@ -55,13 +49,8 @@ function AccountContent() {
   }
 
   useEffect(() => {
-    Promise.all([getCurrentUser(), getAccountStats()]).then(([u, s]) => {
-      setUser(u);
-      setStats(s);
-    });
+    getCurrentUser().then(setUser);
   }, []);
-
-  const [biggest, ...others] = stats.totals;
 
   return (
     <PageTransition>
@@ -102,25 +91,6 @@ function AccountContent() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="relative overflow-hidden rounded-3xl glass p-5">
-                <History size={44} className="absolute top-3 right-3 opacity-10" />
-                <div className="relative space-y-1">
-                  <span className="type-eyebrow">Sessions</span>
-                  <div className="text-3xl font-black tracking-tighter text-foreground tabular-nums">{stats.count}</div>
-                </div>
-              </div>
-              <div data-testid="account-total" className="relative overflow-hidden rounded-3xl glass p-5">
-                <Wallet size={44} className="absolute top-3 right-3 opacity-10" />
-                <div className="relative space-y-1">
-                  <span className="type-eyebrow">Total value</span>
-                  <div className="text-3xl font-black tracking-tighter text-foreground tabular-nums">{biggest ? whole(biggest.currency, biggest.cents) : "0"}</div>
-                  {/* Bills in other currencies are listed, never added into the big number. */}
-                  {others.length > 0 && <p className="text-xs font-semibold text-muted-foreground tabular-nums">{others.map((t) => whole(t.currency, t.cents)).join(" · ")}</p>}
-                </div>
-              </div>
-            </div>
-
             <button
               type="button"
               onClick={() => setTab("pay")}
@@ -139,7 +109,7 @@ function AccountContent() {
               className="flex min-h-14 w-full items-center justify-between rounded-2xl glass px-5 text-left transition-colors hover:bg-white/10"
             >
               <span>
-                <span className="block text-sm font-bold text-foreground">People</span>
+                <span className="block text-sm font-bold text-foreground">Pals</span>
                 <span className="block text-xs text-muted-foreground">Your contacts, WhatsApp numbers and friends</span>
               </span>
               <span className="flex items-center gap-2 text-muted-foreground"><UserRound size={18} /><ChevronRight size={16} /></span>

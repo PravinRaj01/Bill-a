@@ -75,7 +75,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
           <div className="flex items-center gap-1">
             <NotificationBell count={unread} />
             {/* Your own portrait, straight to your profile. */}
-            <Link href="/dashboard/account?tab=profile" aria-label="Your profile" data-testid="header-avatar" className="flex size-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white/30">
+            <Link href="/dashboard/account" aria-label="Your account" data-testid="header-avatar" className="flex size-11 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-white/30">
               <PersonAvatar name={profile.meName} compact className="size-9" />
             </Link>
           </div>
@@ -135,7 +135,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
               )}
             >
               <UserRound className="w-5 h-5" />
-              People
+              Pals
             </Link>
           )}
           {signedIn ? (

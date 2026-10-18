@@ -95,7 +95,7 @@ export default function AddFriendPage() {
         )}
 
         <Link href="/dashboard/people" className="flex min-h-11 items-center justify-center text-sm font-semibold text-muted-foreground hover:text-foreground">
-          Go to People
+          Go to Pals
         </Link>
       </div>
     </PageTransition>
