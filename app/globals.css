@@ -4,39 +4,8 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-jakarta), system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
-  --color-sidebar-ring: var(--sidebar-ring);
-  --color-sidebar-border: var(--sidebar-border);
-  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
-  --color-sidebar-accent: var(--sidebar-accent);
-  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
-  --color-sidebar-primary: var(--sidebar-primary);
-  --color-sidebar-foreground: var(--sidebar-foreground);
-  --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
-  --color-ring: var(--ring);
-  --color-input: var(--input);
-  --color-border: var(--border);
-  --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent: var(--accent);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-muted: var(--muted);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-secondary: var(--secondary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-primary: var(--primary);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-popover: var(--popover);
-  --color-card-foreground: var(--card-foreground);
-  --color-card: var(--card);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -45,23 +14,61 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
 
-  --color-surface: var(--surface);
-  --color-surface-2: var(--surface-2);
-  --color-coral: var(--coral);
-  --color-coral-foreground: var(--coral-foreground);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-person-1: var(--person-1);
-  --color-person-2: var(--person-2);
-  --color-person-3: var(--person-3);
-  --color-person-4: var(--person-4);
-  --color-person-5: var(--person-5);
-  --color-person-6: var(--person-6);
-  --color-person-7: var(--person-7);
-  --color-person-8: var(--person-8);
-  --color-glass: var(--glass);
-  --color-glass-strong: var(--glass-strong);
-  --color-glass-border: var(--glass-border);
+}
+
+/* Colours are plain values here (not var() references) so Tailwind can give every opacity modifier, e.g.
+   bg-coral/15, a real translucent fallback for browsers without color-mix() (Chrome before 111, as on older
+   Android phones). With var() references the fallback was the solid colour, which hid icons drawn on top.
+   `static` keeps every one emitted: the :root tokens below alias them. */
+@theme static {
+  --color-background: #0e0f12;
+  --color-foreground: #f4f4f6;
+  --color-sidebar-ring: rgb(255 107 87 / 0.55);
+  --color-sidebar-border: rgb(255 255 255 / 0.08);
+  --color-sidebar-accent-foreground: #f4f4f6;
+  --color-sidebar-accent: rgb(255 255 255 / 0.08);
+  --color-sidebar-primary-foreground: #1a0b08;
+  --color-sidebar-primary: #ff6b57;
+  --color-sidebar-foreground: #f4f4f6;
+  --color-sidebar: #14161a;
+  --color-chart-5: #f4f4f6;
+  --color-chart-4: #8b8f98;
+  --color-chart-3: #fbbf24;
+  --color-chart-2: #34d399;
+  --color-chart-1: #ff6b57;
+  --color-ring: rgb(255 107 87 / 0.55);
+  --color-input: rgb(255 255 255 / 0.12);
+  --color-border: rgb(255 255 255 / 0.08);
+  --color-destructive: #f87171;
+  --color-accent-foreground: #f4f4f6;
+  --color-accent: rgb(255 255 255 / 0.08);
+  --color-muted-foreground: #8b8f98;
+  --color-muted: #1f2228;
+  --color-secondary-foreground: #f4f4f6;
+  --color-secondary: #1f2228;
+  --color-primary-foreground: #1a0b08;
+  --color-primary: #ff6b57;
+  --color-popover-foreground: #f4f4f6;
+  --color-popover: #1b1d23;
+  --color-card-foreground: #f4f4f6;
+  --color-card: #17191e;
+  --color-surface: #17191e;
+  --color-surface-2: #1f2228;
+  --color-coral: #ff6b57;
+  --color-coral-foreground: #1a0b08;
+  --color-success: #34d399;
+  --color-warning: #fbbf24;
+  --color-person-1: #f47a7d;
+  --color-person-2: #ea9344;
+  --color-person-3: #c5bc42;
+  --color-person-4: #55c483;
+  --color-person-5: #26c0cf;
+  --color-person-6: #65a7fa;
+  --color-person-7: #bb8aef;
+  --color-person-8: #ec84b7;
+  --color-glass: rgb(255 255 255 / 0.06);
+  --color-glass-strong: rgb(24 26 31 / 0.72);
+  --color-glass-border: rgb(255 255 255 / 0.09);
 }
 
 /* ==== Graphite Glass + Coral ==================================================================
@@ -73,61 +80,61 @@
 .dark {
   --radius: 1rem;
 
-  --background: #0e0f12;
-  --foreground: #f4f4f6;
-  --card: #17191e;
-  --card-foreground: #f4f4f6;
-  --popover: #1b1d23;
-  --popover-foreground: #f4f4f6;
-  --primary: #ff6b57;
-  --primary-foreground: #1a0b08;
-  --secondary: #1f2228;
-  --secondary-foreground: #f4f4f6;
-  --muted: #1f2228;
-  --muted-foreground: #8b8f98;
-  --accent: rgb(255 255 255 / 0.08);
-  --accent-foreground: #f4f4f6;
-  --destructive: #f87171;
-  --border: rgb(255 255 255 / 0.08);
-  --input: rgb(255 255 255 / 0.12);
-  --ring: rgb(255 107 87 / 0.55);
+  --background: var(--color-background);
+  --foreground: var(--color-foreground);
+  --card: var(--color-card);
+  --card-foreground: var(--color-card-foreground);
+  --popover: var(--color-popover);
+  --popover-foreground: var(--color-popover-foreground);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-primary-foreground);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-secondary-foreground);
+  --muted: var(--color-muted);
+  --muted-foreground: var(--color-muted-foreground);
+  --accent: var(--color-accent);
+  --accent-foreground: var(--color-accent-foreground);
+  --destructive: var(--color-destructive);
+  --border: var(--color-border);
+  --input: var(--color-input);
+  --ring: var(--color-ring);
 
-  --chart-1: #ff6b57;
-  --chart-2: #34d399;
-  --chart-3: #fbbf24;
-  --chart-4: #8b8f98;
-  --chart-5: #f4f4f6;
+  --chart-1: var(--color-chart-1);
+  --chart-2: var(--color-chart-2);
+  --chart-3: var(--color-chart-3);
+  --chart-4: var(--color-chart-4);
+  --chart-5: var(--color-chart-5);
 
-  --sidebar: #14161a;
-  --sidebar-foreground: #f4f4f6;
-  --sidebar-primary: #ff6b57;
-  --sidebar-primary-foreground: #1a0b08;
-  --sidebar-accent: rgb(255 255 255 / 0.08);
-  --sidebar-accent-foreground: #f4f4f6;
-  --sidebar-border: rgb(255 255 255 / 0.08);
-  --sidebar-ring: rgb(255 107 87 / 0.55);
+  --sidebar: var(--color-sidebar);
+  --sidebar-foreground: var(--color-sidebar-foreground);
+  --sidebar-primary: var(--color-sidebar-primary);
+  --sidebar-primary-foreground: var(--color-sidebar-primary-foreground);
+  --sidebar-accent: var(--color-sidebar-accent);
+  --sidebar-accent-foreground: var(--color-sidebar-accent-foreground);
+  --sidebar-border: var(--color-sidebar-border);
+  --sidebar-ring: var(--color-sidebar-ring);
 
   /* Solid layers, for places glass can't go (the receipt image capture, inputs' fallback). */
-  --surface: #17191e;
-  --surface-2: #1f2228;
-  --coral: #ff6b57;
-  --coral-foreground: #1a0b08;
-  --success: #34d399;
-  --warning: #fbbf24;
+  --surface: var(--color-surface);
+  --surface-2: var(--color-surface-2);
+  --coral: var(--color-coral);
+  --coral-foreground: var(--color-coral-foreground);
+  --success: var(--color-success);
+  --warning: var(--color-warning);
 
-  --person-1: oklch(0.72 0.15 20);
-  --person-2: oklch(0.74 0.14 60);
-  --person-3: oklch(0.78 0.14 105);
-  --person-4: oklch(0.74 0.14 155);
-  --person-5: oklch(0.74 0.12 205);
-  --person-6: oklch(0.72 0.14 255);
-  --person-7: oklch(0.72 0.15 305);
-  --person-8: oklch(0.74 0.14 350);
+  --person-1: var(--color-person-1);
+  --person-2: var(--color-person-2);
+  --person-3: var(--color-person-3);
+  --person-4: var(--color-person-4);
+  --person-5: var(--color-person-5);
+  --person-6: var(--color-person-6);
+  --person-7: var(--color-person-7);
+  --person-8: var(--color-person-8);
 
   /* Glass: a translucent fill, a hairline border, a top highlight and a soft drop shadow. */
-  --glass: rgb(255 255 255 / 0.06);
-  --glass-strong: rgb(24 26 31 / 0.72);
-  --glass-border: rgb(255 255 255 / 0.09);
+  --glass: var(--color-glass);
+  --glass-strong: var(--color-glass-strong);
+  --glass-border: var(--color-glass-border);
   --glass-highlight: rgb(255 255 255 / 0.1);
   --coral-glow: 0 8px 24px -6px rgb(255 107 87 / 0.5);
 }

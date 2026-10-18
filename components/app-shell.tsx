@@ -167,7 +167,7 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
               data-testid="nav-plus"
               aria-label="Start a split"
               onClick={() => setStartOpen(true)}
-              className="-mt-7 flex size-14 items-center justify-center rounded-full bg-coral text-coral-foreground shadow-[var(--coral-glow)] outline-none ring-4 ring-background transition-transform focus-visible:ring-white/40 active:scale-95"
+              className="-mt-7 flex size-14 items-center justify-center rounded-full bg-coral text-coral-foreground shadow-[var(--coral-glow)] outline-none transition-transform focus-visible:ring-4 focus-visible:ring-white/40 active:scale-95"
             >
               <Plus className="size-7" strokeWidth={3} />
             </button>
