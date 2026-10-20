@@ -252,6 +252,8 @@ export const notifications = pgTable(
     payload: jsonb("payload").$type<Record<string, string | number>>().notNull().default({}),
     dedupe: text("dedupe").notNull(),
     readAt: timestamp("read_at", { withTimezone: true }),
+    // Cleared from the inbox. A soft delete, so the dedupe key still stops a retried digest or repeat from coming back.
+    dismissedAt: timestamp("dismissed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [

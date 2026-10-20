@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell"
 import { SyncManager } from "@/components/sync-manager"
+import { PushLive } from "@/components/notifications/PushLive"
 import { PushResync } from "@/components/notifications/PushResync"
 import { ProfileProvider } from "@/components/profile-provider"
 import { auth } from "@/lib/auth"
@@ -18,6 +19,7 @@ export default async function DashboardLayout({
       <AppShell signedIn={!!userId}>
         <SyncManager userId={userId} />
         <PushResync signedIn={!!userId} />
+        <PushLive signedIn={!!userId} />
         {children}
       </AppShell>
     </ProfileProvider>

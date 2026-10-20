@@ -95,7 +95,7 @@ export async function listNotifications(db: Db, userId: string, limit = 50): Pro
     })
     .from(notifications)
     .leftJoin(users, eq(users.id, notifications.actorId))
-    .where(eq(notifications.userId, userId))
+    .where(and(eq(notifications.userId, userId), isNull(notifications.dismissedAt)))
     .orderBy(desc(notifications.createdAt))
     .limit(limit);
   return rows.map((r) => ({
@@ -114,7 +114,7 @@ export async function unreadCount(db: Db, userId: string): Promise<number> {
   const [row] = await db
     .select({ n: sql<number>`count(*)::int` })
     .from(notifications)
-    .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)));
+    .where(and(eq(notifications.userId, userId), isNull(notifications.readAt), isNull(notifications.dismissedAt)));
   return row?.n ?? 0;
 }
 
@@ -125,6 +125,38 @@ export async function markRead(db: Db, userId: string, ids: string[]): Promise<n
     .update(notifications)
     .set({ readAt: sql`now()` })
     .where(and(eq(notifications.userId, userId), inArray(notifications.id, ids), isNull(notifications.readAt)))
+    .returning({ id: notifications.id });
+  return rows.length;
+}
+
+/** Clears some of MY notifications from the inbox (and reads them). Ids that are someone else's are ignored. Returns the ids cleared, for Undo. */
+export async function dismiss(db: Db, userId: string, ids: string[]): Promise<string[]> {
+  if (ids.length === 0) return [];
+  const rows = await db
+    .update(notifications)
+    .set({ dismissedAt: sql`now()`, readAt: sql`coalesce(${notifications.readAt}, now())` })
+    .where(and(eq(notifications.userId, userId), inArray(notifications.id, ids), isNull(notifications.dismissedAt)))
+    .returning({ id: notifications.id });
+  return rows.map((r) => r.id);
+}
+
+/** Clears everything in MY inbox. Returns the ids, so the whole clear can be undone. */
+export async function dismissAll(db: Db, userId: string): Promise<string[]> {
+  const rows = await db
+    .update(notifications)
+    .set({ dismissedAt: sql`now()`, readAt: sql`coalesce(${notifications.readAt}, now())` })
+    .where(and(eq(notifications.userId, userId), isNull(notifications.dismissedAt)))
+    .returning({ id: notifications.id });
+  return rows.map((r) => r.id);
+}
+
+/** Undo a clear: brings some of MY cleared notifications back (they stay read). */
+export async function restore(db: Db, userId: string, ids: string[]): Promise<number> {
+  if (ids.length === 0) return 0;
+  const rows = await db
+    .update(notifications)
+    .set({ dismissedAt: null })
+    .where(and(eq(notifications.userId, userId), inArray(notifications.id, ids)))
     .returning({ id: notifications.id });
   return rows.length;
 }
