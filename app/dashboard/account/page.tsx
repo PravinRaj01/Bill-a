@@ -6,6 +6,7 @@ import Link from "next/link";
 import { ChevronRight, CreditCard, LogOut, Mail, UserRound } from "lucide-react";
 
 import { signOutAction } from "@/app/auth/actions";
+import { dropThisDevicePush } from "@/lib/push/client";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { PageTransition } from "@/components/page-transition";
 import { NotificationSettings } from "@/components/account/NotificationSettings";
@@ -119,7 +120,10 @@ function AccountContent() {
 
             <button
               type="button"
-              onClick={() => signOutAction()}
+              onClick={async () => {
+                await dropThisDevicePush();
+                await signOutAction();
+              }}
               className="group flex min-h-14 w-full items-center justify-between rounded-2xl glass px-5 text-xs font-bold tracking-widest uppercase transition-colors hover:bg-white/10"
             >
               <span>Sign Out</span>
