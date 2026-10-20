@@ -50,14 +50,14 @@ describe.skipIf(!hasDb)("push subscriptions (real Neon DB)", { timeout: 60_000 }
     await saveSubscription(db, A, { endpoint: ep("gone"), p256dh: "k", auth: "a" });
     const sent: string[] = [];
     const urgency: (boolean | undefined)[] = [];
-    const n = await pushToUser(db, A, { id: "n1", urgent: true, title: "t", body: "b", url: "https://evil.example", tag: "x" }, async (sub, payload, opts) => {
+    const n = await pushToUser(db, A, { id: "n1", urgent: true, force: true, title: "t", body: "b", url: "https://evil.example", tag: "x" }, async (sub, payload, opts) => {
       if (sub.endpoint.endsWith("gone")) throw Object.assign(new Error("gone"), { statusCode: 410 });
       sent.push(payload);
       urgency.push(opts?.urgent);
     });
     expect(n).toBe(1);
     expect(JSON.parse(sent[0]).url).toBe("/dashboard/notifications");
-    expect(JSON.parse(sent[0])).toMatchObject({ id: "n1", title: "t", tag: "x" });
+    expect(JSON.parse(sent[0])).toMatchObject({ id: "n1", title: "t", tag: "x", force: true }); // force travels to the worker
     expect(JSON.parse(sent[0]).urgent).toBeUndefined(); // urgency is a delivery option, not part of what the phone shows
     expect(urgency).toEqual([true]);
     expect((await listSubscriptions(db, A)).map((s) => s.endpoint)).toEqual([ep("live")]);

@@ -11,6 +11,8 @@ export interface PushMessage {
   id?: string;
   /** A friend's request or a payment should wake the phone; a daily summary can wait. */
   urgent?: boolean;
+  /** Raise a system notification even when the app is open in front (the "send me a test" button, which must prove that path). */
+  force?: boolean;
   title: string;
   body: string;
   /** Where tapping it goes: a path on this site. */

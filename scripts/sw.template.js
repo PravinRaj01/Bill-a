@@ -19,7 +19,7 @@
 const BUILD_ID = "__BUILD_ID__";
 const OCR_VERSION = "__OCR_VERSION__";
 
-const STATIC = "billa-static-v3"; //           content-hashed files: safe to keep across deploys
+const STATIC = "billa-static-v4"; //           content-hashed files: safe to keep across deploys
 const OCR = `billa-ocr-${OCR_VERSION}`; //     ~7 MB: only re-downloaded when the OCR packages change
 const PAGES = `billa-pages-${BUILD_ID}`; //    HTML shells: replaced every deploy
 
@@ -71,7 +71,7 @@ self.addEventListener("push", (event) => {
     timestamp: Date.now(),
     data: { url: typeof data.url === "string" ? data.url : "/dashboard/notifications", id: typeof data.id === "string" ? data.id : null },
   };
-  if (!android) options.icon = "/icon.png";
+  if (!android) options.icon = "/logo.png"; // the transparent Bill.a logo, not the white app-icon tile
   event.waitUntil(
     (async () => {
       // If the app is open and in front, tell it instead (the bell refreshes and a toast shows): a system
@@ -80,7 +80,8 @@ self.addEventListener("push", (event) => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
       const open = windows.filter((w) => new URL(w.url).origin === self.location.origin);
       for (const w of open) w.postMessage({ type: "push", id: options.data.id, title: data.title, body: options.body, url: options.data.url });
-      if (open.some((w) => w.visibilityState === "visible" && w.focused)) return;
+      // (The "send me a test" push sets force: it exists to prove the real system notification works.)
+      if (!data.force && open.some((w) => w.visibilityState === "visible" && w.focused)) return;
       await self.registration.showNotification(data.title || "Bill.a", options);
     })(),
   );

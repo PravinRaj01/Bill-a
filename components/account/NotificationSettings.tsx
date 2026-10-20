@@ -81,8 +81,8 @@ export function NotificationSettings() {
   async function test() {
     setBusy(true);
     try {
-      const n = await sendTestPush();
-      if (n > 0) toast.success("Test sent");
+      const { delivered, ms } = await sendTestPush();
+      if (delivered > 0) toast.success(`Test sent in ${ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`}`, { description: "If it shows up late, that delay is your phone's battery settings, not Bill.a." });
       else toast.error("No device got it. Switch notifications off and on again.");
     } catch {
       toast.error("Couldn't send a test. Try again.");
