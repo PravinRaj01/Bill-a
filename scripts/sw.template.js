@@ -72,7 +72,18 @@ self.addEventListener("push", (event) => {
     data: { url: typeof data.url === "string" ? data.url : "/dashboard/notifications", id: typeof data.id === "string" ? data.id : null },
   };
   if (!android) options.icon = "/icon.png";
-  event.waitUntil(self.registration.showNotification(data.title || "Bill.a", options));
+  event.waitUntil(
+    (async () => {
+      // If the app is open and in front, tell it instead (the bell refreshes and a toast shows): a system
+      // notification on top of that would be the same news twice. A push for a page the person is looking at
+      // needn't raise one. Otherwise, show it.
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const open = windows.filter((w) => new URL(w.url).origin === self.location.origin);
+      for (const w of open) w.postMessage({ type: "push", id: options.data.id, title: data.title, body: options.body, url: options.data.url });
+      if (open.some((w) => w.visibilityState === "visible" && w.focused)) return;
+      await self.registration.showNotification(data.title || "Bill.a", options);
+    })(),
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

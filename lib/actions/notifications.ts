@@ -55,6 +55,23 @@ export async function markAllNotificationsRead(): Promise<number> {
   return n.markAllRead(getDb(), userId);
 }
 
+/** Clear some notifications from the inbox. Returns the ids actually cleared (to Undo). */
+export async function dismissNotifications(ids: string[]): Promise<string[]> {
+  const userId = await requireUserId();
+  return n.dismiss(getDb(), userId, z.array(z.uuid()).max(100).parse(ids));
+}
+
+/** Clear the whole inbox. Returns the ids cleared (to Undo). */
+export async function clearAllNotifications(): Promise<string[]> {
+  const userId = await requireUserId();
+  return n.dismissAll(getDb(), userId);
+}
+
+export async function restoreNotifications(ids: string[]): Promise<number> {
+  const userId = await requireUserId();
+  return n.restore(getDb(), userId, z.array(z.uuid()).max(500).parse(ids));
+}
+
 export interface NudgeTarget {
   friendId: string;
   name: string;
