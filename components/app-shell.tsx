@@ -12,6 +12,7 @@ import { NotificationBell, UnreadBadge, useUnreadCount } from "@/components/noti
 import { PersonAvatar } from "@/components/person-avatar"
 import { useProfile } from "@/components/profile-provider"
 import { signOutAction } from "@/app/auth/actions"
+import { dropThisDevicePush } from "@/lib/push/client"
 import { Button } from "@/components/ui/button";
 
 type NavItem = { name: string; href: string; icon: typeof Home }
@@ -37,10 +38,11 @@ export function AppShell({ children, signedIn }: { children: React.ReactNode; si
   // /dashboard/history/abc keeps History lit; Home only lights on the exact page.
   const isActive = (href: string) => (href === '/dashboard' ? pathname === href : pathname === href || pathname.startsWith(href + '/'))
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     // Wipe the offline copies of the app pages before signing out, so nothing tied to this
     // session is left behind on a shared device.
     navigator.serviceWorker?.controller?.postMessage({ type: "clear-pages" })
+    await dropThisDevicePush()
     return signOutAction()
   }
 

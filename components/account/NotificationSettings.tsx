@@ -5,7 +5,8 @@ import { BellRing, Share } from "lucide-react";
 import { toast } from "sonner";
 
 import { Switch } from "@/components/ui/switch";
-import { getPushState, removePushSubscription, savePushSubscription, sendTestPush } from "@/lib/actions/push";
+import { getPushState, savePushSubscription, sendTestPush } from "@/lib/actions/push";
+import { dropThisDevicePush } from "@/lib/push/client";
 
 type Status = "loading" | "unavailable" | "unsupported" | "needs-install" | "blocked" | "off" | "on";
 
@@ -56,11 +57,7 @@ export function NotificationSettings() {
   }
 
   async function turnOff() {
-    const sub = await (await registration())?.pushManager.getSubscription();
-    if (sub) {
-      await removePushSubscription(sub.endpoint);
-      await sub.unsubscribe();
-    }
+    await dropThisDevicePush();
     setStatus("off");
   }
 
