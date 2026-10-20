@@ -52,8 +52,10 @@ export async function removePushSubscription(endpoint: string): Promise<boolean>
   return p.removeSubscription(getDb(), userId, z.string().min(1).max(2048).parse(endpoint));
 }
 
-/** "Send me a test": a real push to my own devices, so I can see it works. Returns how many devices got it. */
-export async function sendTestPush(): Promise<number> {
+/** "Send me a test": a real push to my own devices, so I can see it works. Returns how many devices got it and how long the server took to hand it over. */
+export async function sendTestPush(): Promise<{ delivered: number; ms: number }> {
   const userId = await requireUserId();
-  return pushToUser(getDb(), userId, { urgent: true, title: "Bill.a", body: "Notifications are on. You'll hear about friends, shared bills and payments here.", url: "/dashboard/notifications", tag: "test" });
+  const started = Date.now();
+  const delivered = await pushToUser(getDb(), userId, { urgent: true, force: true, title: "Bill.a", body: "Notifications are on. You'll hear about friends, shared bills and payments here.", url: "/dashboard/notifications", tag: "test" });
+  return { delivered, ms: Date.now() - started };
 }
