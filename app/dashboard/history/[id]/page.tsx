@@ -11,12 +11,16 @@ import { ShareSheet } from "@/components/receipt/ShareSheet";
 import { ClaimsBanner } from "@/components/split/ClaimsBanner";
 import { FriendNudges } from "@/components/split/FriendNudges";
 import { SettleUp } from "@/components/split/SettleUp";
+import { SharedWith } from "@/components/split/SharedWith";
 import { ConfirmSheet } from "@/components/ui/confirm-sheet";
 import { useBillSettlement } from "@/hooks/use-bill-settlement";
 import { usePaymentShare } from "@/hooks/use-payment-share";
+import { usePhoneBook } from "@/hooks/use-phone-book";
 import { deleteBills, getBill } from "@/lib/actions/history";
 import { pendingClaims, rejectPaidClaim, type PendingClaim } from "@/lib/actions/shared";
 import { getCurrentUser } from "@/lib/actions/user";
+import { payloadWithParticipants } from "@/lib/sync/billPayload";
+import { enqueueBill } from "@/lib/sync/outbox";
 import type { BillHistoryRow } from "@/lib/db/schema";
 import { allOwedToMe, localDate, markPaid, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
 import { shareMessage, shareText } from "@/lib/ui/share";
@@ -35,6 +39,7 @@ export default function BillDetailPage() {
   const [claims, setClaims] = useState<PendingClaim[]>([]);
   const router = useRouter();
   const payment = usePaymentShare();
+  const { people: contacts } = usePhoneBook();
 
   // Who is signed in (edits to settle-up are saved as theirs, through the outbox).
   useEffect(() => {
@@ -79,6 +84,22 @@ export default function BillDetailPage() {
     } catch {
       toast.error("Couldn't do that. Please try again.");
     }
+  };
+
+  // Share the bill with a friend on it, or stop: the same save as any edit (through the outbox), and the server
+  // adds or removes their copy when it syncs.
+  const setShared = async (name: string, userId: string | null) => {
+    if (!bill?.data.participants || !user) return;
+    const participants = bill.data.participants.map((p) => {
+      if (p.me || p.name !== name) return p;
+      const { userId: _drop, ...rest } = p;
+      void _drop;
+      return userId ? { ...rest, userId } : rest;
+    });
+    const next = { ...bill, data: { ...bill.data, participants } };
+    await enqueueBill(user.id, payloadWithParticipants(bill, participants));
+    setBill(next);
+    toast(userId ? `Shared with ${name}` : `Stopped sharing with ${name}`);
   };
 
   // Back slides to where the bill was opened from (Balances links here with ?from=balances), else History.
@@ -165,6 +186,7 @@ export default function BillDetailPage() {
         </div>
 
         <ClaimsBanner claims={claims} symbol={symbol} onConfirm={confirmClaim} onReject={rejectClaim} />
+        <SharedWith participants={bill.data.participants ?? null} contacts={contacts} onChange={setShared} />
         <FriendNudges billId={id} symbol={symbol} />
 
         <ReceiptTicket title={bill.billTitle} date={bill.createdAt} symbol={symbol} rows={rows}>

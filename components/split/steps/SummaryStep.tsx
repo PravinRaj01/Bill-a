@@ -10,6 +10,7 @@ import { ReceiptTicket, type TicketRow } from "@/components/receipt/ReceiptTicke
 import { ShareSheet } from "@/components/receipt/ShareSheet";
 import { AdjustShares } from "@/components/split/AdjustShares";
 import { SettleUp } from "@/components/split/SettleUp";
+import { SharedWith } from "@/components/split/SharedWith";
 import { usePaymentShare } from "@/hooks/use-payment-share";
 import { allOwedToMe, localDate, positionNote, positions, settleView, summaryText } from "@/lib/split/settle";
 import { shareMessage, shareText } from "@/lib/ui/share";
@@ -194,6 +195,7 @@ export function SummaryStep({ s }: { s: SplitSession }) {
 
   const shareTab: ReactNode = (
     <div className="space-y-3 border-t border-white/8 p-5">
+      <SharedWith participants={s.participants} contacts={s.contacts} onChange={s.setShared} />
       <Button type="button" variant="whatsapp" size="lg" data-testid="share-summary" className="w-full" onClick={share}>
         <Share2 className="mr-2 size-4" /> Share summary
       </Button>

@@ -13,6 +13,8 @@ describe("notification text", () => {
     expect(notificationText({ kind: "claim_confirmed", billId: bill, payload: p }, "Alex")).toBe('Alex confirmed your RM30.00 payment for "Dinner out"');
     expect(notificationText({ kind: "claim_rejected", billId: bill, payload: p }, "Alex")).toBe('Alex says your RM30.00 for "Dinner out" hasn\'t arrived');
     expect(notificationText({ kind: "bill_deleted", billId: null, payload: { title: "Dinner out" } }, "Alex")).toBe('Alex deleted "Dinner out"');
+    expect(notificationText({ kind: "bill_unshared", billId: null, payload: { title: "Dinner out" } }, "Alex")).toBe('Alex stopped sharing "Dinner out" with you');
+    expect(notificationText({ kind: "claim_changed", billId: bill, payload: p }, "Alex")).toContain('changed "Dinner out"');
     expect(notificationText({ kind: "nudge", billId: bill, payload: p }, "Alex")).toBe('Alex is reminding you about RM30.00 on "Dinner out"');
   });
 

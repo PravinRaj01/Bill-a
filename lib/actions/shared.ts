@@ -139,11 +139,13 @@ export async function pendingClaims(billId: string): Promise<PendingClaim[]> {
   return rows.map((c) => ({ id: c.id, transferKey: c.transferKey, amount: c.amount, createdAt: c.createdAt.toISOString(), from: { name: ownerLabel(c.from), username: c.from.username, avatarSeed: c.from.avatarSeed } }));
 }
 
-/** How many claims wait on me across all my bills (for a badge). */
-export async function pendingClaimCount(): Promise<number> {
+/** My bills that have a friend's "I've paid" waiting on me, with how many (for a hint on Balances). */
+export async function pendingClaimsByBill(): Promise<Record<string, number>> {
   const userId = await getUserIdOrNull();
-  if (!userId) return 0;
-  return (await s.listPendingClaimsForOwner(getDb(), userId)).length;
+  if (!userId) return {};
+  const out: Record<string, number> = {};
+  for (const c of await s.listPendingClaimsForOwner(getDb(), userId)) out[c.billId] = (out[c.billId] ?? 0) + 1;
+  return out;
 }
 
 export async function rejectPaidClaim(claimId: string): Promise<boolean> {

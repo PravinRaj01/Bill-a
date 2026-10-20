@@ -1,6 +1,6 @@
 import type { BillHistoryRow } from "@/lib/db/schema";
 import type { BillPayload } from "@/lib/validation/bill";
-import type { Settlement } from "@/types/domain";
+import type { Participant, Settlement } from "@/types/domain";
 
 /**
  * The save payload for an already-saved bill with a different settlement (null removes it). It keeps the
@@ -20,4 +20,9 @@ export function payloadWithSettlement(bill: BillHistoryRow, settlement: Settleme
     providerTier: tier,
     data: settlement ? { ...data, settlement } : data,
   };
+}
+
+/** The save payload for an already-saved bill with different participants (who is linked to a friend's account). */
+export function payloadWithParticipants(bill: BillHistoryRow, participants: Participant[]): BillPayload {
+  return { ...payloadWithSettlement(bill, bill.data.settlement ?? null), data: { ...bill.data, participants } };
 }

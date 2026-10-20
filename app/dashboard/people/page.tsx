@@ -61,7 +61,8 @@ export default function PeoplePage() {
 
   const sorted = useMemo(() => [...(people ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [people]);
 
-  const upsert = (p: PersonView) => setPeople((all) => [...(all ?? []).filter((x) => x.id !== p.id), p]);
+  // Keep what the list knows and an edit does not return (the friend behind a linked contact).
+  const upsert = (p: PersonView) => setPeople((all) => [...(all ?? []).filter((x) => x.id !== p.id), { ...(all ?? []).find((x) => x.id === p.id), ...p }]);
 
   const add = async (name: string, phone: string): Promise<string | null> => {
     try {
