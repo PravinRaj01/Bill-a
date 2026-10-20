@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { authConfig } from "./auth.config";
 import { getDb } from "./db/client";
+import { welcomeNewUser } from "./db/notifications";
 import { accounts, users } from "./db/schema";
 import { burnVerifyTime, verifyPassword } from "./auth/password";
 
@@ -39,6 +40,12 @@ export const { handlers, auth, signIn, signOut, unstable_update } = NextAuth(() 
     // Only users + accounts exist in our schema. Sessions/verification tables
     // are for database sessions, which we deliberately don't use.
     adapter: DrizzleAdapter(db, { usersTable: users, accountsTable: accounts }),
+    events: {
+      // First Google sign-in creates the account here (email sign-up inserts directly, see app/auth/actions.ts).
+      async createUser({ user }) {
+        if (user.id) await welcomeNewUser(db, user.id).catch(() => {});
+      },
+    },
     providers: [
       // Reads AUTH_GOOGLE_ID / AUTH_GOOGLE_SECRET from the environment.
       Google,

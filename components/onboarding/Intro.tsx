@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { AnimatePresence, m } from "motion/react";
-import { Camera, Scale, Wallet } from "lucide-react";
+import { Camera, Scale, Sparkles, Wallet } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -22,11 +22,16 @@ const SLIDES = [
     title: "Get paid back",
     body: "Track who has paid, nudge people on WhatsApp, and share a receipt with your DuitNow QR on it.",
   },
+  {
+    icon: Sparkles,
+    title: "Smarter with an AI key",
+    body: "Optional: paste a free Groq key in Account › AI for smarter splits. It stays on your device, and the app works fine without it.",
+  },
 ] as const;
 
 const SWIPE = 60; // px of horizontal drag that counts as a swipe
 
-// First-run welcome: three swipeable screens, skippable at any point. The caller remembers that it has been
+// First-run welcome: four swipeable screens, skippable at any point. The caller remembers that it has been
 // seen (see `useIntro`), so it only ever shows once per device.
 export function Intro({ onDone }: { onDone: () => void }) {
   const [index, setIndex] = useState(0);

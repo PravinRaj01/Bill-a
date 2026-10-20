@@ -39,7 +39,9 @@ function AccountContent() {
   // The page is split into tabs so a phone never has to scroll through everything at once.
   // Links open straight on a tab (?tab=pay from the Home checklist), and
   // following another such link while already on this page switches tab too, so the URL is followed, not just read once.
-  const urlTab = useSearchParams().get("tab");
+  const search = useSearchParams();
+  const urlTab = search.get("tab");
+  const guide = search.get("guide") === "1"; // the welcome notice opens the AI key steps
   const [tab, setTab] = useState<Tab>(asTab(urlTab) ?? "overview");
   const [seenUrlTab, setSeenUrlTab] = useState(urlTab);
   if (urlTab !== seenUrlTab) {
@@ -136,7 +138,7 @@ function AccountContent() {
 
         {tab === "ai" && (
           <section className="space-y-3" data-testid="account-ai-settings">
-            <ApiKeySettings />
+            <ApiKeySettings guideOpen={guide} />
           </section>
         )}
       </div>

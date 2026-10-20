@@ -4,16 +4,19 @@ import Link from "next/link";
 import { Check, ChevronRight, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
 
+import { useProfile } from "@/components/profile-provider";
 import { Input } from "@/components/ui/input";
+import { getKeys, onKeysChanged } from "@/lib/ai/keyStore";
 import { updateProfileName } from "@/lib/actions/user";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
 const KEY = "billa.setup.dismissed.v1";
+const KEY_SKIPPED = "billa.setup.aikey.skipped.v1";
 
-// "Get set up" on Home: three things that make the app yours (your name, how friends pay you, a saved
-// group). Each ticks itself from real data, can be dismissed for good, and the card disappears once all
-// three are done.
+// "Get set up" on Home: four things that make the app yours (your name, how friends pay you, a saved
+// group, an @username so friends can find you), plus an optional, skippable AI key. Each ticks itself from real
+// data, the card can be dismissed for good, and it disappears once the four are done and the key is added or skipped.
 export function SetupChecklist({
   hasName,
   hasPayment,
@@ -28,19 +31,37 @@ export function SetupChecklist({
   const [dismissed, setDismissed] = useState(true); // hidden until the device's choice is known
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
+  const { username } = useProfile();
+  const hasUsername = !!username;
+  // The AI key lives in this browser only, so this row ticks per device. It is optional: skipping hides it.
+  const [hasKey, setHasKey] = useState(false);
+  const [keySkipped, setKeySkipped] = useState(true);
 
   useEffect(() => {
     queueMicrotask(() => {
       try {
         setDismissed(localStorage.getItem(KEY) === "1");
+        setKeySkipped(localStorage.getItem(KEY_SKIPPED) === "1");
       } catch {
         setDismissed(false);
+        setKeySkipped(false);
       }
+      setHasKey(Object.keys(getKeys()).length > 0);
     });
+    return onKeysChanged(() => setHasKey(Object.keys(getKeys()).length > 0));
   }, []);
 
-  const done = [hasName, hasPayment, hasGroup].filter(Boolean).length;
-  if (dismissed || done === 3) return null;
+  const done = [hasName, hasPayment, hasGroup, hasUsername].filter(Boolean).length;
+  if (dismissed || (done === 4 && (hasKey || keySkipped))) return null;
+
+  const skipKey = () => {
+    setKeySkipped(true);
+    try {
+      localStorage.setItem(KEY_SKIPPED, "1");
+    } catch {
+      /* not remembered */
+    }
+  };
 
   const dismiss = () => {
     setDismissed(true);
@@ -78,7 +99,7 @@ export function SetupChecklist({
       <div className="flex items-center justify-between px-3">
         <div>
           <h2 className="text-base font-bold">Get set up</h2>
-          <p className="text-xs text-muted-foreground" data-testid="setup-progress">{done} of 3 done</p>
+          <p className="text-xs text-muted-foreground" data-testid="setup-progress">{done} of 4 done</p>
         </div>
         <button type="button" data-testid="setup-dismiss" aria-label="Dismiss" onClick={dismiss} className="flex size-11 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/5 hover:text-foreground">
           <X size={18} />
@@ -145,6 +166,49 @@ export function SetupChecklist({
             </Link>
           )}
         </li>
+
+        <li data-testid="setup-username" data-done={hasUsername}>
+          {hasUsername ? (
+            <div className={row}>
+              {tick(true)}
+              <span className="text-sm text-muted-foreground line-through">Pick your @username</span>
+            </div>
+          ) : (
+            <Link href="/dashboard/account?tab=profile" transitionTypes={["nav-forward"]} className={cn(row, "transition-colors hover:bg-white/5")}>
+              {tick(false)}
+              <span className="flex-1">
+                <span className="block text-sm font-semibold">Pick your @username</span>
+                <span className="block text-xs text-muted-foreground">So friends can find you and send invites</span>
+              </span>
+              <ChevronRight size={16} className="text-muted-foreground" />
+            </Link>
+          )}
+        </li>
+
+        {!keySkipped && (
+          <li data-testid="setup-aikey" data-done={hasKey}>
+            {hasKey ? (
+              <div className={row}>
+                {tick(true)}
+                <span className="text-sm text-muted-foreground line-through">Add a free AI key</span>
+              </div>
+            ) : (
+              <div className={cn(row, "gap-2")}>
+                <Link href="/dashboard/account?tab=ai&guide=1" transitionTypes={["nav-forward"]} className="flex min-w-0 flex-1 items-center gap-3">
+                  {tick(false)}
+                  <span className="flex-1">
+                    <span className="block text-sm font-semibold">Add a free AI key <span className="font-normal text-muted-foreground">· optional</span></span>
+                    <span className="block text-xs text-muted-foreground">Smarter splits from plain words. Takes 2 minutes</span>
+                  </span>
+                  <ChevronRight size={16} className="text-muted-foreground" />
+                </Link>
+                <button type="button" data-testid="setup-aikey-skip" onClick={skipKey} className="min-h-11 shrink-0 rounded-full px-3 text-xs font-semibold text-muted-foreground hover:bg-white/5 hover:text-foreground">
+                  Skip
+                </button>
+              </div>
+            )}
+          </li>
+        )}
       </ul>
     </section>
   );
