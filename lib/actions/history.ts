@@ -21,6 +21,8 @@ export async function listBills() {
     ...rest,
     // Who was in it (names only), for avatars on Home and History.
     people: (split ?? []).map((x) => x.name),
+    // The friends' accounts on it (the user's own friends), so a Pals row finds its bills however they were named.
+    linkedIds: (participants ?? []).flatMap((p) => (p.userId ? [p.userId] : [])),
     // Split for others: it knows its participants and the user isn't one of them. (The participants themselves
     // never reach the list: only this flag.)
     hosted: !!participants && !participants.some((p) => p.me),

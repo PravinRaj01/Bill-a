@@ -49,9 +49,13 @@ export default function PeoplePage() {
     suggestPeople().then(setSuggestions).catch(() => setSuggestions([]));
   }, []);
 
-  const balanceFor = useCallback((name: string) => (balances?.people ?? []).filter((b) => key(b.name) === key(name)), [balances]);
+  // A friend is matched by account, then by name (older bills only know the name).
+  const balanceFor = useCallback(
+    (name: string, linkedUserId?: string | null) => (balances?.people ?? []).filter((b) => (linkedUserId && b.userId === linkedUserId) || key(b.name) === key(name)),
+    [balances],
+  );
   const recentFor = useCallback(
-    (name: string) => bills.filter((b) => b.people.some((p) => key(p) === key(name))).slice(0, 5).map((b) => ({ id: b.id, title: b.billTitle, createdAt: b.createdAt })),
+    (name: string, linkedUserId?: string | null) => bills.filter((b) => b.people.some((p) => key(p) === key(name)) || (!!linkedUserId && b.linkedIds.includes(linkedUserId))).slice(0, 5).map((b) => ({ id: b.id, title: b.billTitle, createdAt: b.createdAt })),
     [bills],
   );
 
@@ -152,7 +156,7 @@ export default function PeoplePage() {
 
         <ul className="space-y-3">
           {sorted.map((p) => {
-            const owed = balanceFor(p.name);
+            const owed = balanceFor(p.name, p.linkedUserId);
             return (
               <li key={p.id}>
                 <button
@@ -200,8 +204,8 @@ export default function PeoplePage() {
           <PersonSheet
             key={editing === "new" ? "new" : editing.id}
             person={editing === "new" ? null : editing}
-            balances={editing === "new" ? [] : balanceFor(editing.name)}
-            recent={editing === "new" ? [] : recentFor(editing.name)}
+            balances={editing === "new" ? [] : balanceFor(editing.name, editing.linkedUserId)}
+            recent={editing === "new" ? [] : recentFor(editing.name, editing.linkedUserId)}
             open
             onOpenChange={(o) => !o && setEditing(null)}
             onSave={(input) => (editing === "new" ? add(input.name, input.phone) : save(editing, input))}
