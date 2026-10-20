@@ -32,6 +32,8 @@ export function notificationText(n: NotificationLike, actor: string): string {
       return `${actor} says your ${money(n.payload)} for ${title(n.payload)} hasn't arrived`;
     case "claim_changed":
       return `${actor} changed ${title(n.payload)}, so your payment note no longer matches. Check what you owe and tell them again`;
+    case "welcome":
+      return "Welcome to Bill.a. Tip: add a free AI key for smarter splits (optional)";
     case "bill_unshared":
       return `${actor} stopped sharing ${title(n.payload)} with you`;
     case "bill_deleted":
@@ -61,6 +63,8 @@ export function notificationHref(n: NotificationLike): string | null {
       return n.billId ? `/dashboard/shared/${n.billId}` : null;
     case "digest":
       return "/dashboard/balances";
+    case "welcome":
+      return "/dashboard/account?tab=ai&guide=1";
     case "bill_deleted":
     case "bill_unshared":
       return null;

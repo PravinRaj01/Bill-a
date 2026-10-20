@@ -7,6 +7,7 @@ import { signIn, signOut } from "@/lib/auth";
 import { safeCallback } from "@/lib/auth/callback";
 import { hashPassword } from "@/lib/auth/password";
 import { getDb } from "@/lib/db/client";
+import { welcomeNewUser } from "@/lib/db/notifications";
 import { users } from "@/lib/db/schema";
 
 // Same return contract the login page already uses: `{ error }` on failure,
@@ -69,6 +70,9 @@ export async function signup(formData: FormData): Promise<{ error: string } | un
   if (inserted.length === 0) {
     return { error: "An account with this email already exists. Try logging in instead." };
   }
+
+  // The hello in their inbox; never a reason to fail a sign-up.
+  await welcomeNewUser(getDb(), inserted[0].id).catch(() => {});
 
   try {
     await signIn("credentials", { email, password, redirect: false });

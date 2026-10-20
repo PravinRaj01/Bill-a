@@ -4,6 +4,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import { billShares, notifications, paymentClaims, people, users } from "./schema";
 import { getBill, listPeople, upsertBill, upsertPerson } from "./queries";
+import { welcomeNewUser } from "./notifications";
 import { answerRequest, createClaim, linkCandidates, linkContactToFriend, listSharablePastBills, requestFriend } from "./social";
 import type { BillData, Participant } from "@/types/domain";
 
@@ -114,6 +115,13 @@ describe.skipIf(!hasDb)("friends are linked to bills by account (real Neon DB)",
     const linked = mine.filter((p) => p.linkedUserId === B);
     expect(linked.map((p) => [p.name, p.phone])).toEqual([["Pravin", "+60123456789"]]); // one contact, the old one
     expect(await linkCandidates(db, A, B)).toEqual([]);
+  });
+
+  it("a new account gets one welcome notice that points at the AI key guide, however often it is asked for", async () => {
+    await welcomeNewUser(db, C);
+    await welcomeNewUser(db, C);
+    const rows = await db.select().from(notifications).where(and(eq(notifications.userId, C), eq(notifications.kind, "welcome")));
+    expect(rows).toHaveLength(1);
   });
 
   it("past bills never offer the owner's own bill, even when the owner shares the friend's first name", async () => {

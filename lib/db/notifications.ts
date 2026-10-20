@@ -51,6 +51,11 @@ async function pushNew(db: Db, n: NotifyInput): Promise<void> {
   await pushToUser(db, n.userId, { title: "Bill.a", body: notificationText(like, actor), url: notificationHref(like) ?? "/dashboard/notifications", tag: n.kind });
 }
 
+/** The one-time hello for a new account: points at the optional AI key guide. Once per account (the dedupe key). */
+export async function welcomeNewUser(db: Db, userId: string): Promise<void> {
+  await notify(db, { userId, kind: "welcome", dedupe: "welcome" });
+}
+
 export async function notifyMany(db: Db, list: NotifyInput[]): Promise<void> {
   for (const n of list) await notify(db, n);
 }

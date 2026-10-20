@@ -133,7 +133,34 @@ function ProviderRow({ provider, saved }: { provider: (typeof PROVIDERS)[number]
   );
 }
 
-export function ApiKeySettings() {
+// How to get a key, in plain steps. Optional and skippable: the app splits fine without one.
+function KeyGuide({ open }: { open: boolean }) {
+  return (
+    <details open={open} data-testid="ai-key-guide" className="group rounded-2xl glass p-4">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 text-sm font-bold text-foreground">
+        <span>Get a free key in 2 minutes <span className="font-normal text-muted-foreground">(optional, recommended)</span></span>
+        <span aria-hidden className="text-muted-foreground transition-transform group-open:rotate-180">⌄</span>
+      </summary>
+      <div className="space-y-3 pt-2 text-sm text-muted-foreground">
+        <p>
+          A key lets Bill.a understand plain words like <em>&ldquo;Sam didn&apos;t have the rice&rdquo;</em> and re-read blurry receipts. Without one it still works, on built-in rules.
+        </p>
+        <ol className="list-decimal space-y-1.5 pl-5">
+          <li>
+            Open{" "}
+            <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer noopener" className="font-semibold text-foreground underline underline-offset-4">console.groq.com/keys</a>{" "}
+            and sign in (free, no card).
+          </li>
+          <li>Tap <strong className="text-foreground">Create API Key</strong>, give it any name and copy it.</li>
+          <li>Paste it into the Groq box below and tap <strong className="text-foreground">Test</strong>, then <strong className="text-foreground">Save</strong>.</li>
+        </ol>
+        <p className="text-xs">A Gemini key is an optional second one, below. Keys stay on this device and go only to the provider.</p>
+      </div>
+    </details>
+  );
+}
+
+export function ApiKeySettings({ guideOpen = false }: { guideOpen?: boolean }) {
   const [keys, setKeys] = useState<Keys>({});
   useEffect(() => {
     setKeys(getKeys());
@@ -142,6 +169,7 @@ export function ApiKeySettings() {
 
   return (
     <div className="space-y-4">
+      <KeyGuide open={guideOpen} />
       <div className="flex gap-3 rounded-2xl border border-success/20 bg-success/5 p-4 text-success">
         <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
         <p className="text-xs leading-relaxed">
