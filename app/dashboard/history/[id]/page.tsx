@@ -17,7 +17,8 @@ import { useBillSettlement } from "@/hooks/use-bill-settlement";
 import { usePaymentShare } from "@/hooks/use-payment-share";
 import { usePhoneBook } from "@/hooks/use-phone-book";
 import { deleteBills, getBill } from "@/lib/actions/history";
-import { pendingClaims, rejectPaidClaim, type PendingClaim } from "@/lib/actions/shared";
+import { DuplicateNotice } from "@/components/history/DuplicateNotice";
+import { listDuplicates, pendingClaims, rejectPaidClaim, type DuplicateView, type PendingClaim } from "@/lib/actions/shared";
 import { getCurrentUser } from "@/lib/actions/user";
 import { payloadWithParticipants } from "@/lib/sync/billPayload";
 import { enqueueBill } from "@/lib/sync/outbox";
@@ -37,6 +38,7 @@ export default function BillDetailPage() {
   const [showReasoning, setShowReasoning] = useState(false);
   const [imageOpen, setImageOpen] = useState(false);
   const [claims, setClaims] = useState<PendingClaim[]>([]);
+  const [dup, setDup] = useState<DuplicateView | null>(null);
   const router = useRouter();
   const payment = usePaymentShare();
   const { people: contacts } = usePhoneBook();
@@ -65,6 +67,7 @@ export default function BillDetailPage() {
     if (!id) return;
     let cancelled = false;
     pendingClaims(id).then((c) => !cancelled && setClaims(c)).catch(() => {});
+    listDuplicates().then((all) => !cancelled && setDup(all.find((d) => d.ownId === id) ?? null)).catch(() => {});
     return () => {
       cancelled = true;
     };
@@ -185,6 +188,7 @@ export default function BillDetailPage() {
           </button>
         </div>
 
+        {dup && <DuplicateNotice dup={dup} viewing="mine" />}
         <ClaimsBanner claims={claims} symbol={symbol} onConfirm={confirmClaim} onReject={rejectClaim} />
         <SharedWith participants={bill.data.participants ?? null} contacts={contacts} onChange={setShared} />
         <FriendNudges billId={id} symbol={symbol} />

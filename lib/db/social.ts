@@ -356,6 +356,39 @@ export async function setShareHidden(db: Db, viewerId: string, billId: string, h
   return rows.length > 0;
 }
 
+export interface DuplicatePair {
+  ownId: string;
+  ownTitle: string;
+  sharedId: string;
+  sharedTitle: string;
+  owner: PublicUser;
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+
+/**
+ * Bills I logged myself that a friend has also shared with me: same currency, same total, and logged within a day of
+ * each other (the same dinner, entered twice). Only bills that are showing: once either copy is hidden it is no longer
+ * a duplicate. The viewer decides which copy to hide.
+ */
+export async function findDuplicateBills(db: Db, viewerId: string): Promise<DuplicatePair[]> {
+  const shared = await listSharedBills(db, viewerId);
+  if (shared.length === 0) return [];
+  const own = await db
+    .select({ id: billHistory.id, title: billHistory.billTitle, total: billHistory.totalAmount, currency: billHistory.currency, createdAt: billHistory.createdAt })
+    .from(billHistory)
+    .where(and(eq(billHistory.userId, viewerId), sql`${billHistory.hiddenAt} is null`));
+  const out: DuplicatePair[] = [];
+  const used = new Set<string>();
+  for (const s of shared) {
+    const mine = own.find((o) => !used.has(o.id) && o.currency === s.currency && o.total === s.totalAmount && Math.abs(+o.createdAt - +s.createdAt) <= DAY);
+    if (!mine) continue;
+    used.add(mine.id);
+    out.push({ ownId: mine.id, ownTitle: mine.title, sharedId: s.id, sharedTitle: s.billTitle, owner: s.owner });
+  }
+  return out;
+}
+
 export interface PastBill {
   id: string;
   billTitle: string;

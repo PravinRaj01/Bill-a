@@ -1,4 +1,5 @@
 import { removePushSubscription } from "@/lib/actions/push";
+import { clearCachedPeople } from "@/lib/people/cache";
 
 /**
  * Stops push on THIS device: removes its subscription from the signed-in account and from the browser. Used by the
@@ -6,6 +7,7 @@ import { removePushSubscription } from "@/lib/actions/push";
  * Never throws and never waits long: signing out must not hang on it.
  */
 export async function dropThisDevicePush(): Promise<void> {
+  await clearCachedPeople(); // the pals list is this account's: not left behind for the next person
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
     const sub = await reg?.pushManager.getSubscription();

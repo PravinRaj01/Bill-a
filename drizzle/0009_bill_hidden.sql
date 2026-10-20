@@ -1,0 +1,1 @@
+ALTER TABLE "bill_history" ADD COLUMN "hidden_at" timestamp with time zone;

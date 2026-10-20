@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { billHistory, billShares, people, savedGroups, users } from "./schema";
 import { notify } from "./notifications";
@@ -127,8 +127,26 @@ export const listBills = (db: Db, userId: string) =>
   db
     .select(listColumns)
     .from(billHistory)
-    .where(eq(billHistory.userId, userId))
+    .where(and(eq(billHistory.userId, userId), isNull(billHistory.hiddenAt)))
     .orderBy(desc(billHistory.createdAt));
+
+/** Bills the owner hid from their own History (a duplicate of a friend's), newest first. */
+export const listHiddenBills = (db: Db, userId: string) =>
+  db
+    .select({ id: billHistory.id, billTitle: billHistory.billTitle, totalAmount: billHistory.totalAmount, currency: billHistory.currency, createdAt: billHistory.createdAt })
+    .from(billHistory)
+    .where(and(eq(billHistory.userId, userId), isNotNull(billHistory.hiddenAt)))
+    .orderBy(desc(billHistory.createdAt));
+
+/** Hide (or bring back) one of MY bills. False when it isn't mine. Hidden bills leave History and balances; friends keep their copy. */
+export async function setBillHidden(db: Db, userId: string, id: string, hidden: boolean): Promise<boolean> {
+  const rows = await db
+    .update(billHistory)
+    .set({ hiddenAt: hidden ? sql`now()` : null })
+    .where(and(eq(billHistory.id, id), eq(billHistory.userId, userId)))
+    .returning({ id: billHistory.id });
+  return rows.length > 0;
+}
 
 export type BillListItem = Awaited<ReturnType<typeof listBills>>[number];
 
@@ -148,7 +166,7 @@ export const listTrackedBills = (db: Db, userId: string) =>
       participants: sql<Participant[] | null>`${billHistory.data} -> 'participants'`,
     })
     .from(billHistory)
-    .where(and(eq(billHistory.userId, userId), sql`${billHistory.data} -> 'settlement' is not null`))
+    .where(and(eq(billHistory.userId, userId), isNull(billHistory.hiddenAt), sql`${billHistory.data} -> 'settlement' is not null`))
     .orderBy(desc(billHistory.createdAt));
 
 export async function getBill(db: Db, userId: string, id: string) {

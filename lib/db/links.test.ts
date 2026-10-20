@@ -3,9 +3,9 @@ import { config } from "dotenv";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import { billShares, notifications, paymentClaims, people, users } from "./schema";
-import { getBill, listPeople, upsertBill, upsertPerson } from "./queries";
+import { getBill, listBills, listHiddenBills, listPeople, listTrackedBills, setBillHidden, upsertBill, upsertPerson } from "./queries";
 import { welcomeNewUser } from "./notifications";
-import { answerRequest, createClaim, linkCandidates, linkContactToFriend, listSharablePastBills, requestFriend } from "./social";
+import { answerRequest, createClaim, findDuplicateBills, linkCandidates, linkContactToFriend, listSharablePastBills, requestFriend } from "./social";
 import type { BillData, Participant } from "@/types/domain";
 
 // Bills link friends by ACCOUNT (participants[].userId), so a share survives a rename and a forged id does nothing.
@@ -122,6 +122,24 @@ describe.skipIf(!hasDb)("friends are linked to bills by account (real Neon DB)",
     await welcomeNewUser(db, C);
     const rows = await db.select().from(notifications).where(and(eq(notifications.userId, C), eq(notifications.kind, "welcome")));
     expect(rows).toHaveLength(1);
+  });
+
+  it("the same bill logged by both is flagged; hiding a copy takes it out of History and balances, and only the owner can", async () => {
+    // A shares a 77.00 dinner with B; B logged the same 77.00 dinner too.
+    await upsertBill(db, A, { clientId: crypto.randomUUID(), billTitle: "Hawker dinner", totalAmount: 7700, currency: "RM", data: bill([{ name: "Alexis", me: true }, { name: "Pravin", userId: B }], {}, 7700) });
+    const mine = await upsertBill(db, B, { clientId: crypto.randomUUID(), billTitle: "Dinner with Alexis", totalAmount: 7700, currency: "RM", data: { ...bill([{ name: "Pravin", me: true }, { name: "Alexis" }], {}, 7700), settlement: { me: "Pravin", paidBy: [{ name: "Pravin", amount: 7700 }], paid: {} } } });
+    const pairs = await findDuplicateBills(db, B);
+    expect(pairs.map((p) => [p.ownId, p.sharedTitle])).toEqual([[mine.id, "Hawker dinner"]]);
+    expect(await findDuplicateBills(db, A)).toEqual([]); // A has no second copy
+
+    expect(await setBillHidden(db, A, mine.id, true)).toBe(false); // not A's bill
+    expect(await setBillHidden(db, B, mine.id, true)).toBe(true);
+    expect((await listBills(db, B)).some((b) => b.id === mine.id)).toBe(false);
+    expect((await listTrackedBills(db, B)).some((b) => b.id === mine.id)).toBe(false);
+    expect((await listHiddenBills(db, B)).map((b) => b.id)).toEqual([mine.id]);
+    expect(await findDuplicateBills(db, B)).toEqual([]); // hidden: no longer a duplicate
+    expect(await setBillHidden(db, B, mine.id, false)).toBe(true);
+    expect((await listBills(db, B)).some((b) => b.id === mine.id)).toBe(true);
   });
 
   it("past bills never offer the owner's own bill, even when the owner shares the friend's first name", async () => {

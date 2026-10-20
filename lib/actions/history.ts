@@ -30,6 +30,28 @@ export async function listBills() {
   }));
 }
 
+export interface HiddenBillEntry {
+  id: string;
+  billTitle: string;
+  totalAmount: number;
+  currency: string;
+  createdAt: string;
+}
+
+/** The user's bills they hid from History (to bring back). */
+export async function listHiddenBills(): Promise<HiddenBillEntry[]> {
+  const userId = await getUserIdOrNull();
+  if (!userId) return [];
+  const rows = await q.listHiddenBills(getDb(), userId);
+  return rows.map((r) => ({ ...r, createdAt: r.createdAt.toISOString() }));
+}
+
+/** Hide (or bring back) one of my own bills: it leaves History and balances, but friends it is shared with keep it. */
+export async function hideMyBill(id: string, hidden: boolean): Promise<boolean> {
+  const userId = await requireUserId();
+  return q.setBillHidden(getDb(), userId, idSchema.parse(id), hidden);
+}
+
 export type BillListEntry = Awaited<ReturnType<typeof listBills>>[number];
 
 export interface BalancesResult {
