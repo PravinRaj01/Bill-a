@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/button";
 import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Segmented } from "@/components/ui/segmented";
 import { lookupUser, sendFriendRequest, type LookupResult } from "@/lib/actions/friends";
 import { shareMessage, shareText } from "@/lib/ui/share";
+import { cn } from "@/lib/utils";
 
 export type AddTab = "friend" | "name" | "invite";
 
@@ -113,16 +113,25 @@ export function AddPalSheet({
         </DrawerHeader>
 
         <div className="mx-auto max-h-[72vh] w-full max-w-md space-y-5 overflow-y-auto px-4 pb-6" data-vaul-no-drag>
-          <Segmented
-            label="How to add"
-            value={tab}
-            onValueChange={setTab}
-            options={[
-              { value: "friend", label: "@username" },
-              { value: "name", label: "Just a name" },
-              { value: "invite", label: "Invite" },
-            ]}
-          />
+          {/* Plain tabs: the sliding pill of Segmented is measured while the drawer is still moving and lands in the wrong place. */}
+          <div role="radiogroup" aria-label="How to add" className="grid grid-cols-3 gap-1 rounded-full glass-inset p-1">
+            {([
+              ["friend", "@username"],
+              ["name", "Just a name"],
+              ["invite", "Invite"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                role="radio"
+                aria-checked={tab === value}
+                onClick={() => setTab(value)}
+                className={cn("min-h-11 rounded-full px-2 text-sm font-semibold transition-colors", tab === value ? "bg-coral text-coral-foreground" : "text-muted-foreground hover:text-foreground")}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
 
           {tab === "friend" && (
             <div className="space-y-3">

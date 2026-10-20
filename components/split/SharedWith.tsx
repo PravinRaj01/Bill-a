@@ -52,7 +52,7 @@ export function SharedWith({
               <PersonAvatar name={p.name} seed={c?.friend?.avatarSeed} className="size-10" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-bold">{p.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{handle ? `@${handle} · ` : ""}sees this in their History</span>
+                <span className="block truncate text-xs text-muted-foreground">{handle ? `@${handle} · ` : ""}in their History</span>
               </span>
               <button
                 type="button"
