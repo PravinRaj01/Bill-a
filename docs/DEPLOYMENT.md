@@ -9,7 +9,8 @@ Next.js on Vercel (Singapore, `sin1`, next to Neon) · Neon Postgres over HTTP (
 Auth.js v5 with JWT sessions (Google + email/password) · all AI is **bring-your-own-key**:
 the browser calls Groq/Gemini directly with the user's key, so the server holds **no AI
 keys** · OCR runs in the browser (tesseract.js WASM, files self-hosted under `/ocr/`) ·
-a service worker caches the app shell and OCR runtime for offline scanning.
+a service worker caches the app shell and OCR runtime for offline scanning and shows Web Push notifications ·
+a once-a-day Vercel Cron builds the daily summary.
 
 ## 1. Database (Neon)
 
@@ -21,7 +22,10 @@ a service worker caches the app shell and OCR runtime for offline scanning.
    $env:DATABASE_URL_UNPOOLED = "<production DIRECT string>"
    npx drizzle-kit migrate
    ```
-   (`drizzle.config.ts` reads `DATABASE_URL_UNPOOLED`; the migration is `drizzle/0000_init.sql`.)
+   (`drizzle.config.ts` reads `DATABASE_URL_UNPOOLED`; this applies every file in `drizzle/`, `0000` to the latest.)
+   Later migrations are **additive** (new nullable or defaulted columns, new tables), so you can apply one to
+   production *before* the code that uses it is deployed. Verify afterwards that the column exists and the
+   `drizzle.__drizzle_migrations` row count went up by one.
 4. **Rotate the dev password** if it was ever pasted anywhere: Neon → Roles → `neondb_owner` → Reset password,
    then update both lines in `.env.local`.
 
@@ -39,8 +43,7 @@ If the consent screen is still in *Testing*, add testers, or publish it, before 
 
 ## 3. Vercel project
 
-1. Vercel → **Add New → Project** → import `PravinRaj01/Bill-a`, branch **`main`** (merge `monorepo` first) —
-   or deploy the `monorepo` branch as a preview while you test.
+1. Vercel → **Add New → Project** → import `PravinRaj01/Bill-a`, branch **`main`**. A pull request's branch deploys as a preview.
 2. Framework preset: Next.js (auto). Build/Install commands: defaults (`npm run build` also runs
    `ocr:assets` and `sw:build` via `prebuild`).
 3. **Environment Variables** (Production; add to Preview too if you want previews to work):
@@ -61,7 +64,11 @@ If the consent screen is still in *Testing*, add testers, or publish it, before 
 4. Deploy. `vercel.json` pins functions to `sin1` and schedules `/api/cron/digest` once a day at 01:00 UTC
    (09:00 in Malaysia), which fits Vercel's Hobby plan. Each user with money still owed gets one summary for their
    own date (in the inbox, and pushed to devices that turned notifications on); a second run that day is a no-op.
-   Without the VAPID keys the Alerts tab says notifications aren't set up and nothing is pushed.
+   Without the VAPID keys, Account › Notifications says notifications aren't set up and nothing is pushed (the inbox
+   still works). **Vercel applies a new or changed environment variable only to the next deployment**, so redeploy after
+   adding the VAPID or cron variables. All of `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT`
+   must be in the **Production** environment: if the public key is there but the private one is missing, phones can
+   turn notifications on but the server quietly sends nothing.
 
    **Later, for per-user local timing:** remove `crons` from `vercel.json` and have a free scheduler such as
    cron-job.org call `GET https://<your-domain>/api/cron/digest` with the header
@@ -76,6 +83,12 @@ If the consent screen is still in *Testing*, add testers, or publish it, before 
 - [ ] Turn on airplane mode, **reload** → the app opens; a scan still works
 - [ ] History shows the saved session; Continue restores it
 - [ ] `https://<domain>/dev/model-bakeoff` is a 404
+- [ ] Account › Notifications › switch on › **Send me a test notification**: a notification appears in the status bar
+      (with the screen locked too), and the toast says how long the server took
+- [ ] `curl -i https://<domain>/api/cron/digest` returns 401; with `-H "Authorization: Bearer <CRON_SECRET>"` it returns
+      `{"considered":…,"sent":…}`
+- [ ] Two accounts: add each other by `@username`, split with the pal, the bill shows in the other's History, "I've paid"
+      and confirm work, and the bell and inbox update
 - [ ] Vercel → Logs: `{"telemetry":...}` lines appear and contain no names, prices or keys
 - [ ] Browser DevTools → Network during a split: only `api.groq.com` / `generativelanguage.googleapis.com`
       requests carry the key; none to your own domain

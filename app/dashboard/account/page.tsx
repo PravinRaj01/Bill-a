@@ -4,8 +4,7 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { CreditCard, LogOut, Mail } from "lucide-react";
 
-import { signOutAction } from "@/app/auth/actions";
-import { dropThisDevicePush } from "@/lib/push/client";
+import { signOutCleanly } from "@/lib/auth/signout-client";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { PageTransition } from "@/components/page-transition";
 import { NotificationsRow } from "@/components/account/NotificationsRow";
@@ -109,10 +108,7 @@ function AccountContent() {
 
             <button
               type="button"
-              onClick={async () => {
-                await dropThisDevicePush();
-                await signOutAction();
-              }}
+              onClick={() => void signOutCleanly()}
               className="group flex min-h-14 w-full items-center justify-between rounded-2xl glass px-5 text-xs font-bold tracking-widest uppercase transition-colors hover:bg-white/10"
             >
               <span>Sign Out</span>
