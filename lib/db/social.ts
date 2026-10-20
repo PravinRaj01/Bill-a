@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, or, sql } from "drizzle-orm";
 
 import { billMe } from "@/lib/split/participants";
+import { dateInZone } from "@/lib/notifications/digest";
 import { settleView, localDate } from "@/lib/split/settle";
 import type { BillData, Participant, Settlement, SplitRecord } from "@/types/domain";
 import type { Db } from "./client";
@@ -173,13 +174,70 @@ export async function listFriendsState(db: Db, me: string): Promise<FriendsState
 
 const splitNames = (data: Pick<BillData, "split">): string[] => (data.split ?? []).map((s) => s.name.trim().toLowerCase());
 
+/** Which of these accounts are accepted friends of the owner. */
+export async function acceptedFriendIds(db: Db, ownerId: string, ids: string[]): Promise<Set<string>> {
+  const unique = [...new Set(ids.filter((i) => i && i !== ownerId))];
+  if (unique.length === 0) return new Set();
+  const rows = await db
+    .select({ a: friendships.userA, b: friendships.userB })
+    .from(friendships)
+    .where(and(eq(friendships.status, "accepted"), or(and(eq(friendships.userA, ownerId), inArray(friendships.userB, unique)), and(eq(friendships.userB, ownerId), inArray(friendships.userA, unique)))));
+  return new Set(rows.map((r) => (r.a === ownerId ? r.b : r.a)));
+}
+
 /**
- * Keeps who a bill is shared with in step with who is on it, after the owner saves it. A friend is added when
+ * A bill as it will be stored: a participant's account link is kept only when that account is an accepted friend
+ * of the owner (and is not the owner). The client says who a name stands for, the server decides if that is allowed,
+ * so a forged id creates no share and leaves nothing behind in the stored bill.
+ */
+export async function withFriendIds<T extends Pick<BillData, "participants">>(db: Db, ownerId: string, data: T): Promise<T> {
+  const parts = data.participants;
+  if (!parts || !parts.some((p) => p.userId)) return data;
+  const ok = await acceptedFriendIds(db, ownerId, parts.flatMap((p) => (p.userId ? [p.userId] : [])));
+  return { ...data, participants: parts.map((p) => (p.userId && !p.me && ok.has(p.userId) ? p : { name: p.name, ...(p.me ? { me: true as const } : {}) })) };
+}
+
+/**
+ * Shares follow the accounts a bill's participants are linked to: a linked friend gets the bill, one who is no longer
+ * linked loses it. The name only says what the owner calls them (`asName`), so it can change without touching the share.
+ */
+async function syncSharesById(db: Db, ownerId: string, billId: string, participants: Participant[]): Promise<void> {
+  const wanted = new Map<string, string>();
+  for (const p of participants) if (p.userId && !p.me && p.userId !== ownerId) wanted.set(p.userId, p.name);
+  const existing = await db.select().from(billShares).where(eq(billShares.billId, billId));
+  const have = new Map(existing.map((s) => [s.userId, s]));
+
+  const add = [...wanted].filter(([id]) => !have.has(id));
+  if (add.length) {
+    await db.insert(billShares).values(add.map(([userId, asName]) => ({ billId, userId, asName }))).onConflictDoNothing();
+    const [bill] = await db.select({ title: billHistory.billTitle }).from(billHistory).where(eq(billHistory.id, billId)).limit(1);
+    // refresh: a friend added again after being taken off the bill hears about it again.
+    for (const [userId] of add) await notify(db, { userId, kind: "bill_added", actorId: ownerId, billId, payload: { title: bill?.title ?? "a bill" }, dedupe: `bill_added:${billId}`, refresh: true });
+  }
+  for (const [id, name] of wanted) {
+    const cur = have.get(id);
+    if (cur && cur.asName !== name) await db.update(billShares).set({ asName: name }).where(and(eq(billShares.billId, billId), eq(billShares.userId, id)));
+  }
+  const gone = existing.filter((s) => !wanted.has(s.userId)).map((s) => s.userId);
+  if (gone.length) await db.delete(billShares).where(and(eq(billShares.billId, billId), inArray(billShares.userId, gone)));
+}
+
+/**
+ * Keeps who a bill is shared with in step with who is on it, after the owner saves it. A bill that records its
+ * participants is shared by account (syncSharesById); an older one, saved before that, keeps matching by name.
+ */
+export async function syncShares(db: Db, ownerId: string, billId: string, data: Pick<BillData, "split" | "participants">, previousNames: string[] | null): Promise<void> {
+  if (data.participants) return syncSharesById(db, ownerId, billId, data.participants);
+  return syncSharesByName(db, ownerId, billId, data, previousNames);
+}
+
+/**
+ * (Older bills, no participants.) Keeps who a bill is shared with in step with who is on it. A friend is added when
  * the bill names a contact linked to them (accepted friends only), but only if that name is NEW to the bill:
  * a past bill the owner chose not to share doesn't come back each time it is re-saved. A friend who is no
  * longer on the bill (or no longer a friend) loses their share.
  */
-export async function syncShares(db: Db, ownerId: string, billId: string, data: Pick<BillData, "split">, previousNames: string[] | null): Promise<void> {
+async function syncSharesByName(db: Db, ownerId: string, billId: string, data: Pick<BillData, "split">, previousNames: string[] | null): Promise<void> {
   const names = splitNames(data);
   const matched = names.length
     ? await db
@@ -318,7 +376,9 @@ export async function listSharablePastBills(db: Db, ownerId: string, friendId: s
   const keys = [...new Set([contact.nameKey, firstName, friend?.username?.toLowerCase()].filter((k): k is string => !!k))];
   const keyList = sql.join(keys.map((k) => sql`${k}`), sql`, `);
   const entries = sql`jsonb_array_elements(coalesce(${billHistory.data} -> 'split', '[]'::jsonb))`;
-  const named = sql`lower(btrim(e ->> 'name')) in (${keyList}) and lower(btrim(e ->> 'name')) <> lower(btrim(coalesce(${billHistory.data} -> 'settlement' ->> 'me', '')))`;
+  // The bill's own "me" never counts (a shared first name can't match yourself): from its participants, else the old guess.
+  const owner = sql`lower(btrim(coalesce((select p ->> 'name' from jsonb_array_elements(coalesce(${billHistory.data} -> 'participants', '[]'::jsonb)) p where p ->> 'me' = 'true' limit 1), ${billHistory.data} -> 'settlement' ->> 'me', '')))`;
+  const named = sql`lower(btrim(e ->> 'name')) in (${keyList}) and lower(btrim(e ->> 'name')) <> ${owner}`;
   const rows = await db
     .select({
       id: billHistory.id,
@@ -343,6 +403,15 @@ export async function sharePastBills(db: Db, ownerId: string, friendId: string, 
   const ok = allowed.filter((b) => billIds.includes(b.id));
   if (ok.length === 0) return 0;
   await db.insert(billShares).values(ok.map((b) => ({ billId: b.id, userId: friendId, asName: b.asName }))).onConflictDoNothing();
+  // A bill that records its participants links the friend there too, so the share follows the account, not the name.
+  const rows = await db.select({ id: billHistory.id, data: billHistory.data }).from(billHistory).where(and(eq(billHistory.userId, ownerId), inArray(billHistory.id, ok.map((b) => b.id))));
+  for (const r of rows) {
+    const asName = ok.find((b) => b.id === r.id)?.asName.trim().toLowerCase();
+    const parts = r.data.participants;
+    if (!parts || !asName) continue;
+    const linked = parts.map((p) => (!p.me && p.name.trim().toLowerCase() === asName ? { ...p, userId: friendId } : p));
+    await db.update(billHistory).set({ data: { ...r.data, participants: linked } }).where(eq(billHistory.id, r.id));
+  }
   for (const b of ok) await notify(db, { userId: friendId, kind: "bill_added", actorId: ownerId, billId: b.id, payload: { title: b.billTitle }, dedupe: `bill_added:${b.id}` });
   return ok.length;
 }
@@ -457,9 +526,29 @@ export async function rejectClaim(db: Db, ownerId: string, claimId: string): Pro
   return rows.length > 0;
 }
 
+/**
+ * A claim whose transfer is gone, or whose amount no longer matches, can never be confirmed (the owner doesn't even
+ * see it). Close it and tell the friend, so they aren't left on "waiting" and can claim again against the new bill.
+ */
+async function closeStaleClaims(db: Db, billId: string, pending: (typeof paymentClaims.$inferSelect)[], settlement: Settlement | undefined, split: SplitRecord[] | undefined): Promise<void> {
+  if (!split || pending.length === 0) return;
+  const view = settleView(split, settlement, localDate());
+  if (!view || !view.ok) return;
+  const stale = pending.filter((c) => {
+    if (settlement?.paid?.[c.transferKey]?.amount === c.amount) return false; // about to be confirmed
+    const t = view.transfers.find((x) => x.key === c.transferKey);
+    return !t || t.paid || t.amount !== c.amount;
+  });
+  if (stale.length === 0) return;
+  await db.update(paymentClaims).set({ status: "rejected", resolvedAt: sql`now()` }).where(inArray(paymentClaims.id, stale.map((c) => c.id)));
+  const [bill] = await db.select({ ownerId: billHistory.userId, title: billHistory.billTitle }).from(billHistory).where(eq(billHistory.id, billId)).limit(1);
+  for (const c of stale) await notify(db, { userId: c.userId, kind: "claim_changed", actorId: bill?.ownerId ?? null, billId, payload: { title: bill?.title ?? "a bill" }, dedupe: `claim_changed:${c.id}:${Date.now()}` });
+}
+
 /** After the owner saves a bill: a pending claim whose paid mark now exists (same amount) is confirmed. */
-export async function confirmSatisfiedClaims(db: Db, billId: string, settlement: Settlement | undefined): Promise<void> {
+export async function confirmSatisfiedClaims(db: Db, billId: string, settlement: Settlement | undefined, split?: SplitRecord[]): Promise<void> {
   const pending = await db.select().from(paymentClaims).where(and(eq(paymentClaims.billId, billId), eq(paymentClaims.status, "pending")));
+  await closeStaleClaims(db, billId, pending, settlement, split);
   const done = pending.filter((c) => settlement?.paid?.[c.transferKey]?.amount === c.amount).map((c) => c.id);
   if (done.length === 0) return;
   await db.update(paymentClaims).set({ status: "confirmed", resolvedAt: sql`now()` }).where(inArray(paymentClaims.id, done));
@@ -487,7 +576,14 @@ export interface Nudgeable {
 }
 
 /** Friends on MY bill who still owe me, and whether I have already nudged them today. */
-export async function listNudgeable(db: Db, ownerId: string, billId: string, today = new Date().toISOString().slice(0, 10)): Promise<Nudgeable[]> {
+/** "Today" for the owner, in their own time zone (the digest already works this way). */
+async function ownerDay(db: Db, ownerId: string): Promise<string> {
+  const [u] = await db.select({ tz: users.tz }).from(users).where(eq(users.id, ownerId)).limit(1);
+  return dateInZone(new Date(), u?.tz ?? "");
+}
+
+export async function listNudgeable(db: Db, ownerId: string, billId: string, day?: string): Promise<Nudgeable[]> {
+  const today = day ?? (await ownerDay(db, ownerId));
   const rows = await db
     .select({ asName: billShares.asName, data: billHistory.data, ...publicUser })
     .from(billShares)
@@ -510,7 +606,8 @@ export type NudgeResult = { ok: true } | { ok: false; reason: "not-shared" | "no
  * The owner of a shared bill nudges a friend who still owes them on it, in the friend's inbox. Once a day per
  * bill and friend. What they owe comes from the stored bill (never from the caller), and so does the text.
  */
-export async function nudgeSharedFriend(db: Db, ownerId: string, billId: string, friendId: string, today = new Date().toISOString().slice(0, 10)): Promise<NudgeResult> {
+export async function nudgeSharedFriend(db: Db, ownerId: string, billId: string, friendId: string, day?: string): Promise<NudgeResult> {
+  const today = day ?? (await ownerDay(db, ownerId));
   const [row] = await db
     .select({ asName: billShares.asName, data: billHistory.data, title: billHistory.billTitle, currency: billHistory.currency })
     .from(billShares)

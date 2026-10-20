@@ -28,6 +28,8 @@ export function notificationText(n: NotificationLike, actor: string): string {
       return `${actor} confirmed your ${money(n.payload)} payment for ${title(n.payload)}`;
     case "claim_rejected":
       return `${actor} says your ${money(n.payload)} for ${title(n.payload)} hasn't arrived`;
+    case "claim_changed":
+      return `${actor} changed ${title(n.payload)}, so your payment note no longer matches. Check what you owe and tell them again`;
     case "bill_deleted":
       return `${actor} deleted ${title(n.payload)}`;
     case "digest":
@@ -48,6 +50,7 @@ export function notificationHref(n: NotificationLike): string | null {
     case "bill_added":
     case "claim_confirmed":
     case "claim_rejected":
+    case "claim_changed":
     case "nudge":
       return n.billId ? `/dashboard/shared/${n.billId}` : null;
     case "digest":

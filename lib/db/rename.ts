@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { renamedForm, renameInBill, renameTransferKey } from "@/lib/people/rename";
 import { samePerson } from "@/lib/split/participants";
@@ -30,13 +30,18 @@ export async function propagateRename(db: Db, userId: string, oldName: string | 
     const to = renamedForm(s.asName, oldName, newName);
     const data = to ? renameInBill(s.data as BillData, s.asName, to) : null;
     if (!to || !data) continue;
-    await db.update(billHistory).set({ data }).where(eq(billHistory.id, s.billId));
-    await db.update(billShares).set({ asName: to }).where(and(eq(billShares.billId, s.billId), eq(billShares.userId, userId)));
     const claims = await db.select({ id: paymentClaims.id, transferKey: paymentClaims.transferKey }).from(paymentClaims).where(and(eq(paymentClaims.billId, s.billId), eq(paymentClaims.userId, userId)));
-    for (const c of claims) {
-      const key = renameTransferKey(c.transferKey, s.asName, to);
-      if (key !== c.transferKey) await db.update(paymentClaims).set({ transferKey: key }).where(eq(paymentClaims.id, c.id));
-    }
+    // One batch per bill: the bill, the share and the claims change together or not at all. updated_at moves too, so
+    // the owner's other devices see a changed bill.
+    const writes = [
+      db.update(billHistory).set({ data, updatedAt: sql`now()` }).where(eq(billHistory.id, s.billId)),
+      db.update(billShares).set({ asName: to }).where(and(eq(billShares.billId, s.billId), eq(billShares.userId, userId))),
+      ...claims.flatMap((c) => {
+        const key = renameTransferKey(c.transferKey, s.asName, to);
+        return key !== c.transferKey ? [db.update(paymentClaims).set({ transferKey: key }).where(eq(paymentClaims.id, c.id))] : [];
+      }),
+    ];
+    await db.batch(writes as unknown as [(typeof writes)[0], ...(typeof writes)[number][]]);
     done.bills++;
   }
 
