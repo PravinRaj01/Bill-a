@@ -8,6 +8,8 @@ export interface NotificationLike {
   kind: NotificationKind;
   billId: string | null;
   payload: Record<string, string | number>;
+  /** Who did it (a friend of the reader), for kinds that open something about them. */
+  actorId?: string | null;
 }
 
 const money = (p: Record<string, string | number>) => (typeof p.amount === "number" ? formatMoney(p.amount, String(p.currency || "RM")) : "");
@@ -45,8 +47,10 @@ export function notificationText(n: NotificationLike, actor: string): string {
 export function notificationHref(n: NotificationLike): string | null {
   switch (n.kind) {
     case "friend_request":
-    case "friend_accepted":
       return "/dashboard/people";
+    case "friend_accepted":
+      // Opens the offer to share past bills with the new friend.
+      return n.actorId ? `/dashboard/people?share=${encodeURIComponent(n.actorId)}` : "/dashboard/people";
     case "claim_made":
       return n.billId ? `/dashboard/history/${n.billId}` : null;
     case "bill_added":

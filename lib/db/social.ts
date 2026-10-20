@@ -378,7 +378,10 @@ export async function listSharablePastBills(db: Db, ownerId: string, friendId: s
   if (!contact?.nameKey) return [];
   const [friend] = await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, friendId)).limit(1);
   const firstName = (friend?.name ?? "").trim().split(/\s+/)[0]?.toLowerCase();
-  const keys = [...new Set([contact.nameKey, firstName, friend?.username?.toLowerCase()].filter((k): k is string => !!k))];
+  // Their first name also counts, but only when no other contact of mine goes by it (two Pravins: no guessing).
+  const others = (await db.select({ nameKey: people.nameKey }).from(people).where(eq(people.userId, ownerId))).filter((o) => o.nameKey !== contact.nameKey);
+  const firstIsFree = !!firstName && !others.some((o) => o.nameKey === firstName || o.nameKey?.startsWith(`${firstName} `));
+  const keys = [...new Set([contact.nameKey, firstIsFree ? firstName : null].filter((k): k is string => !!k))];
   const keyList = sql.join(keys.map((k) => sql`${k}`), sql`, `);
   const entries = sql`jsonb_array_elements(coalesce(${billHistory.data} -> 'split', '[]'::jsonb))`;
   // The bill's own "me" never counts (a shared first name can't match yourself): from its participants, else the old guess.
@@ -399,6 +402,42 @@ export async function listSharablePastBills(db: Db, ownerId: string, friendId: s
     .orderBy(desc(billHistory.createdAt))
     .limit(100);
   return rows.map((r) => ({ ...r, asName: r.asName.trim() }));
+}
+
+export interface LinkCandidate {
+  id: string;
+  name: string;
+  phone: string | null;
+}
+
+/** Contacts of mine, not yet linked, that could be this friend: named like their full name, first name or @username. */
+export async function linkCandidates(db: Db, ownerId: string, friendId: string): Promise<LinkCandidate[]> {
+  if (!(await areFriends(db, ownerId, friendId))) return [];
+  const [friend] = await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, friendId)).limit(1);
+  const full = (friend?.name ?? "").trim().toLowerCase();
+  const first = full.split(" ")[0];
+  const keys = [...new Set([full, first, friend?.username?.toLowerCase()].filter((k): k is string => !!k))];
+  if (keys.length === 0) return [];
+  return db
+    .select({ id: people.id, name: people.name, phone: people.phone })
+    .from(people)
+    .where(and(eq(people.userId, ownerId), sql`${people.linkedUserId} is null`, inArray(people.nameKey, keys)))
+    .orderBy(people.nameKey);
+}
+
+/**
+ * "This contact is my friend": links an existing contact (keeping its name and number) to the friend and drops the
+ * contact that was made for them automatically. Only for a friend, and only an unlinked contact of mine.
+ */
+export async function linkContactToFriend(db: Db, ownerId: string, friendId: string, contactId: string): Promise<boolean> {
+  if (!(await areFriends(db, ownerId, friendId))) return false;
+  const [chosen] = await db.select({ id: people.id, phone: people.phone }).from(people).where(and(eq(people.id, contactId), eq(people.userId, ownerId), sql`${people.linkedUserId} is null`)).limit(1);
+  if (!chosen) return false;
+  const [auto] = await db.select({ id: people.id, phone: people.phone }).from(people).where(and(eq(people.userId, ownerId), eq(people.linkedUserId, friendId))).limit(1);
+  // The partial unique index allows one linked contact per friend, so the automatic one goes first (its number moves over).
+  if (auto) await db.delete(people).where(and(eq(people.id, auto.id), eq(people.userId, ownerId)));
+  await db.update(people).set({ linkedUserId: friendId, ...(chosen.phone || !auto?.phone ? {} : { phone: auto.phone }), updatedAt: sql`now()` }).where(and(eq(people.id, chosen.id), eq(people.userId, ownerId)));
+  return true;
 }
 
 /** Shares the chosen past bills (each must be mine and name that friend) with the friend. */

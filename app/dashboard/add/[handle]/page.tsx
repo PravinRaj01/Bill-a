@@ -1,20 +1,21 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { Check, Loader2, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 
 import { PageTransition } from "@/components/page-transition";
 import { PersonAvatar } from "@/components/person-avatar";
 import { Button } from "@/components/ui/button";
-import { lookupUser, sendFriendRequest, type LookupResult } from "@/lib/actions/friends";
+import { getFriends, lookupUser, sendFriendRequest, type LookupResult } from "@/lib/actions/friends";
 
 // What an invite link or QR opens: "Add @alex". Signed-in only (see lib/auth.config.ts); the request still has to
 // be accepted by the other person.
 export default function AddFriendPage() {
   const params = useParams();
   const raw = decodeURIComponent(String(params?.handle ?? ""));
+  const router = useRouter();
   const [found, setFound] = useState<LookupResult | null>(null);
   const [sending, setSending] = useState(false);
   const [done, setDone] = useState<"requested" | "accepted" | null>(null);
@@ -37,6 +38,14 @@ export default function AddFriendPage() {
     try {
       const r = await sendFriendRequest(found.user.username);
       if (r.ok) {
+        // Pals at once (they had asked you first): go on to link a contact and share past bills.
+        if (r.status === "accepted") {
+          const pal = (await getFriends()).friends.find((f) => f.username === found.user.username);
+          if (pal) {
+            router.push(`/dashboard/people?share=${encodeURIComponent(pal.id)}`);
+            return;
+          }
+        }
         setDone(r.status);
         toast.success(r.status === "accepted" ? "You're friends" : "Request sent");
       } else setError(r.error);

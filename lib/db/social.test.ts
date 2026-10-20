@@ -194,7 +194,7 @@ describe.skipIf(!hasDb)("friends, shared bills and claims (real Neon DB)", { tim
     expect((await listSharedBills(db, D)).map((b) => b.id)).toEqual([one.id]);
   });
 
-  it("past bills: a bill naming the friend by first name or @username is offered, shared under that name, and stays shared on re-save", async () => {
+  it("past bills: a bill naming the friend by first name is offered (an @username is not), shared under that name, and stays shared on re-save", async () => {
     await db.update(users).set({ name: "Samuel Tan" }).where(eq(users.id, D)); // contact stays "Sam"
     const mk = async (title: string, names: string[]) => {
       const i = billInput(title, names);
@@ -204,7 +204,7 @@ describe.skipIf(!hasDb)("friends, shared bills and claims (real Neon DB)", { tim
     const first = await mk("First name", ["Alexis", "Samuel"]);
     const handle = await mk("Handle", ["Alexis", `sam_${tag}`]);
     const offered = await listSharablePastBills(db, A, D);
-    expect(offered.filter((b) => [first.id, handle.id].includes(b.id)).map((b) => b.asName).sort()).toEqual(["Samuel", `sam_${tag}`].sort());
+    expect(offered.filter((b) => [first.id, handle.id].includes(b.id)).map((b) => b.asName)).toEqual(["Samuel"]); // a handle is how they are found, not how a bill writes them
 
     expect(await sharePastBills(db, A, D, [first.id])).toBe(1);
     expect((await getSharedBill(db, D, first.id))?.asName).toBe("Samuel");
