@@ -3,7 +3,7 @@ import type { Db } from "./client";
 import { billHistory, billShares, people, savedGroups, users } from "./schema";
 import { notify } from "./notifications";
 import { propagateRename } from "./rename";
-import { confirmSatisfiedClaims, syncShares } from "./social";
+import { confirmSatisfiedClaims, syncShares, withFriendIds } from "./social";
 import type { BillData, Participant, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
 
 // THE AUTHORIZATION LAYER — this file is what replaces Supabase RLS.
@@ -249,6 +249,8 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
     .where(and(eq(billHistory.userId, userId), eq(billHistory.clientId, input.clientId)))
     .limit(1);
   const previousNames = prev ? (prev.split ?? []).map((s) => s.name.trim().toLowerCase()) : null;
+  // The client says who each name stands for; only accepted friends stay linked.
+  const data = await withFriendIds(db, userId, input.data);
   const values = {
     userId,
     clientId: input.clientId,
@@ -256,7 +258,7 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
     merchantCategory: input.merchantCategory ?? null,
     totalAmount: input.totalAmount,
     currency: input.currency,
-    data: input.data,
+    data,
     providerTier: input.providerTier ?? null,
   };
   const [row] = await db
@@ -276,8 +278,8 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
     })
     .returning({ id: billHistory.id, clientId: billHistory.clientId });
   // Friends on the bill get it in their History; a paid mark that answers an "I've paid" confirms it.
-  await syncShares(db, userId, row.id, input.data, previousNames);
-  await confirmSatisfiedClaims(db, row.id, input.data.settlement);
+  await syncShares(db, userId, row.id, data, previousNames);
+  await confirmSatisfiedClaims(db, row.id, data.settlement, data.split);
   return row;
 }
 

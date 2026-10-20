@@ -15,16 +15,49 @@ export function meNameFor(accountName?: string | null): string {
   return first && first.length <= 60 ? first : "Me";
 }
 
-/** The people of a split as participants, marking the one that is the user (null = split for others). */
-export function buildParticipants(people: string[], meName: string | null): Participant[] {
+/**
+ * The people of a split as participants, marking the one that is the user (null = split for others). `links` maps a
+ * name (lower-cased, trimmed) to the Bill.a account it stands for, so a friend is recorded by account and not just
+ * by the text they were typed as.
+ */
+export function buildParticipants(people: string[], meName: string | null, links?: ReadonlyMap<string, string>): Participant[] {
   let marked = false;
   return people.map((name) => {
     if (meName && !marked && samePerson(name, meName)) {
       marked = true;
       return { name, me: true as const };
     }
-    return { name };
+    const userId = links?.get(norm(name));
+    return userId ? { name, userId } : { name };
   });
+}
+
+/**
+ * Name to account for a new save: the user's contacts that are linked to a Bill.a friend. `known` is what a bill
+ * being edited already recorded for each name it had (an account, or null for "not shared"): that wins over the
+ * contacts, so a bill someone chose not to share isn't shared by saving it again. Names added since follow the contacts.
+ */
+export function contactLinks(contacts: readonly { name: string; linkedUserId?: string | null }[] | null | undefined, known?: ReadonlyMap<string, string | null> | null): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const c of contacts ?? []) if (c.linkedUserId) out.set(norm(c.name), c.linkedUserId);
+  for (const [name, id] of known ?? []) {
+    if (id) out.set(name, id);
+    else out.delete(name);
+  }
+  return out;
+}
+
+/** What a stored bill recorded for each of its people: the account they were linked to, or null. */
+export function knownLinks(data: Pick<BillData, "people" | "participants">): Map<string, string | null> | null {
+  if (!data.participants) return null;
+  return new Map(data.people.map((n) => [norm(n), data.participants?.find((p) => samePerson(p.name, n) && !p.me)?.userId ?? null]));
+}
+
+/** Name (lower-cased) to account id for the linked people of a bill, to hand to balances and renames. */
+export function linkedByName(participants: readonly Participant[] | null | undefined): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const p of participants ?? []) if (p.userId && !p.me) out[norm(p.name)] = p.userId;
+  return out;
 }
 
 type WithParticipants = Pick<BillData, "participants" | "settlement">;

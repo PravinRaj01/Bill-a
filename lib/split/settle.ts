@@ -194,6 +194,8 @@ export interface BillForBalances {
   currency: string;
   split: Share[];
   settlement?: Settlement;
+  /** Lower-cased name to Bill.a account, for the people on this bill who are linked friends. */
+  linked?: Record<string, string>;
 }
 
 export interface PersonBalance {
@@ -203,9 +205,11 @@ export interface PersonBalance {
   currency: string;
   /** Positive: they owe you. Negative: you owe them. */
   net: Cents;
-  bills: { id: string; title: string; createdAt: string | number | Date; amount: Cents; dueDate?: string }[];
-  /** Set for a friend who shared bills with you: their bills open read-only, and Mark all paid / Nudge don't apply. */
+  bills: { id: string; title: string; createdAt: string | number | Date; amount: Cents; dueDate?: string; shared?: true }[];
+  /** Set when every bill here is one a friend shared with you: they open read-only, and Mark all paid / Nudge don't apply. */
   shared?: { ownerId: string };
+  /** The Bill.a account behind this person when they are a linked friend (their key is then `<currency>|u:<id>`). */
+  userId?: string;
 }
 
 /**
@@ -231,8 +235,10 @@ export function aggregateBalances(bills: BillForBalances[], today: string): Pers
       if (!iAmCreditor && !iAmDebtor) continue; // a debt between two other people
       const other = iAmCreditor ? t.from : t.to;
       const signed = iAmCreditor ? t.amount : -t.amount;
-      const key = `${bill.currency}|${norm(other)}`;
-      const entry = byPerson.get(key) ?? { key, name: other, currency: bill.currency, net: 0, bills: [] };
+      // A linked friend is one person whatever they were typed as; anyone else is told apart by name.
+      const uid = bill.linked?.[norm(other)];
+      const key = uid ? `${bill.currency}|u:${uid}` : `${bill.currency}|${norm(other)}`;
+      const entry = byPerson.get(key) ?? { key, name: other, currency: bill.currency, net: 0, bills: [], ...(uid ? { userId: uid } : {}) };
       entry.name = other;
       entry.net += signed;
       entry.bills.push({ id: bill.id, title: bill.title, createdAt: bill.createdAt, amount: signed, dueDate: bill.settlement?.dueDate });

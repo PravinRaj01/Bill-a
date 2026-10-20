@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { billMe, buildParticipants, isHosted, meNameFor, nameProblem, participantProblem, resolveSelfRefs, samePerson } from "./participants";
+import { billMe, buildParticipants, contactLinks, knownLinks, linkedByName, isHosted, meNameFor, nameProblem, participantProblem, resolveSelfRefs, samePerson } from "./participants";
 import type { Participant } from "@/types/domain";
 
 describe("meNameFor / samePerson", () => {
@@ -84,5 +84,36 @@ describe("resolveSelfRefs", () => {
     expect(resolveSelfRefs("I had it", "Alexis", ["Riley"])).toBe("I had it");
     expect(resolveSelfRefs("I had it", null, people)).toBe("I had it");
     expect(resolveSelfRefs("me too", "Me", ["Me"])).toBe("me too");
+  });
+});
+
+describe("linking friends by account", () => {
+  const contacts = [
+    { name: "Pravin Raj", linkedUserId: "u-pravin" },
+    { name: "Sam", linkedUserId: null },
+  ];
+
+  it("contactLinks maps linked contacts only, by lower-cased name", () => {
+    expect([...contactLinks(contacts)]).toEqual([["pravin raj", "u-pravin"]]);
+    expect(contactLinks(null).size).toBe(0);
+  });
+
+  it("buildParticipants records the account for a linked name, never for me", () => {
+    const links = contactLinks(contacts);
+    expect(buildParticipants(["Alexis", "pravin raj", "Sam"], "Alexis", links)).toEqual([{ name: "Alexis", me: true }, { name: "pravin raj", userId: "u-pravin" }, { name: "Sam" }]);
+    expect(buildParticipants(["Pravin Raj"], "Pravin Raj", links)).toEqual([{ name: "Pravin Raj", me: true }]);
+  });
+
+  it("a bill being edited keeps what it recorded: not shared stays not shared, new names follow the contacts", () => {
+    const known = knownLinks({ people: ["Alexis", "Pravin Raj"], participants: [{ name: "Alexis", me: true }, { name: "Pravin Raj" }] });
+    const links = contactLinks(contacts, known);
+    expect(links.has("pravin raj")).toBe(false); // left out of this bill before: stays out
+    expect(contactLinks([{ name: "Riley", linkedUserId: "u-riley" }], known).get("riley")).toBe("u-riley"); // added since
+    expect(knownLinks({ people: ["A"], participants: undefined })).toBeNull(); // an older bill records nothing
+  });
+
+  it("linkedByName lists the linked people of a bill", () => {
+    expect(linkedByName([{ name: "Alexis", me: true }, { name: "Pravin", userId: "u1" }, { name: "Sam" }])).toEqual({ pravin: "u1" });
+    expect(linkedByName(null)).toEqual({});
   });
 });

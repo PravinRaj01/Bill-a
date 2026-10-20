@@ -40,13 +40,32 @@ export function sharedBalances(bills: SharedForBalances[], today: string): Perso
     for (const e of asMe) {
       if (norm(e.name) !== norm(ownerMe)) continue;
       const key = `${b.currency}|u:${b.owner.id}`;
-      const cur = merged.get(key) ?? { key, name: ownerLabel(b.owner), currency: b.currency, net: 0, bills: [], shared: { ownerId: b.owner.id } };
+      const cur = merged.get(key) ?? { key, name: ownerLabel(b.owner), currency: b.currency, net: 0, bills: [], shared: { ownerId: b.owner.id }, userId: b.owner.id };
       cur.net += e.net;
-      cur.bills.push(...e.bills);
+      cur.bills.push(...e.bills.map((x) => ({ ...x, shared: true as const })));
       merged.set(key, cur);
     }
   }
   return [...merged.values()].filter((p) => p.net !== 0);
+}
+
+/**
+ * My own balances and the ones from friends' shared bills, as one list. A linked friend is a single row however the
+ * bills name them (the key is the account), and a row with both kinds of bill is not "shared": its Mark all paid
+ * and Nudge only ever touch the bills that are mine (each bill row says which it is).
+ */
+export function mergeBalances(own: PersonBalance[], fromFriends: PersonBalance[]): PersonBalance[] {
+  const byKey = new Map<string, PersonBalance>(own.map((p) => [p.key, { ...p, bills: [...p.bills] }]));
+  for (const f of fromFriends) {
+    const cur = byKey.get(f.key);
+    if (!cur) {
+      byKey.set(f.key, f);
+      continue;
+    }
+    cur.net += f.net;
+    cur.bills.push(...f.bills);
+  }
+  return [...byKey.values()].filter((p) => p.net !== 0).sort((a, b) => Math.abs(b.net) - Math.abs(a.net) || a.name.localeCompare(b.name));
 }
 
 export interface MySharedSummary {

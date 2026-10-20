@@ -27,7 +27,9 @@ import type { ClarifyAction } from "@/components/ai/ClarifyChips";
 import type { Reading } from "@/components/ai/CrossCheck";
 import type { SavedGroup } from "@/lib/db/schema";
 import { defaultSettlement, guessMe, localDate, normalizeSettlement, settleView } from "@/lib/split/settle";
-import { buildParticipants, meNameFor, nameProblem as checkName, resolveSelfRefs, samePerson } from "@/lib/split/participants";
+import { buildParticipants, contactLinks, knownLinks, meNameFor, nameProblem as checkName, resolveSelfRefs, samePerson } from "@/lib/split/participants";
+import { listPeople } from "@/lib/actions/people";
+import { usePhoneBook } from "@/hooks/use-phone-book";
 import type { Cents, Receipt, ReceiptItem, Settlement, SplitRecord } from "@/types/domain";
 
 // All of the new-session flow's state and behaviour, in one place, so each step is a plain
@@ -85,6 +87,11 @@ export function useSplitSession() {
   const whoFirst = !quick && (howParam === "scan" || howParam === "amount" || howParam === "ask");
   const [how, setHow] = useState<How>(howParam === "amount" ? "amount" : "scan");
   const [people, setPeople] = useState<string[]>([]);
+  // Which friends the people in this split stand for. The contacts decide for new names; a bill being edited keeps
+  // what it recorded for the names it already had (`known`), so editing never shares a bill the owner left out.
+  const { people: contacts } = usePhoneBook();
+  const [known, setKnown] = useState<Map<string, string | null> | null>(null);
+  const links = useMemo(() => contactLinks(contacts, known), [contacts, known]);
   const [sessionName, setSessionName] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
   const [includeTax, setIncludeTax] = useState(true);
@@ -221,6 +228,7 @@ export function useSplitSession() {
         // A bill saved with participants knows who the user is (or that it was split for others); an older one
         // only has a guess, so it keeps the old behaviour.
         setLegacy(!bill.data.participants);
+        setKnown(knownLinks(bill.data));
         setMe(bill.data.participants?.find((p) => p.me)?.name ?? null);
         if (bill.data.exactSplit && bill.data.cashRounding) {
           // Keep the exact shares so the rounding can still be changed or undone.
@@ -516,7 +524,9 @@ export function useSplitSession() {
     const finalTitle =
       sessionName.trim() || (await nextSessionTitle().catch(() => `Session ${new Date().toLocaleDateString()}`));
     // Who was in it and which one is the user. settlement.me stays written for older readers, so it must agree.
-    const participants = legacy ? null : buildParticipants(people, hasMe ? me : null);
+    // Contacts that haven't loaded yet (a fast save) are fetched now, so a friend is never saved as a plain name by accident.
+    const linkMap = contacts === null ? contactLinks(await listPeople().catch(() => null), known) : links;
+    const participants = legacy ? null : buildParticipants(people, hasMe ? me : null, linkMap);
     const meInBill = participants?.find((p) => p.me)?.name;
     const settleOut = settle && participants ? { ...settle, me: meInBill } : settle;
     try {
@@ -771,7 +781,7 @@ export function useSplitSession() {
     // people & groups
     people, addPerson, removePerson, nameProblem, me, meName, hasMe, addMe, legacy,
     // who was in it (null for an older bill): handed to Settle up, which then stops asking "which one is you?"
-    participants: legacy ? null : buildParticipants(people, hasMe ? me : null),
+    participants: legacy ? null : buildParticipants(people, hasMe ? me : null, links),
     hosted: !legacy && !hasMe,
     sessionName, setSessionName,
     isGuest, savedGroups, loadSavedGroup, activeGroupId, groupName, setGroupName,
