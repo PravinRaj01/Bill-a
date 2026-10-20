@@ -4,6 +4,8 @@ import { z } from "zod";
 import { getUserIdOrNull, requireUserId } from "@/lib/auth/session";
 import { getDb } from "@/lib/db/client";
 import * as p from "@/lib/db/push";
+import * as q from "@/lib/db/queries";
+import { CATEGORIES, type NotifyPrefs } from "@/lib/notifications/prefs";
 import { pushConfigured, pushToUser } from "@/lib/push/send";
 
 // Turning phone notifications on and off. The user comes from the session only; the browser sends the
@@ -13,6 +15,19 @@ const subscriptionSchema = z.object({
   endpoint: z.url().max(2048).refine((u) => u.startsWith("https://"), "https only"),
   keys: z.object({ p256dh: z.string().min(1).max(256), auth: z.string().min(1).max(64) }),
 });
+
+const categorySchema = z.enum(CATEGORIES);
+
+/** Which kinds of notification reach my phone. Guests have none to set. */
+export async function getNotifyPrefs(): Promise<NotifyPrefs> {
+  const userId = await getUserIdOrNull();
+  return userId ? q.getNotifyPrefs(getDb(), userId) : {};
+}
+
+export async function setNotifyPref(category: string, on: boolean): Promise<NotifyPrefs> {
+  const userId = await requireUserId();
+  return q.setNotifyPref(getDb(), userId, categorySchema.parse(category), z.boolean().parse(on));
+}
 
 export interface PushState {
   /** The server has VAPID keys, so push can work at all. */

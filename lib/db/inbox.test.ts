@@ -4,6 +4,7 @@ import { inArray } from "drizzle-orm";
 import { getDb } from "./client";
 import { users } from "./schema";
 import { dismiss, dismissAll, listNotifications, notify, restore, unreadCount } from "./notifications";
+import { getNotifyPrefs, setNotifyPref } from "./queries";
 
 // Clearing the inbox, on the real Neon test branch: only your own rows, still deduped, and undoable.
 config({ path: ".env.test.local", quiet: true });
@@ -55,6 +56,16 @@ describe.skipIf(!hasDb)("clearing the inbox (real Neon DB)", { timeout: 60_000 }
     expect(await notify(db, { userId: B, kind: "digest", payload: { summary: "z" }, dedupe: "once" })).toBe(false); // a retry
     expect(await listNotifications(db, B)).toHaveLength(0);
     expect(await unreadCount(db, B)).toBe(0);
+  });
+
+  it("notification preferences: stored per user, only what is off, switch back on removes it", async () => {
+    expect(await getNotifyPrefs(db, A)).toEqual({});
+    expect(await setNotifyPref(db, A, "payments", false)).toEqual({ payments: false });
+    expect(await setNotifyPref(db, A, "summary", false)).toEqual({ payments: false, summary: false });
+    expect(await getNotifyPrefs(db, B)).toEqual({}); // someone else's are untouched
+    expect(await setNotifyPref(db, A, "payments", true)).toEqual({ summary: false });
+    await setNotifyPref(db, A, "summary", true);
+    expect(await getNotifyPrefs(db, A)).toEqual({});
   });
 
   it("clear all returns what it cleared and only for the caller", async () => {

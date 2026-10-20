@@ -1,6 +1,7 @@
 import { inArray, sql } from "drizzle-orm";
 
 import { dateInZone, digestSummary } from "@/lib/notifications/digest";
+import { isCategoryOn, parsePrefs } from "@/lib/notifications/prefs";
 import { computeBalances } from "./balances";
 import type { Db } from "./client";
 import { notify } from "./notifications";
@@ -23,11 +24,12 @@ export async function runDigest(db: Db, now: Date = new Date()): Promise<DigestR
   ]);
   const ids = [...new Set([...tracked, ...shared].map((r) => r.id))];
   if (ids.length === 0) return { considered: 0, sent: 0 };
-  const people = await db.select({ id: users.id, tz: users.tz }).from(users).where(inArray(users.id, ids));
+  const people = await db.select({ id: users.id, tz: users.tz, prefs: users.notifyPrefs }).from(users).where(inArray(users.id, ids));
 
   let sent = 0;
   for (const u of people) {
     try {
+      if (!isCategoryOn(parsePrefs(u.prefs), "summary")) continue; // they switched the daily summary off
       const today = dateInZone(now, u.tz);
       const summary = digestSummary((await computeBalances(db, u.id, today)).people, today);
       if (!summary) continue;

@@ -8,7 +8,7 @@ import { signOutAction } from "@/app/auth/actions";
 import { dropThisDevicePush } from "@/lib/push/client";
 import { ApiKeySettings } from "@/components/ai/ApiKeySettings";
 import { PageTransition } from "@/components/page-transition";
-import { NotificationSettings } from "@/components/account/NotificationSettings";
+import { NotificationsRow } from "@/components/account/NotificationsRow";
 import { ProfileEditor } from "@/components/account/ProfileEditor";
 import { PersonAvatar } from "@/components/person-avatar";
 import { useProfile } from "@/components/profile-provider";
@@ -66,7 +66,7 @@ function AccountContent() {
           value={tab}
           onValueChange={setTab}
           options={[
-            { value: "overview", label: "Overview" },
+            { value: "overview", label: "General" },
             { value: "profile", label: "Profile" },
             { value: "pay", label: "Get paid" },
             { value: "ai", label: "AI" },
@@ -105,7 +105,7 @@ function AccountContent() {
               <CreditCard size={18} className="text-muted-foreground" />
             </button>
 
-            <NotificationSettings />
+            <NotificationsRow />
 
             <button
               type="button"
