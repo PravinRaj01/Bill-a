@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Bell } from "lucide-react";
 
-import { getUnreadCount } from "@/lib/actions/notifications";
+import { getUnreadCount, markNotificationsRead } from "@/lib/actions/notifications";
 import { cn } from "@/lib/utils";
 
 // How many notifications are waiting, refreshed when you move between pages, return to the app, or the inbox
@@ -19,8 +19,17 @@ export function useUnreadCount(enabled: boolean): number {
     });
   }, [enabled]);
   useEffect(() => {
+    // Opened from a phone notification: ?n=<id> says which one, so it is read now (and the bell drops with it).
+    const id = new URLSearchParams(window.location.search).get("n");
+    if (enabled && id && /^[0-9a-f-]{36}$/i.test(id)) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("n");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+      markNotificationsRead([id]).catch(() => {}).finally(refresh);
+      return;
+    }
     refresh();
-  }, [pathname, refresh]);
+  }, [pathname, refresh, enabled]);
   useEffect(() => {
     const onVisible = () => document.visibilityState === "visible" && refresh();
     window.addEventListener("focus", refresh);

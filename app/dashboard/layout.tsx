@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell"
 import { SyncManager } from "@/components/sync-manager"
+import { PushResync } from "@/components/notifications/PushResync"
 import { ProfileProvider } from "@/components/profile-provider"
 import { auth } from "@/lib/auth"
 
@@ -16,6 +17,7 @@ export default async function DashboardLayout({
     <ProfileProvider signedIn={!!userId} initial={{ name: user?.name ?? null, username: user?.username ?? null, avatarSeed: user?.avatarSeed ?? null }}>
       <AppShell signedIn={!!userId}>
         <SyncManager userId={userId} />
+        <PushResync signedIn={!!userId} />
         {children}
       </AppShell>
     </ProfileProvider>

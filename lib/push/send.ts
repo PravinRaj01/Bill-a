@@ -7,6 +7,10 @@ import { dropDeadSubscription, listSubscriptions } from "@/lib/db/push";
 // environment; without them nothing is sent (the inbox still works).
 
 export interface PushMessage {
+  /** The inbox row this is about: tapping the notification marks it read. */
+  id?: string;
+  /** A friend's request or a payment should wake the phone; a daily summary can wait. */
+  urgent?: boolean;
   title: string;
   body: string;
   /** Where tapping it goes: a path on this site. */
@@ -15,7 +19,7 @@ export interface PushMessage {
   tag: string;
 }
 
-export type Sender = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }, payload: string) => Promise<unknown>;
+export type Sender = (sub: { endpoint: string; keys: { p256dh: string; auth: string } }, payload: string, opts?: { urgent?: boolean }) => Promise<unknown>;
 
 let configured: boolean | null = null;
 function configure(): boolean {
@@ -35,7 +39,7 @@ function configure(): boolean {
 
 export const pushConfigured = (): boolean => configure();
 
-const defaultSender: Sender = (sub, payload) => webpush.sendNotification(sub, payload, { TTL: 60 * 60 * 24, urgency: "normal" });
+const defaultSender: Sender = (sub, payload, opts) => webpush.sendNotification(sub, payload, { TTL: 60 * 60 * 24, urgency: opts?.urgent ? "high" : "normal" });
 
 /** Only same-site paths: a notification can never send someone off to another site. */
 const safeUrl = (u: string) => (u.startsWith("/") && !u.startsWith("//") ? u : "/dashboard/notifications");
@@ -47,12 +51,13 @@ const safeUrl = (u: string) => (u.startsWith("/") && !u.startsWith("//") ? u : "
 export async function pushToUser(db: Db, userId: string, msg: PushMessage, send: Sender = defaultSender): Promise<number> {
   if (send === defaultSender && !configure()) return 0;
   const subs = await listSubscriptions(db, userId);
-  const payload = JSON.stringify({ ...msg, url: safeUrl(msg.url) });
+  const { urgent, ...shown } = msg;
+  const payload = JSON.stringify({ ...shown, url: safeUrl(msg.url) });
   let delivered = 0;
   await Promise.all(
     subs.map(async (s) => {
       try {
-        await send({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload);
+        await send({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { urgent });
         delivered++;
       } catch (e) {
         const status = (e as { statusCode?: number }).statusCode;
