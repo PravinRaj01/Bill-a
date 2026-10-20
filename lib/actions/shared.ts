@@ -49,6 +49,22 @@ export async function listSharedWithMe(includeHidden = false): Promise<SharedLis
   });
 }
 
+export interface DuplicateView {
+  ownId: string;
+  ownTitle: string;
+  sharedId: string;
+  sharedTitle: string;
+  ownerName: string;
+}
+
+/** Bills I logged that a friend shared too (the same dinner entered twice), so either copy can be hidden. */
+export async function listDuplicates(): Promise<DuplicateView[]> {
+  const userId = await getUserIdOrNull();
+  if (!userId) return [];
+  const rows = await s.findDuplicateBills(getDb(), userId);
+  return rows.map((d) => ({ ownId: d.ownId, ownTitle: d.ownTitle, sharedId: d.sharedId, sharedTitle: d.sharedTitle, ownerName: ownerLabel(d.owner) }));
+}
+
 export interface SharedDetail {
   id: string;
   billTitle: string;

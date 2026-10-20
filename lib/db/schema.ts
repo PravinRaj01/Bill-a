@@ -153,6 +153,9 @@ export const billHistory = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     // Bumped on every save, so a friend's view can tell the bill changed.
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // Set when the owner hides the bill from their own History and balances (a duplicate of a friend's). Friends it is
+    // shared with still see it: hiding is personal.
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
   },
   (t) => [
     unique("bill_history_user_client_uniq").on(t.userId, t.clientId),

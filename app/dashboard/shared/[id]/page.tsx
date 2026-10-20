@@ -10,7 +10,8 @@ import { PersonAvatar } from "@/components/person-avatar";
 import { ReceiptTicket, type TicketRow } from "@/components/receipt/ReceiptTicket";
 import { Button } from "@/components/ui/button";
 import { ConfirmSheet } from "@/components/ui/confirm-sheet";
-import { claimPaid, getSharedDetail, hideShared, type SharedDetail } from "@/lib/actions/shared";
+import { DuplicateNotice } from "@/components/history/DuplicateNotice";
+import { claimPaid, getSharedDetail, hideShared, listDuplicates, type DuplicateView, type SharedDetail } from "@/lib/actions/shared";
 import { formatMoney } from "@/lib/money";
 
 // A bill a friend shared with you: read-only. You can see the split, say "I've paid" for what you owe the
@@ -23,6 +24,7 @@ export default function SharedBillPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmHide, setConfirmHide] = useState(false);
+  const [dup, setDup] = useState<DuplicateView | null>(null);
 
   const load = useCallback(async () => {
     const d = await getSharedDetail(id).catch(() => null);
@@ -37,7 +39,8 @@ export default function SharedBillPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- load from the server on mount
     void load();
-  }, [load]);
+    listDuplicates().then((all) => setDup(all.find((d) => d.sharedId === id) ?? null)).catch(() => setDup(null));
+  }, [load, id]);
 
   if (loading) {
     return (
@@ -92,6 +95,8 @@ export default function SharedBillPage() {
             <p className="text-xs text-muted-foreground">You&apos;re {bill.asName} on this bill. Only {bill.owner.name} can change it.</p>
           </div>
         </div>
+
+        {dup && <DuplicateNotice dup={dup} viewing="theirs" />}
 
         <ReceiptTicket title={bill.billTitle} date={bill.createdAt} symbol={symbol} rows={rows}>
           <div className="space-y-3 border-t border-white/8 p-5" data-testid="shared-settle">

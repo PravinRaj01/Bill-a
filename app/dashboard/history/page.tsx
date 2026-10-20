@@ -1,7 +1,8 @@
 import HistoryList from "@/components/history-list";
+import { HiddenBills } from "@/components/history/HiddenBills";
 import { SharedList } from "@/components/history/SharedList";
 import { PageTransition } from "@/components/page-transition";
-import { listBills } from "@/lib/actions/history";
+import { listBills, listHiddenBills } from "@/lib/actions/history";
 import { listSharedWithMe } from "@/lib/actions/shared";
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ export default async function HistoryPage() {
   // listBills() resolves the user from the verified session and scopes the SQL
   // to it. This page used to be a bare `select('*')` that relied entirely on
   // Supabase RLS — on plain Postgres that would have shown every user's history.
-  const [history, shared] = await Promise.all([listBills(), listSharedWithMe(true)]);
+  const [history, shared, hidden] = await Promise.all([listBills(), listSharedWithMe(true), listHiddenBills()]);
 
   return (
     <PageTransition>
@@ -23,6 +24,8 @@ export default async function HistoryPage() {
       <SharedList initial={shared} />
 
       <HistoryList initialHistory={history} />
+
+      <HiddenBills initial={hidden} />
     </div>
     </PageTransition>
   );

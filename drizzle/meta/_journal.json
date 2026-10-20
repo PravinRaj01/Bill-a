@@ -64,6 +64,13 @@
       "when": 1792221262919,
       "tag": "0008_push_subscriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792471045221,
+      "tag": "0009_bill_hidden",
+      "breakpoints": true
     }
   ]
 }
