@@ -47,7 +47,7 @@ async function pushNew(db: Db, n: NotifyInput): Promise<void> {
     const [u] = await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, n.actorId)).limit(1);
     if (u) actor = ownerLabel(u);
   }
-  const like = { kind: n.kind, billId: n.billId ?? null, payload: n.payload ?? {} };
+  const like = { kind: n.kind, billId: n.billId ?? null, payload: n.payload ?? {}, actorId: n.actorId ?? null };
   await pushToUser(db, n.userId, { title: "Bill.a", body: notificationText(like, actor), url: notificationHref(like) ?? "/dashboard/notifications", tag: n.kind });
 }
 
@@ -62,6 +62,7 @@ export interface InboxItem {
   payload: Record<string, string | number>;
   readAt: Date | null;
   createdAt: Date;
+  actorId: string | null;
   actor: { name: string | null; username: string | null; avatarSeed: string | null } | null;
 }
 
@@ -91,6 +92,7 @@ export async function listNotifications(db: Db, userId: string, limit = 50): Pro
     payload: r.payload,
     readAt: r.readAt,
     createdAt: r.createdAt,
+    actorId: r.actorId,
     actor: r.actorId ? { name: r.actorName, username: r.actorUsername, avatarSeed: r.actorAvatarSeed } : null,
   }));
 }

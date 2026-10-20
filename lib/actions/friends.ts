@@ -90,6 +90,8 @@ export interface PastBillView {
   totalAmount: number;
   currency: string;
   createdAt: string;
+  /** How the bill writes the friend, shown so the owner can see why it was offered. */
+  asName: string;
 }
 
 /** My bills that name this friend and aren't shared with them yet (to offer sharing them). */
@@ -97,7 +99,27 @@ export async function pastBillsFor(friendUserId: string): Promise<PastBillView[]
   const userId = await getUserIdOrNull();
   if (!userId) return [];
   const rows = await s.listSharablePastBills(getDb(), userId, idSchema.parse(friendUserId));
-  return rows.map((b) => ({ id: b.id, billTitle: b.billTitle, totalAmount: b.totalAmount, currency: b.currency, createdAt: b.createdAt.toISOString() }));
+  return rows.map((b) => ({ id: b.id, billTitle: b.billTitle, totalAmount: b.totalAmount, currency: b.currency, createdAt: b.createdAt.toISOString(), asName: b.asName }));
+}
+
+export interface LinkCandidateView {
+  id: string;
+  name: string;
+  hasPhone: boolean;
+}
+
+/** After accepting: contacts of mine that might already be this friend. */
+export async function linkCandidatesFor(friendUserId: string): Promise<LinkCandidateView[]> {
+  const userId = await getUserIdOrNull();
+  if (!userId) return [];
+  const rows = await s.linkCandidates(getDb(), userId, idSchema.parse(friendUserId));
+  return rows.map((r) => ({ id: r.id, name: r.name, hasPhone: !!r.phone }));
+}
+
+/** "Yes, that contact is them." */
+export async function linkContactToFriend(friendUserId: string, contactId: string): Promise<boolean> {
+  const userId = await requireUserId();
+  return s.linkContactToFriend(getDb(), userId, idSchema.parse(friendUserId), z.uuid().parse(contactId));
 }
 
 export async function sharePastBills(friendUserId: string, billIds: string[]): Promise<number> {

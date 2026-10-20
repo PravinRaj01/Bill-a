@@ -2,9 +2,9 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { config } from "dotenv";
 import { and, eq, inArray } from "drizzle-orm";
 import { getDb } from "./client";
-import { billShares, notifications, paymentClaims, users } from "./schema";
-import { getBill, upsertBill } from "./queries";
-import { answerRequest, createClaim, listSharablePastBills, requestFriend } from "./social";
+import { billShares, notifications, paymentClaims, people, users } from "./schema";
+import { getBill, listPeople, upsertBill, upsertPerson } from "./queries";
+import { answerRequest, createClaim, linkCandidates, linkContactToFriend, listSharablePastBills, requestFriend } from "./social";
 import type { BillData, Participant } from "@/types/domain";
 
 // Bills link friends by ACCOUNT (participants[].userId), so a share survives a rename and a forged id does nothing.
@@ -91,6 +91,29 @@ describe.skipIf(!hasDb)("friends are linked to bills by account (real Neon DB)",
     expect(claim.status).toBe("rejected");
     const told = await db.select().from(notifications).where(and(eq(notifications.userId, B), eq(notifications.kind, "claim_changed")));
     expect(told.length).toBe(1);
+  });
+
+  it("past bills: the friend's first name is not guessed when another pal already goes by it", async () => {
+    // A has a contact "Pravin Raj" (linked to B). A bill names "Pravin" and "Pravin Kumar" (a different pal).
+    const mine = (await listPeople(db, A)).find((p) => p.linkedUserId === B)!;
+    expect(mine.name).toBe("Pravin Raj");
+    const one = await upsertBill(db, A, input(crypto.randomUUID(), { ...bill([{ name: "Alexis", me: true }, { name: "Pravin" }]), settlement: undefined }));
+    expect((await listSharablePastBills(db, A, B)).some((b) => b.id === one.id)).toBe(true); // nobody else is a Pravin: offered
+    await upsertPerson(db, A, { name: "Pravin Kumar" });
+    expect((await listSharablePastBills(db, A, B)).some((b) => b.id === one.id)).toBe(false); // now it could be either: not offered
+    await db.delete(people).where(and(eq(people.userId, A), eq(people.name, "Pravin Kumar")));
+  });
+
+  it("an existing contact can be linked to the friend, keeping its name and number", async () => {
+    await upsertPerson(db, A, { name: "Pravin", phone: "+60123456789" });
+    const cands = await linkCandidates(db, A, B);
+    expect(cands.map((c) => c.name)).toEqual(["Pravin"]);
+    expect(await linkContactToFriend(db, A, C, cands[0].id)).toBe(false); // C is not a friend
+    expect(await linkContactToFriend(db, A, B, cands[0].id)).toBe(true);
+    const mine = await listPeople(db, A);
+    const linked = mine.filter((p) => p.linkedUserId === B);
+    expect(linked.map((p) => [p.name, p.phone])).toEqual([["Pravin", "+60123456789"]]); // one contact, the old one
+    expect(await linkCandidates(db, A, B)).toEqual([]);
   });
 
   it("past bills never offer the owner's own bill, even when the owner shares the friend's first name", async () => {

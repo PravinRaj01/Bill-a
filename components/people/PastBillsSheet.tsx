@@ -68,7 +68,7 @@ export function PastBillsSheet({ friend, onClose }: { friend: { id: string; name
       <DrawerContent data-testid="past-bills">
         <DrawerHeader>
           <DrawerTitle className="text-foreground">Share past bills with {friend?.name}?</DrawerTitle>
-          <DrawerDescription className="text-muted-foreground">They&apos;ll see these bills (names and amounts) in their History. Untick any you&apos;d rather keep to yourself.</DrawerDescription>
+          <DrawerDescription className="text-muted-foreground">They&apos;ll see these bills (names and amounts) in their History. Untick any you&apos;d rather keep to yourself, and check that each one is really them.</DrawerDescription>
         </DrawerHeader>
         <div className="mx-auto w-full max-w-md space-y-4 px-4 pb-6">
           <ul className="max-h-[45vh] space-y-1 overflow-y-auto" data-vaul-no-drag>
@@ -88,7 +88,10 @@ export function PastBillsSheet({ friend, onClose }: { friend: { id: string; name
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold">{b.billTitle}</span>
-                      <span className="block text-xs text-muted-foreground">{new Date(b.createdAt).toISOString().slice(0, 10)}</span>
+                      <span className="block text-xs text-muted-foreground">
+                        {new Date(b.createdAt).toISOString().slice(0, 10)}
+                        {b.asName.trim().toLowerCase() !== friend?.name.trim().toLowerCase() ? ` · written as "${b.asName}"` : ""}
+                      </span>
                     </span>
                     <span className="shrink-0 text-sm font-bold tabular-nums">{formatMoney(b.totalAmount, b.currency)}</span>
                   </button>

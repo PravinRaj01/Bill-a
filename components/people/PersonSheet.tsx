@@ -30,6 +30,8 @@ export function PersonSheet({
   onSave,
   onDelete,
   onNudge,
+  onSharePast,
+  onUnfriend,
 }: {
   /** null = a new contact. */
   person: PersonView | null;
@@ -41,6 +43,10 @@ export function PersonSheet({
   onSave: (input: { name: string; phone: string }) => Promise<string | null>;
   onDelete?: () => void;
   onNudge?: (b: PersonBalance) => void;
+  /** A pal on Bill.a: offer the bills you have already split with them. */
+  onSharePast?: () => void;
+  /** A pal on Bill.a can't be deleted while linked; ending the friendship is what removes the link. */
+  onUnfriend?: () => void;
 }) {
   const [name, setName] = useState(person?.name ?? "");
   const [phone, setPhone] = useState(person?.phone ? formatPhone(person.phone) : "");
@@ -64,7 +70,7 @@ export function PersonSheet({
         <DrawerHeader>
           <DrawerTitle className="text-foreground">{person ? person.name : "Add a person"}</DrawerTitle>
           <DrawerDescription className="text-muted-foreground">
-            {person ? "Their number lets a nudge open their WhatsApp chat." : "Save a name, and a WhatsApp number if you have it."}
+            {person?.friend ? `${person.friend.username ? `@${person.friend.username} · ` : ""}Pals on Bill.a` : person ? "Their number lets a nudge open their WhatsApp chat." : "Save a name, and a WhatsApp number if you have it."}
           </DrawerDescription>
         </DrawerHeader>
 
@@ -72,7 +78,7 @@ export function PersonSheet({
           {person && (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <PersonAvatar name={person.name} className="size-12" />
+                <PersonAvatar name={person.name} seed={person.friend?.avatarSeed} className="size-12" />
                 <div className="min-w-0 flex-1" data-testid="person-balance">
                   {balances.length === 0 ? (
                     <p className="text-sm text-muted-foreground">All square. Nothing owed either way.</p>
@@ -146,11 +152,26 @@ export function PersonSheet({
             </p>
           )}
 
+          {person?.linkedUserId && (onSharePast || onUnfriend) && (
+            <div className="flex gap-3">
+              {onSharePast && (
+                <Button type="button" variant="glass" data-testid="friend-share-past" className="h-11 flex-1" onClick={onSharePast}>
+                  Share past bills
+                </Button>
+              )}
+              {onUnfriend && (
+                <Button type="button" variant="outline" data-testid="friend-remove" className="h-11 flex-1 rounded-xl border-white/10 text-destructive hover:bg-destructive/10 hover:text-destructive" onClick={onUnfriend}>
+                  Unfriend
+                </Button>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-3">
             <Button type="button" data-testid="person-save" onClick={save} disabled={!name.trim() || saving} className="h-12 flex-1">
               {saving && <Loader2 className="mr-2 size-4 animate-spin" />} {person ? "Save" : "Add"}
             </Button>
-            {person && onDelete && (
+            {person && onDelete && !person.linkedUserId && (
               <Button type="button" data-testid="person-delete" variant="outline" onClick={onDelete} aria-label="Delete person" className="h-12 rounded-xl border-white/10 px-4 text-destructive hover:bg-destructive/10 hover:text-destructive">
                 <Trash2 size={18} />
               </Button>
