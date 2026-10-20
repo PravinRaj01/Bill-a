@@ -13,12 +13,13 @@ import { parseNewPerson, parsePersonPatch } from "@/lib/validation/people";
 
 const idSchema = z.uuid();
 
-export type PersonView = Awaited<ReturnType<typeof q.listPeople>>[number];
+/** A contact; `friend` is the public side of the Bill.a account it is linked to (only on the list, absent after an edit). */
+export type PersonView = Awaited<ReturnType<typeof q.listPeople>>[number] & { friend?: { name: string | null; username: string | null; avatarSeed: string | null } | null };
 
 /** Guests have no contacts, so they get an empty list rather than an error. */
 export async function listPeople(): Promise<PersonView[]> {
   const userId = await getUserIdOrNull();
-  return userId ? q.listPeople(getDb(), userId) : [];
+  return userId ? q.listPeopleWithFriends(getDb(), userId) : [];
 }
 
 export type SavePersonResult = { ok: true; person: PersonView } | { ok: false; error: string };

@@ -30,6 +30,8 @@ export function notificationText(n: NotificationLike, actor: string): string {
       return `${actor} says your ${money(n.payload)} for ${title(n.payload)} hasn't arrived`;
     case "claim_changed":
       return `${actor} changed ${title(n.payload)}, so your payment note no longer matches. Check what you owe and tell them again`;
+    case "bill_unshared":
+      return `${actor} stopped sharing ${title(n.payload)} with you`;
     case "bill_deleted":
       return `${actor} deleted ${title(n.payload)}`;
     case "digest":
@@ -56,6 +58,7 @@ export function notificationHref(n: NotificationLike): string | null {
     case "digest":
       return "/dashboard/balances";
     case "bill_deleted":
+    case "bill_unshared":
       return null;
   }
 }

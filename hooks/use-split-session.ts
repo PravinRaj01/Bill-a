@@ -90,7 +90,12 @@ export function useSplitSession() {
   // Which friends the people in this split stand for. The contacts decide for new names; a bill being edited keeps
   // what it recorded for the names it already had (`known`), so editing never shares a bill the owner left out.
   const { people: contacts } = usePhoneBook();
-  const [known, setKnown] = useState<Map<string, string | null> | null>(null);
+  const [known, setKnownState] = useState<Map<string, string | null> | null>(null);
+  const knownRef = useRef<Map<string, string | null> | null>(null); // the same value, readable by a save that runs right after a change
+  const setKnown = (next: Map<string, string | null> | null) => {
+    knownRef.current = next;
+    setKnownState(next);
+  };
   const links = useMemo(() => contactLinks(contacts, known), [contacts, known]);
   const [sessionName, setSessionName] = useState("");
   const [receipt, setReceipt] = useState<Receipt | null>(null);
@@ -525,7 +530,7 @@ export function useSplitSession() {
       sessionName.trim() || (await nextSessionTitle().catch(() => `Session ${new Date().toLocaleDateString()}`));
     // Who was in it and which one is the user. settlement.me stays written for older readers, so it must agree.
     // Contacts that haven't loaded yet (a fast save) are fetched now, so a friend is never saved as a plain name by accident.
-    const linkMap = contacts === null ? contactLinks(await listPeople().catch(() => null), known) : links;
+    const linkMap = contactLinks(contacts ?? (await listPeople().catch(() => null)), knownRef.current);
     const participants = legacy ? null : buildParticipants(people, hasMe ? me : null, linkMap);
     const meInBill = participants?.find((p) => p.me)?.name;
     const settleOut = settle && participants ? { ...settle, me: meInBill } : settle;
@@ -598,6 +603,14 @@ export function useSplitSession() {
     changeRef.current = changeSettlementNow;
   });
   const changeSettlement = useCallback((change: (s: Settlement) => Settlement) => changeRef.current(change), []);
+
+  /** Share the bill with a friend on it (their account), or stop sharing it (null). The person stays on the bill. */
+  const setShared = async (name: string, userId: string | null) => {
+    const next = new Map(knownRef.current ?? []);
+    next.set(name.trim().toLowerCase(), userId);
+    setKnown(next);
+    await attemptSave(structuredSplit, splitResult, cashUnit, absorberName, savedSettlement);
+  };
 
   const stopTracking = async () => {
     setSavedSettlement(null);
@@ -779,7 +792,7 @@ export function useSplitSession() {
     // who first, then how
     canSaveAsGroup, saveAsGroup, whoFirst, how, chooseHow, stepOrder: quick ? STEP_ORDER : WHO_FIRST_ORDER, amountFlow: quick || how === "amount",
     // people & groups
-    people, addPerson, removePerson, nameProblem, me, meName, hasMe, addMe, legacy,
+    people, addPerson, removePerson, nameProblem, me, meName, hasMe, addMe, legacy, contacts, setShared,
     // who was in it (null for an older bill): handed to Settle up, which then stops asking "which one is you?"
     participants: legacy ? null : buildParticipants(people, hasMe ? me : null, links),
     hosted: !legacy && !hasMe,

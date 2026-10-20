@@ -289,6 +289,18 @@ export async function upsertBill(db: Db, userId: string, input: BillInput) {
 
 export const listPeople = (db: Db, userId: string) => db.select().from(people).where(eq(people.userId, userId)).orderBy(people.nameKey);
 
+/** The contacts, with the public side (name, @username, portrait) of those linked to a friend. Only this user's friends. */
+export async function listPeopleWithFriends(db: Db, userId: string) {
+  const rows = await listPeople(db, userId);
+  const ids = rows.flatMap((r) => (r.linkedUserId ? [r.linkedUserId] : []));
+  const found = ids.length ? await db.select({ id: users.id, name: users.name, username: users.username, avatarSeed: users.avatarSeed }).from(users).where(inArray(users.id, ids)) : [];
+  const byId = new Map(found.map((u) => [u.id, u]));
+  return rows.map((r) => {
+    const u = r.linkedUserId ? byId.get(r.linkedUserId) : undefined;
+    return { ...r, friend: u ? { name: u.name, username: u.username, avatarSeed: u.avatarSeed } : null };
+  });
+}
+
 export type PersonInput = { name: string; phone?: string | null };
 
 /**

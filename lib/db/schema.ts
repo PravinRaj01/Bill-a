@@ -229,6 +229,7 @@ export type NotificationKind =
   | "claim_confirmed"
   | "claim_rejected"
   | "claim_changed"
+  | "bill_unshared"
   | "bill_deleted"
   | "nudge"
   | "digest";
