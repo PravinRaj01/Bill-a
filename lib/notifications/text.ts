@@ -45,6 +45,39 @@ export function notificationText(n: NotificationLike, actor: string): string {
   }
 }
 
+/** A short headline for a phone notification: what kind of thing happened (the sentence says the rest). */
+export function notificationTitle(kind: NotificationKind): string {
+  switch (kind) {
+    case "friend_request":
+      return "Friend request";
+    case "friend_accepted":
+      return "New pal";
+    case "bill_added":
+      return "Added to a bill";
+    case "bill_unshared":
+      return "Bill removed";
+    case "bill_deleted":
+      return "Bill deleted";
+    case "claim_made":
+      return "Payment";
+    case "claim_confirmed":
+      return "Payment confirmed";
+    case "claim_rejected":
+      return "Payment not received";
+    case "claim_changed":
+      return "Bill changed";
+    case "nudge":
+      return "Reminder";
+    case "digest":
+      return "Daily summary";
+    case "welcome":
+      return "Welcome to Bill.a";
+  }
+}
+
+/** Events someone is waiting on should wake the phone; the digest and the welcome can wait for it to be awake. */
+export const isUrgent = (kind: NotificationKind): boolean => kind !== "digest" && kind !== "welcome";
+
 /** Where tapping it goes, or null when there is nothing left to open. */
 export function notificationHref(n: NotificationLike): string | null {
   switch (n.kind) {

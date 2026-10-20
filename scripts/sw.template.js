@@ -51,8 +51,8 @@ self.addEventListener("message", (event) => {
   if (data.type === "cache-page" && SHELL_ROUTES.includes(data.path)) event.waitUntil(cachePage(data.path));
 });
 
-// Web Push: the server sends { title, body, url, tag }. Tapping the notification opens (or focuses) the app at
-// that path. Only same-site paths are followed.
+// Web Push: the server sends { id, title, body, url, tag }. Tapping the notification opens (or focuses) the app at
+// that path (with ?n=<id>, so the app marks it read). Only same-site paths are followed.
 self.addEventListener("push", (event) => {
   let data = {};
   try {
@@ -60,21 +60,28 @@ self.addEventListener("push", (event) => {
   } catch (_) {
     /* not JSON: show the generic message */
   }
-  event.waitUntil(
-    self.registration.showNotification(data.title || "Bill.a", {
-      body: data.body || "You have a new notification",
-      icon: "/icon.png",
-      badge: "/badge.png", // Android draws the status-bar icon from transparency only: a white silhouette, not the square app icon
-      tag: data.tag || "billa",
-      data: { url: typeof data.url === "string" ? data.url : "/dashboard/notifications" },
-    }),
-  );
+  // Android draws the small icon (badge) in the status bar and, if there is also a large icon, the logo again on the
+  // right: the same picture twice. So on Android only the badge is set; desktop browsers have no badge and get the logo.
+  const android = /android/i.test(self.navigator.userAgent || "");
+  const options = {
+    body: data.body || "You have a new notification",
+    badge: "/badge.png", // a solid white silhouette: Android uses only its transparency
+    tag: data.tag || "billa", // per event, so different events stack and a repeat of one updates it
+    renotify: true,
+    timestamp: Date.now(),
+    data: { url: typeof data.url === "string" ? data.url : "/dashboard/notifications", id: typeof data.id === "string" ? data.id : null },
+  };
+  if (!android) options.icon = "/icon.png";
+  event.waitUntil(self.registration.showNotification(data.title || "Bill.a", options));
 });
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const raw = (event.notification.data && event.notification.data.url) || "/dashboard/notifications";
-  const url = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard/notifications";
+  const info = event.notification.data || {};
+  const raw = info.url || "/dashboard/notifications";
+  let url = raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard/notifications";
+  // The app reads ?n=<id> and marks that notification read.
+  if (typeof info.id === "string") url += (url.includes("?") ? "&" : "?") + "n=" + encodeURIComponent(info.id);
   event.waitUntil(
     (async () => {
       const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });

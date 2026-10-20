@@ -40,5 +40,5 @@ export async function removePushSubscription(endpoint: string): Promise<boolean>
 /** "Send me a test": a real push to my own devices, so I can see it works. Returns how many devices got it. */
 export async function sendTestPush(): Promise<number> {
   const userId = await requireUserId();
-  return pushToUser(getDb(), userId, { title: "Bill.a", body: "Notifications are on. You'll hear about friends, shared bills and payments here.", url: "/dashboard/notifications", tag: "test" });
+  return pushToUser(getDb(), userId, { urgent: true, title: "Bill.a", body: "Notifications are on. You'll hear about friends, shared bills and payments here.", url: "/dashboard/notifications", tag: "test" });
 }

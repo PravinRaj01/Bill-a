@@ -49,7 +49,13 @@ export function NotificationSettings() {
     const state = await getPushState();
     const reg = await registration();
     if (!state.publicKey || !reg) throw new Error("unavailable");
-    if ((await Notification.requestPermission()) !== "granted") return setStatus("blocked");
+    const permission = await Notification.requestPermission();
+    // Closing the prompt ("default") is not a refusal: the switch stays usable. Only a real "denied" is blocked.
+    if (permission === "denied") return setStatus("blocked");
+    if (permission !== "granted") {
+      toast("Notifications weren't turned on. You can try again any time.");
+      return;
+    }
     const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(state.publicKey) });
     await savePushSubscription(sub.toJSON());
     setStatus("on");

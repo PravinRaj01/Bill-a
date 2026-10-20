@@ -1,7 +1,7 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { ownerLabel } from "@/lib/split/shared";
-import { notificationHref, notificationText } from "@/lib/notifications/text";
+import { isUrgent, notificationHref, notificationText, notificationTitle } from "@/lib/notifications/text";
 import { afterResponse } from "@/lib/push/after";
 import { pushConfigured, pushToUser } from "@/lib/push/send";
 import type { Db } from "./client";
@@ -36,19 +36,27 @@ export async function notify(db: Db, n: NotifyInput): Promise<boolean> {
         .returning({ id: notifications.id })
     : await q.onConflictDoNothing().returning({ id: notifications.id });
   if (rows.length === 0) return false;
-  if (pushConfigured()) afterResponse(() => pushNew(db, n));
+  if (pushConfigured()) afterResponse(() => pushNew(db, n, rows[0].id));
   return true;
 }
 
 /** The phone side of a new notification: the same sentence the inbox shows, to every device the user turned on. */
-async function pushNew(db: Db, n: NotifyInput): Promise<void> {
+async function pushNew(db: Db, n: NotifyInput, id: string): Promise<void> {
   let actor = "Someone";
   if (n.actorId) {
     const [u] = await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, n.actorId)).limit(1);
     if (u) actor = ownerLabel(u);
   }
   const like = { kind: n.kind, billId: n.billId ?? null, payload: n.payload ?? {}, actorId: n.actorId ?? null };
-  await pushToUser(db, n.userId, { title: "Bill.a", body: notificationText(like, actor), url: notificationHref(like) ?? "/dashboard/notifications", tag: n.kind });
+  await pushToUser(db, n.userId, {
+    id,
+    urgent: isUrgent(n.kind),
+    title: notificationTitle(n.kind),
+    body: notificationText(like, actor),
+    url: notificationHref(like) ?? "/dashboard/notifications",
+    // Different events stack, a repeat of the same one updates it: kind + the bill or person it is about.
+    tag: `${n.kind}:${n.billId ?? n.actorId ?? "x"}`,
+  });
 }
 
 /** The one-time hello for a new account: points at the optional AI key guide. Once per account (the dedupe key). */

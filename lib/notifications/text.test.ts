@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { notificationHref, notificationText } from "./text";
+import { isUrgent, notificationHref, notificationText, notificationTitle } from "./text";
 
 const bill = "11111111-1111-4111-8111-111111111111";
 
@@ -30,5 +30,21 @@ describe("notification text", () => {
     expect(notificationHref({ kind: "claim_made", billId: bill, payload: {} })).toBe(`/dashboard/history/${bill}`);
     expect(notificationHref({ kind: "nudge", billId: null, payload: {} })).toBeNull();
     expect(notificationHref({ kind: "bill_deleted", billId: null, payload: {} })).toBeNull();
+  });
+});
+
+describe("phone notification titles", () => {
+  const kinds = ["friend_request", "friend_accepted", "bill_added", "bill_unshared", "bill_deleted", "claim_made", "claim_confirmed", "claim_rejected", "claim_changed", "nudge", "digest", "welcome"] as const;
+  it("every kind has its own short headline", () => {
+    const titles = kinds.map((k) => notificationTitle(k));
+    expect(new Set(titles).size).toBe(kinds.length);
+    expect(titles.every((t) => t.length > 0 && t.length <= 24)).toBe(true);
+    expect(notificationTitle("claim_made")).toBe("Payment");
+  });
+  it("the daily summary and the welcome are not urgent; things someone is waiting on are", () => {
+    expect(isUrgent("digest")).toBe(false);
+    expect(isUrgent("welcome")).toBe(false);
+    expect(isUrgent("friend_request")).toBe(true);
+    expect(isUrgent("claim_made")).toBe(true);
   });
 });
