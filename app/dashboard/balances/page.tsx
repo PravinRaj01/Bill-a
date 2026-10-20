@@ -8,6 +8,7 @@ import { BalanceCard } from "@/components/balances/BalanceCard";
 import { PageTransition } from "@/components/page-transition";
 import { PaymentToggle } from "@/components/payment/PaymentToggle";
 import { usePaymentShare } from "@/hooks/use-payment-share";
+import { pendingClaimsByBill } from "@/lib/actions/shared";
 import { getBalances, getBill, type BalancesResult } from "@/lib/actions/history";
 import { pushOutbox } from "@/lib/actions/sync";
 import { getCurrentUser } from "@/lib/actions/user";
@@ -28,6 +29,7 @@ export default function BalancesPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const payment = usePaymentShare();
   const { phoneFor } = usePhoneBook();
+  const [claims, setClaims] = useState<Record<string, number>>({});
 
   const reload = useCallback(async () => {
     setResult(await getBalances());
@@ -36,6 +38,7 @@ export default function BalancesPage() {
   useEffect(() => {
     getCurrentUser().then((u) => setUser(u ? { id: u.id } : null)).catch(() => setUser(null));
     getBalances().then(setResult).catch(() => setResult({ people: [], tracked: 0, withoutMe: 0 }));
+    pendingClaimsByBill().then(setClaims).catch(() => setClaims({}));
   }, []);
 
   const totals = useMemo(() => {
@@ -145,7 +148,7 @@ export default function BalancesPage() {
             {people.length > 0 ? (
               <ul className="grid gap-4 lg:grid-cols-2 lg:items-start">
                 {people.map((p) => (
-                  <BalanceCard key={p.key} person={p} busy={busy === p.key} onNudge={nudge} onSettle={settle} />
+                  <BalanceCard key={p.key} person={p} busy={busy === p.key} claimBills={claims} onNudge={nudge} onSettle={settle} />
                 ))}
               </ul>
             ) : (

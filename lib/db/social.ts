@@ -223,7 +223,7 @@ async function syncSharesById(db: Db, ownerId: string, billId: string, participa
     await db.delete(billShares).where(and(eq(billShares.billId, billId), inArray(billShares.userId, gone)));
     const [bill] = await db.select({ title: billHistory.billTitle }).from(billHistory).where(eq(billHistory.id, billId)).limit(1);
     // The bill is still there, but it has left their History: say so, once per time it happens.
-    for (const userId of gone) await notify(db, { userId, kind: "bill_unshared", actorId: ownerId, payload: { title: bill?.title ?? "a bill" }, dedupe: `bill_unshared:${billId}`, refresh: true });
+    for (const userId of gone) await notify(db, { userId, kind: "bill_unshared", actorId: ownerId, billId, payload: { title: bill?.title ?? "a bill" }, dedupe: `bill_unshared:${billId}`, refresh: true });
   }
 }
 

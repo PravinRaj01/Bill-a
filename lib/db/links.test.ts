@@ -73,6 +73,8 @@ describe.skipIf(!hasDb)("friends are linked to bills by account (real Neon DB)",
     await upsertBill(db, A, input(clientId, bill([{ name: "Alexis", me: true }, { name: "Praveen" }])));
     expect(await sharesOf(first.id)).toHaveLength(0);
     expect((await getBill(db, A, first.id))!.data.people).toContain("Praveen");
+    const told = await db.select().from(notifications).where(and(eq(notifications.userId, B), eq(notifications.billId, first.id), eq(notifications.kind, "bill_unshared")));
+    expect(told).toHaveLength(1); // the friend hears it left their History
     await db.update(notifications).set({ readAt: new Date() }).where(and(eq(notifications.userId, B), eq(notifications.billId, first.id)));
     await upsertBill(db, A, input(clientId, bill([{ name: "Alexis", me: true }, { name: "Praveen", userId: B }])));
     const unread = await db.select().from(notifications).where(and(eq(notifications.userId, B), eq(notifications.billId, first.id), eq(notifications.kind, "bill_added")));

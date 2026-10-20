@@ -18,11 +18,14 @@ const action =
 export function BalanceCard({
   person,
   busy,
+  claimBills,
   onNudge,
   onSettle,
 }: {
   person: PersonBalance;
   busy: boolean;
+  /** My bills with a friend's "I've paid" waiting, by bill id. */
+  claimBills: Record<string, number>;
   onNudge: (p: PersonBalance) => void;
   onSettle: (p: PersonBalance) => void;
 }) {
@@ -34,6 +37,7 @@ export function BalanceCard({
   const hasOwn = person.bills.some((b) => !b.shared);
   const hasTheirs = person.bills.some((b) => b.shared);
   const ownCount = person.bills.filter((b) => !b.shared).length;
+  const claimed = person.bills.find((b) => !b.shared && claimBills[b.id]);
   // Some bills they owe you, some you owe them: the card shows the net, and marking paid clears them all.
   const bothWays = person.bills.some((b) => b.amount > 0) && person.bills.some((b) => b.amount < 0);
 
@@ -54,6 +58,13 @@ export function BalanceCard({
           <p className="text-xs font-semibold text-muted-foreground">{theyOweYou ? "owes you" : "you owe"}</p>
         </div>
       </div>
+
+      {claimed && (
+        <Link href={`/dashboard/history/${claimed.id}?from=balances`} transitionTypes={["nav-forward"]} data-testid="balance-claim" className="-mt-1 flex min-h-11 items-center justify-between gap-2 rounded-2xl border border-success/30 bg-success/10 px-4 text-sm font-semibold text-success">
+          <span>{person.name} says they paid you</span>
+          <span>Check</span>
+        </Link>
+      )}
 
       {bothWays && (
         <p data-testid="both-ways" className="-mt-1 px-1 text-xs text-muted-foreground">

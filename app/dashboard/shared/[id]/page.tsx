@@ -26,7 +26,10 @@ export default function SharedBillPage() {
 
   const load = useCallback(async () => {
     const d = await getSharedDetail(id).catch(() => null);
-    if (!d) router.push("/dashboard/history");
+    if (!d) {
+      toast("This bill isn't shared with you any more");
+      router.push("/dashboard/history");
+    }
     else setBill(d);
     setLoading(false);
   }, [id, router]);
