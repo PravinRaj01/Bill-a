@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import type { Db } from "./client";
 import { billHistory, billShares, people, savedGroups, users } from "./schema";
 import { notify } from "./notifications";
+import { parsePrefs, type Category, type NotifyPrefs } from "@/lib/notifications/prefs";
 import { propagateRename } from "./rename";
 import { confirmSatisfiedClaims, syncShares, withFriendIds } from "./social";
 import type { BillData, Participant, PaymentDetails, Settlement, SplitRecord } from "@/types/domain";
@@ -449,6 +450,21 @@ export async function setProfile(
 
 export async function setTimeZone(db: Db, userId: string, tz: string): Promise<void> {
   await db.update(users).set({ tz }).where(eq(users.id, userId));
+}
+
+/** The user's notification preferences (only categories switched off are stored). */
+export async function getNotifyPrefs(db: Db, userId: string): Promise<NotifyPrefs> {
+  const [row] = await db.select({ p: users.notifyPrefs }).from(users).where(eq(users.id, userId)).limit(1);
+  return parsePrefs(row?.p);
+}
+
+/** Switch one category on or off for push. Keyed by the session's user id only. */
+export async function setNotifyPref(db: Db, userId: string, category: Category, on: boolean): Promise<NotifyPrefs> {
+  await db
+    .update(users)
+    .set({ notifyPrefs: on ? sql`${users.notifyPrefs} - ${category}::text` : sql`${users.notifyPrefs} || ${JSON.stringify({ [category]: false })}::jsonb` })
+    .where(eq(users.id, userId));
+  return getNotifyPrefs(db, userId);
 }
 
 /**

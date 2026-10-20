@@ -1,6 +1,7 @@
 import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 
 import { ownerLabel } from "@/lib/split/shared";
+import { parsePrefs, wantsPush } from "@/lib/notifications/prefs";
 import { isUrgent, notificationHref, notificationText, notificationTitle } from "@/lib/notifications/text";
 import { afterResponse } from "@/lib/push/after";
 import { pushConfigured, pushToUser } from "@/lib/push/send";
@@ -42,6 +43,9 @@ export async function notify(db: Db, n: NotifyInput): Promise<boolean> {
 
 /** The phone side of a new notification: the same sentence the inbox shows, to every device the user turned on. */
 async function pushNew(db: Db, n: NotifyInput, id: string): Promise<void> {
+  // The inbox keeps everything; only what this person chose to hear about goes to the phone.
+  const [pref] = await db.select({ p: users.notifyPrefs }).from(users).where(eq(users.id, n.userId)).limit(1);
+  if (!wantsPush(parsePrefs(pref?.p), n.kind)) return;
   let actor = "Someone";
   if (n.actorId) {
     const [u] = await db.select({ name: users.name, username: users.username }).from(users).where(eq(users.id, n.actorId)).limit(1);

@@ -52,6 +52,8 @@ export const users = pgTable("user", {
   avatarSeed: text("avatar_seed"),
   // The person's IANA time zone, so "today" and the daily digest use their own day.
   tz: text("tz").notNull().default("Asia/Kuala_Lumpur"),
+  // Which kinds of notification reach the phone; only the ones switched off are stored (lib/notifications/prefs.ts).
+  notifyPrefs: jsonb("notify_prefs").$type<Record<string, boolean>>().notNull().default({}),
 }, (t) => [check("user_username_format", sql`${t.username} ~ '^[a-z0-9_]{3,20}$'`)]);
 
 export const accounts = pgTable(
