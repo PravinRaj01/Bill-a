@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { aggregateBalances } from "./settle";
 
-import { mySharedSummary, sharedBalances, type SharedForBalances } from "./shared";
+import { mergeBalances, mySharedSummary, sharedBalances, type SharedForBalances } from "./shared";
 
 const owner = { id: "owner-1", name: "Alexis", username: "alexis" };
 const bill = (over: Partial<SharedForBalances> = {}): SharedForBalances => ({
@@ -62,5 +63,40 @@ describe("mySharedSummary", () => {
   });
   it("is null without a settlement", () => {
     expect(mySharedSummary(bill({ settlement: null }), "2026-01-02")).toBeNull();
+  });
+});
+
+describe("mergeBalances", () => {
+  it("shows a linked friend as one row, however their own bills named them", () => {
+    const own = aggregateBalances(
+      [
+        {
+          id: "own1",
+          title: "Lunch",
+          createdAt: "2026-01-01",
+          currency: "RM",
+          split: [
+            { name: "Me", amount: 2000 },
+            { name: "Pravin", amount: 2000 },
+          ],
+          settlement: { me: "Me", paidBy: [{ name: "Me", amount: 4000 }], paid: {} },
+          linked: { pravin: "owner-1" },
+        },
+      ],
+      "2026-01-02",
+    );
+    expect(own[0].key).toBe("RM|u:owner-1");
+    const theirs = sharedBalances([bill()], "2026-01-02"); // Alexis (owner-1) is owed 30.00 by me
+    const merged = mergeBalances(own, theirs);
+    expect(merged).toHaveLength(1);
+    expect(merged[0].net).toBe(2000 - 3000);
+    expect(merged[0].name).toBe("Pravin"); // my own word for them
+    expect(merged[0].shared).toBeUndefined(); // mixed: Mark all paid only touches my bills
+    expect(merged[0].bills.map((b) => !!b.shared)).toEqual([false, true]);
+  });
+
+  it("a row of friends' bills only stays shared", () => {
+    const merged = mergeBalances([], sharedBalances([bill()], "2026-01-02"));
+    expect(merged[0].shared).toEqual({ ownerId: "owner-1" });
   });
 });

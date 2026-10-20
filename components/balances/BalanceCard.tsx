@@ -30,6 +30,10 @@ export function BalanceCard({
   const theyOweYou = person.net > 0;
   const money = (c: number) => formatMoney(Math.abs(c), person.currency);
   const n = person.bills.length;
+  // A friend can be both: some bills are mine (I can mark them paid), some are theirs (only they can).
+  const hasOwn = person.bills.some((b) => !b.shared);
+  const hasTheirs = person.bills.some((b) => b.shared);
+  const ownCount = person.bills.filter((b) => !b.shared).length;
   // Some bills they owe you, some you owe them: the card shows the net, and marking paid clears them all.
   const bothWays = person.bills.some((b) => b.amount > 0) && person.bills.some((b) => b.amount < 0);
 
@@ -53,18 +57,18 @@ export function BalanceCard({
 
       {bothWays && (
         <p data-testid="both-ways" className="-mt-1 px-1 text-xs text-muted-foreground">
-          Bills go both ways, so this is the net. Marking paid settles all {n} of them.
+          Bills go both ways, so this is the net. Marking paid settles {hasTheirs ? `your ${ownCount}` : `all ${n}`} of them.
         </p>
       )}
 
-      {person.shared && (
+      {hasTheirs && (
         <p data-testid="shared-note" className="-mt-1 px-1 text-xs text-muted-foreground">
-          These are {person.name}&apos;s bills, so only they can mark things paid. Open a bill to say you&apos;ve paid.
+          {hasOwn ? `Some of these are ${person.name}'s bills,` : `These are ${person.name}'s bills,`} so only they can mark those paid. Open one to say you&apos;ve paid.
         </p>
       )}
 
       <div className="flex flex-wrap gap-2">
-        {theyOweYou && !person.shared && (
+        {theyOweYou && hasOwn && (
           <button
             type="button"
             data-testid="balance-nudge"
@@ -74,7 +78,7 @@ export function BalanceCard({
             <Send className="size-4" /> Nudge {person.name}
           </button>
         )}
-        {!person.shared && (
+        {hasOwn && (
         <button
           type="button"
           data-testid="balance-settle"
@@ -111,7 +115,7 @@ export function BalanceCard({
             {person.bills.map((b) => (
               <li key={b.id}>
                 <Link
-                  href={person.shared ? `/dashboard/shared/${b.id}` : `/dashboard/history/${b.id}?from=balances`}
+                  href={b.shared ? `/dashboard/shared/${b.id}` : `/dashboard/history/${b.id}?from=balances`}
                   transitionTypes={["nav-forward"]}
                   className="flex min-h-12 items-center justify-between gap-3 rounded-xl bg-white/[0.07] px-3 py-2 transition-colors hover:bg-white/5"
                 >

@@ -63,7 +63,7 @@ export default function BalancesPage() {
       name: p.name,
       payTo: "me",
       currency: p.currency,
-      lines: p.bills.filter((b) => b.amount > 0).map((b) => ({ title: b.title, date: b.createdAt, amount: b.amount })),
+      lines: p.bills.filter((b) => b.amount > 0 && !b.shared).map((b) => ({ title: b.title, date: b.createdAt, amount: b.amount })),
       payment: payment.block || undefined, // these balances are owed to the user
     });
     const msg = shareMessage(await shareToPerson(text, phoneFor(p.name)));
@@ -77,6 +77,7 @@ export default function BalancesPage() {
       const today = localDate();
       const before: Awaited<ReturnType<typeof getBill>>[] = [];
       for (const b of p.bills) {
+        if (b.shared) continue; // their bill: only they can mark it paid
         const row = await getBill(b.id);
         const current = row?.data.settlement;
         if (!row || !current) continue;
