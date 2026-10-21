@@ -19,7 +19,9 @@ export const metadata: Metadata = {
     title: "Bill.a",
   },
   icons: {
-  icon: '/icon.png',
+  icon: [
+      { url: '/favicon-white.png', sizes: '64x64', type: 'image/png' },
+    ],
   shortcut: '/favicon.ico',
   apple: [
     { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
