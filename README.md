@@ -1,4 +1,8 @@
 <p align="center">
+  <img src="docs/images/banner-split-settle.jpg" alt="Bill.a: Split it. Settle it. Know exactly who has paid you back." width="720">
+</p>
+
+<p align="center">
   <a href="https://bill-a.vercel.app/">
     <img src="docs/images/home.png" alt="Bill.a home screen: a greeting, Scan receipt and Quick split tiles, a Pals row, what you are owed and the latest bill" width="250">
     <img src="docs/images/receipt.png" alt="A saved bill as a receipt: the total, each person's share, who paid and the settle-up controls" width="250">
@@ -53,6 +57,10 @@
 
 ## Features
 
+<p align="center">
+  <img src="docs/images/three-taps.jpg" alt="Split in three taps: pick who is splitting, enter the amount, choose how it is split" width="720">
+</p>
+
 | Area | What it does |
 | --- | --- |
 | **Scan on your device** | A photo of the receipt is read by [tesseract.js](https://github.com/naptha/tesseract.js) in a Web Worker. A deterministic parser turns the text into items, tax and a total in integer cents. After one online visit, scanning works with no signal. |
@@ -71,6 +79,11 @@
 | **Bring your own AI key** | Add a free Groq and/or Gemini key in the app. It stays in your browser. Without one, an on-device parser still handles clear instructions. |
 | **Catches a wrong AI answer** | When the AI's plan and the on-device parser disagree on the amounts, both readings are shown and you choose. |
 | **Works like an app** | Installable, works offline for splitting and scanning, local-first saves that sync when you are back online. Dark theme only. |
+
+<p align="center">
+  <img src="docs/images/settle-up.jpg" alt="Settle up: mark each transfer, set a due date, nudge on WhatsApp" width="360">
+  <img src="docs/images/balances.jpg" alt="Balances: see who owes you and nudge them in a tap" width="360">
+</p>
 
 ## How it works
 
@@ -154,6 +167,10 @@ The model only ever answers "who owns what". The engine does the maths, and ever
 A save is written to an IndexedDB outbox first and returns immediately, then a sync manager drains it to the server whenever there is a connection. Each bill has a client-generated id that is unique per user, so retrying never duplicates a row. The service worker keeps the OCR runtime and the guest-usable app shell, and never caches per-user pages or any non-GET request, so one person's data cannot be served to another on a shared phone. The saved pals list is cleared on sign-out.
 
 ### Pals, shared bills and payment claims
+
+<p align="center">
+  <img src="docs/images/friends.jpg" alt="Pals and notifications: link a pal with @username, an invite link or a QR code" width="720">
+</p>
 
 A pal is a name with an optional WhatsApp number. A pal becomes a **friend** when you and another account accept each other, found by exact `@username` (no browsing or partial search), an invite link or a QR code. When a bill includes a linked friend, the bill records their account, not just their name, and the server keeps that link only for accepted friends.
 
